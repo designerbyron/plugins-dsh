@@ -1,9 +1,10 @@
 {
-  "generado": "2026-11-05T04:29:18.370Z",
+  "generado": "2026-11-05T05:24:44.560Z",
   "ficheros": {
     "bin/skill-compiler.mjs": 0,
     "client.js": 884,
     "index.js": 327,
+    "lib/approve-tx.mjs": 0,
     "lib/audit.mjs": 301,
     "lib/auto-approve.mjs": 170,
     "lib/auto-update.mjs": 276,

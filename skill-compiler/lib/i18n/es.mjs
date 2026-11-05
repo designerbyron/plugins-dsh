@@ -477,6 +477,13 @@ export default Object.freeze({
   'cli.doctor.security-failed-remedy': 'comprueba que el almacen existe y se puede leer',
   'cli.doctor.security-empty': 'capa de seguridad: nada que revisar todavia (no existe {ruta}: el almacen aun no tiene proyectos)',
   'cli.doctor.security-unreadable': 'capa de seguridad: no se pudo leer {ruta} ({codigo})',
+  // Aprobaciones que quedaron a medias: la intencion sigue en `.tx/` y el paquete esta donde el cierre lo dejo.
+  'cli.doctor.tx-pending': 'transaccion pendiente: {id} en {proyecto} - estado {estado} - tx {tx} - recuperacion: necesaria',
+  'cli.doctor.tx-pending-detail': 'transaccion pendiente: {id} en {proyecto} - estado {estado} - tx {tx} - {problemas} - recuperacion: necesaria',
+  'cli.doctor.tx-inconsistent': 'transaccion inconsistente: {id} en {proyecto} - estado {estado} - tx {tx} - {problemas}',
+  'cli.doctor.tx-remedy': 'aprueba algo de ese proyecto (cierra la transaccion antes) o revisa `projects/<clave>/.tx/` a mano; `doctor` no repara nunca',
+  'cli.doctor.tx-no-detail': 'sin detalle',
+  'cli.doctor.tx-failed': 'transacciones pendientes: no se pudieron revisar ({message})',
   'cli.doctor.catalogue-incomplete': '  catalogo incompleto: {n} clave(s) sin traducir',
   'cli.doctor.deps-header': '\ndependencias declaradas: {n}',
   'cli.doctor.remedy': '        remedio: {remedy}',

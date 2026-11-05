@@ -14,9 +14,10 @@ import { autoApproveFor } from './auto-approve.mjs';
 import { medirAutoActualizacion } from './auto-update.mjs';
 import { mejorar, textoDelInforme } from './improve.mjs';
 import { promover } from './promote.mjs';
-import { approve, checkProposal, defaultRoot, listForProject, overview, projectKey, propose, readSkill } from './compiler.mjs';
+import { checkProposal, defaultRoot, listForProject, overview, projectKey, propose, readSkill } from './compiler.mjs';
 import { markerLine } from './presentation.mjs';
-import { anotarEntradaEnDiario, huellaDeContenido } from './security.mjs';
+import { huellaDeContenido } from './security.mjs';
+import { ejecutarAprobacion } from './approve-tx.mjs';
 import { upstreamStatus, vendor } from './vendor.mjs';
 
 /**
@@ -132,15 +133,14 @@ export function autoApproveIfAsked({ exec, root, catalog, id, key, curated, cwd 
   // este camino aprobaba sin huella y sin entrada del diario — el modo automático era el único que no dejaba
   // rastro, justo el que más lo necesita.
   const huella = huellaDeContenido(check.dir);
-  const moved = approve(id, key, { root, esperada: huella });
-  if (moved.ok) {
-    anotarEntradaEnDiario(join(root, 'projects', key, 'journal.jsonl'), {
-      id, key, decision: 'aprobada', ambito: 'project', por: 'auto', canal: 'herramienta',
-      hashAnterior: huella, hashResultante: huellaDeContenido(join(moved.path, '..')),
-      superseded: moved.superseded ?? null, avisos: check.warnings,
-    });
-  }
-  if (!moved.ok) return { asked: true, approved: false, reason: moved.reason };
+  // La transaccion, igual que la via humana: archiva la version viva con su manifiesto, instala, verifica
+  // y deja el asiento (o deshace). El modo automatico no puede tener menos garantias que el humano.
+  const moved = ejecutarAprobacion({
+    root, key, id, esperada: huella, scope: 'project',
+    nota: 'aprobacion automatica del modo auto',
+    por: 'auto', canal: 'herramienta', avisos: check.warnings,
+  });
+  if (!moved.ok) return { asked: true, approved: false, reason: moved.error };
   // El catálogo acaba de cambiar: sin este aviso, la skill no llegaría al agente hasta reiniciar.
   catalog?.notify();
   return { asked: true, approved: true, superseded: moved.superseded, warnings: check.warnings };
