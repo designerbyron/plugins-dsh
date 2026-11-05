@@ -1,5 +1,5 @@
 {
-  "generado": "2026-11-05T05:24:44.560Z",
+  "generado": "2026-11-05T05:57:23.464Z",
   "ficheros": {
     "bin/skill-compiler.mjs": 0,
     "client.js": 884,
@@ -23,7 +23,7 @@
     "lib/pending-rows.mjs": 285,
     "lib/presentation.mjs": 156,
     "lib/projection.mjs": 163,
-    "lib/promote.mjs": 399,
+    "lib/promote.mjs": 341,
     "lib/repair.mjs": 807,
     "lib/review.mjs": 66,
     "lib/scope.mjs": 572,

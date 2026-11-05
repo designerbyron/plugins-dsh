@@ -375,6 +375,8 @@ export default Object.freeze({
   'cli.no-scope-label': '(no scope)',
   'cli.mark.ok': 'ok',
   'cli.mark.fail': 'FAIL',
+  // Una operacion a medias se puede cerrar sola: no es lo mismo que una puerta roja. La marca lo dice.
+  'cli.mark.pending': 'PEND',
   'cli.check.fail': 'FAIL  {error}',
   'cli.check.warning': 'warning  {aviso}',
   'cli.check.green': '{id}: green',
@@ -478,10 +480,10 @@ export default Object.freeze({
   'cli.doctor.security-empty': 'security layer: nothing to review yet ({ruta} does not exist: the store has no projects yet)',
   'cli.doctor.security-unreadable': 'security layer: it could not be read: {ruta} ({codigo})',
   // Aprobaciones que quedaron a medias: la intencion sigue en `.tx/` y el paquete esta donde el cierre lo dejo.
-  'cli.doctor.tx-pending': 'transaction pending: {id} in {proyecto} - state {estado} - tx {tx} - recovery: needed',
+  'cli.doctor.tx-pending': 'transaction pending (recoverable): {id} in {proyecto} - state {estado} - tx {tx} - recovery: needed',
   'cli.doctor.tx-pending-detail': 'transaction pending: {id} in {proyecto} - state {estado} - tx {tx} - {problemas} - recovery: needed',
   'cli.doctor.tx-inconsistent': 'transaction inconsistent: {id} in {proyecto} - state {estado} - tx {tx} - {problemas}',
-  'cli.doctor.tx-remedy': 'run an approval of that project (it closes the transaction first) or review `projects/<key>/.tx/` by hand; `doctor` never repairs',
+  'cli.doctor.tx-remedy': 'it closes itself on the next approval of that project, or by hand in `projects/<key>/.tx/`; `doctor` never repairs',
   'cli.doctor.tx-no-detail': 'no detail',
   'cli.doctor.tx-failed': 'pending transactions: they could not be reviewed ({message})',
   'cli.doctor.catalogue-incomplete': '  incomplete catalogue: {n} key(s) without translation',

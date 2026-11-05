@@ -709,11 +709,15 @@ switch (command) {
               id: t.id ?? t.tx, proyecto, estado: t.estado, tx: t.tx,
               problemas: t.problemas.join('; ') || tr('cli.doctor.tx-no-detail'),
             };
-            // Una transaccion a medias impide decir "everything in place": o se revierte, o se completa.
+            // Una transaccion a medias impide decir "everything in place" (o se revierte, o se completa),
+            // pero no es lo mismo que una inconsistencia: `revert`/`complete`/`mismatch` se cierran solos en
+            // la siguiente aprobacion, y se marcan como pendientes. `inconsistent`/`unreadable` son rojo.
             const grave = t.estado === 'inconsistent' || t.estado === 'unreadable';
             const clave = grave ? 'cli.doctor.tx-inconsistent'
               : t.problemas.length > 0 ? 'cli.doctor.tx-pending-detail' : 'cli.doctor.tx-pending';
-            line(false, tr(clave, datos), tr('cli.doctor.tx-remedy'));
+            bad += 1;
+            process.stdout.write(`${(grave ? tr('cli.mark.fail') : tr('cli.mark.pending')).padEnd(6)} ${tr(clave, datos)}\n`);
+            process.stdout.write(`${tr('cli.doctor.remedy', { remedy: tr('cli.doctor.tx-remedy') })}\n`);
           }
         }
       }

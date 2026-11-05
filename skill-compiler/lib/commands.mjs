@@ -322,6 +322,7 @@ export function approveProposal({ root = defaultRoot(), key, id, force = false, 
         estado: preservarEstado ? 'disabled' : 'approved',
         nota: `aprobacion humana de ${wanted}`,
         avisos: check.warnings,
+        cerrojo: false, // ya se tomo arriba, en `conCerrojo`
       });
       return r.ok
         ? { ok: true, path: r.path, superseded: r.superseded, manifiesto: r.manifiesto, tx: r.tx, recuperacion }

@@ -107,7 +107,7 @@ describe('B · transaccion pendiente y recuperable', () => {
     const { code, salida } = doctor(arena);
     const lineas = lineasTx(salida);
     assert.equal(lineas.length, 1, salida);
-    assert.match(lineas[0], /transaccion pendiente: measured-decision-check/);
+    assert.match(lineas[0], /transaccion pendiente \(recuperable\): measured-decision-check/);
     assert.match(lineas[0], new RegExp(`en ${key}`));
     assert.match(lineas[0], /estado revert/);
     assert.match(lineas[0], new RegExp(`tx ${corte.tx}`));
@@ -155,8 +155,24 @@ describe('B · transaccion pendiente y recuperable', () => {
     const key = conActualizacion(arena);
     ejecutarAprobacion({ root: arena.root, key, id: ID, hooks: { interrumpir: 'archived' } });
     const { salida } = doctor(arena, { lang: 'en' });
-    assert.match(lineasTx(salida)[0], /transaction pending: measured-decision-check/);
+    assert.match(lineasTx(salida)[0], /transaction pending \(recoverable\): measured-decision-check/);
     assert.match(lineasTx(salida)[0], /recovery: needed/);
+  });
+});
+
+describe('clasificacion visual', () => {
+  it('recuperable se marca PEND y la inconsistente FAIL: no se confunde una cosa con la otra', () => {
+    const arena = sandbox({ curated: false });
+    const key = conActualizacion(arena);
+    ejecutarAprobacion({ root: arena.root, key, id: ID, hooks: { interrumpir: 'archived' } });
+    const recuperable = doctor(arena).salida.split('\n').find((l) => /transaccion pendiente/.test(l));
+    assert.match(recuperable, /^PEND/, 'lo que se arregla solo no es un fallo rojo');
+
+    // Y la misma arena con el paquete perdido: eso si es FAIL.
+    const corte = JSON.parse(readFileSync(join(txDir(arena, key), readdirSync(txDir(arena, key))[0]), 'utf8'));
+    rmSync(corte.apartados[0].hasta, { recursive: true, force: true });
+    const grave = doctor(arena).salida.split('\n').find((l) => /transaccion inconsistente/.test(l));
+    assert.match(grave, /^FALLA/, 'una inconsistencia si es roja');
   });
 });
 

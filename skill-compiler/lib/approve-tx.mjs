@@ -28,6 +28,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import { dirname, join } from 'node:path';
 
 import { treeOf } from './compiler.mjs';
+import { conCerrojo } from './lock.mjs';
 import { anotarEntradaEnDiario, huellaDeContenido, leerDiario } from './security.mjs';
 
 /** Donde vive la intencion de una transaccion, fuera de los estados de las skills. */
@@ -65,6 +66,11 @@ export function transaccionesPendientes({ root, key }) {
       try { return JSON.parse(readFileSync(join(carpeta, n), 'utf8')); } catch { return { tx: n.replace(/\.json$/, ''), ilegible: true }; }
     });
 }
+
+/** El `meta.json` de un paquete, o `null` si no se puede leer. */
+const leerMeta = (dir) => {
+  try { return JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')); } catch { return null; }
+};
 
 const borrarTransaccion = (root, key, tx) => rmSync(join(carpetaDeTransacciones(root, key), `${tx}.json`), { force: true });
 
@@ -111,8 +117,24 @@ function revertir(tx) {
  * @param opciones.nota - motivo que viaja al manifiesto y al diario.
  * @returns `{ ok, path?, superseded?, manifiesto?, tx, error?, problemas? }`
  */
-export function ejecutarAprobacion({
-  root, key, id, esperada = null, estado = 'approved', scope = 'project', diario = null, nota = 'aprobacion humana', por = 'humano', canal = 'comando', avisos = null, now = new Date().toISOString(), hooks = null,
+/**
+ * Ejecuta la aprobacion dentro del cerrojo del proyecto e id. Toda ruta que sustituya una skill activa pasa
+ * por aqui, incluida la del panel y la del modo automatico: si dos llegaran a la vez, la segunda recibe
+ * `lock: true` en vez de pisar la primera.
+ *
+ * `cerrojo: false` es para quien YA lo tiene tomado (`approveProposal`, `promover`): anidarlo seria un
+ * interbloqueo contra uno mismo, no una garantia extra.
+ */
+export function ejecutarAprobacion(opciones = {}) {
+  if (opciones.cerrojo === false) return aprobarTransaccion(opciones);
+  const r = conCerrojo(opciones.root, opciones.key, opciones.id, () => aprobarTransaccion(opciones));
+  if (r && r.lock) return { ok: false, tx: null, lock: true, error: r.reason, problemas: [] };
+  return r;
+}
+
+function aprobarTransaccion({
+  root, key, id, esperada = null, estado = 'approved', scope = 'project', diario = null, nota = 'aprobacion humana', por = 'humano', canal = 'comando', avisos = null, decision = null, camposDelAsiento = null, verificar = null,
+  now = new Date().toISOString(), hooks = null,
 } = {}) {
   // Puntos de inyeccion para las pruebas: `hooks.fallar = '<punto>'` lanza un fallo controlado (se
   // revierte) y `hooks.interrumpir = '<punto>'` simula un cierre del proceso (se deja la intencion en
@@ -217,6 +239,16 @@ export function ejecutarAprobacion({
     return { ok: false, tx, error: `no se pudo instalar la nueva version: ${error.code ?? error.message}`, problemas: vuelta.problemas };
   }
 
+  // 3b) El meta del paquete instalado: `state`, la fecha y de donde viene. `move()` lo hacia y sin el la
+  // skill queda activa con un `meta.json` que dice `proposed`, que es una mentira en el propio paquete.
+  const metaInstalada = leerMeta(destino);
+  if (metaInstalada !== null) {
+    metaInstalada.state = estado;
+    metaInstalada[`${estado}At`] = now;
+    if (archivados.length > 0) metaInstalada.supersededPrevious = archivados[0].revision;
+    try { writeFileSync(join(destino, 'meta.json'), `${JSON.stringify(metaInstalada, null, 2)}\n`); } catch { /* el meta es accesorio: no impide mover la skill */ }
+  }
+
   // Punto de inyeccion para la prueba de "lo instalado no coincide": se toca el destino despues de
   // instalarlo y antes de verificar. Sin hook no existe.
   if (hooks?.trasInstalar) hooks.trasInstalar({ tx, destino });
@@ -248,17 +280,38 @@ export function ejecutarAprobacion({
     borrarTransaccion(root, key, tx);
     return { ok: false, tx, error: `fallo antes de anotar el diario: ${error.message}`, problemas: vuelta.problemas };
   }
+  // Verificacion propia de quien llama (promover comprueba meta, base y su verificador externo). Va ANTES
+  // del asiento a proposito: si no cuadra, la transaccion revierte y no queda constancia de una aprobacion
+  // que no se sostiene.
+  if (typeof verificar === 'function') {
+    let problemas = [];
+    try {
+      problemas = (verificar({ root, key, id, destino, huellaInstalada, huellaEsperada: huellaOrigen, meta: leerMeta(destino) }) ?? []).map(String);
+    } catch (error) {
+      problemas = [`la verificacion posterior lanzo: ${error.message}`];
+    }
+    if (problemas.length > 0) {
+      const vuelta = revertir(intencion);
+      borrarTransaccion(root, key, tx);
+      return { ok: false, tx, verificacion: problemas, redeshecho: true, problemas: vuelta.problemas,
+        error: `la verificacion posterior no cuadro: ${problemas.join(' | ')}` };
+    }
+  }
+
   const anotado = anotarEntradaEnDiario(rutaDiario, {
     id,
     key,
     tx,
-    decision: scope === 'global' ? 'publicada' : (estado === 'disabled' ? 'actualizada-apagada' : 'aprobada'),
+    ...(camposDelAsiento ?? {}),
+    decision: decision ?? (scope === 'global' ? 'publicada' : (estado === 'disabled' ? 'actualizada-apagada' : 'aprobada')),
     ambito: scope,
     por,
     canal,
     avisos: avisos ?? [],
-    hashAnterior: huellaOrigen,
-    hashResultante: huellaInstalada,
+    // Por defecto, las huellas del asiento son las del motor. Un llamador puede aportar las suyas (promover
+    // conserva por contrato las de 16 caracteres); la integridad no depende de ellas: la sella `huella`.
+    hashAnterior: camposDelAsiento?.hashAnterior ?? huellaOrigen,
+    hashResultante: camposDelAsiento?.hashResultante ?? huellaInstalada,
     superseded: archivados.length > 0 ? archivados[0].hasta : null,
     nota,
   }, { now });

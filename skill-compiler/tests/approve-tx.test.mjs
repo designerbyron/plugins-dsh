@@ -289,6 +289,15 @@ describe('concurrencia', () => {
     assert.match(dentro.reason, /ya hay una operación en curso/);
   });
 
+  it('sin que nadie lo rodee, la transaccion toma el cerrojo del id (panel y modo automatico)', () => {
+    const arena = sandbox({ curated: false });
+    const { v1 } = preparar(arena);
+    const dentro = conCerrojo(arena.root, KEY, ID, () => ejecutarAprobacion({ root: arena.root, key: KEY, id: ID }));
+    assert.equal(dentro.ok, false);
+    assert.equal(dentro.lock, true, 'la segunda no pisa la primera');
+    assert.deepEqual(contenido(rutas(arena.root).approved), v1, 'la viva no se movio');
+  });
+
   it('aprobar dos veces seguidas no duplica nada', () => {
     const arena = sandbox({ curated: false });
     preparar(arena);

@@ -26,6 +26,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 
+import { ejecutarAprobacion } from './approve-tx.mjs';
+import { huellaDeContenido } from './security.mjs';
 import {
   approve, checkProposal, cuerpoSinTitulo, cuentaDiff, defaultRoot, folderHash, materialPreservado, parseFrontmatter,
   projectKey, treeOf, treeOfConErrores, vigenteDe,
@@ -275,7 +277,7 @@ export function pruebasDeRegresion(id, key, meta, { root = defaultRoot(), curate
 export function promover(id, key, {
   root = defaultRoot(), curated = null, cwd = null, niveles = NIVELES_POR_DEFECTO,
   maxLineas = 200, maxFicheros = 5, alcance = null, por = 'motor', now = new Date().toISOString(),
-  verificador = null, veredicto = null,
+  verificador = null, veredicto = null, hooks = null,
 } = {}) {
   const opts = { root, ...(curated ? { curated } : {}) };
   const dirPropuesta = join(root, 'projects', key, 'proposed', id);
@@ -374,58 +376,95 @@ export function promover(id, key, {
     const vigente = vigenteDe(id, key, opts);
     const hashAnterior = vigente?.hash ?? null;
     const huellaPropuesta = folderHash(dirPropuesta);
-    let resultado = null;
-    try {
-      resultado = approve(id, key, opts); // aparta la anterior en `superseded/` y deja la nueva activa
-    } catch (error) {
-      return { status: 'critical', id, nivel, regresion, reason: `la activación lanzó: ${error.message}`, reasonCode: 'promote.reason.activation-threw', reasonParams: { message: error.message }, hashAnterior };
+    // `folderHash` (16 caracteres, la que usa promover en su contrato) y `huellaDeContenido` (64, la del
+    // motor transaccional) no son la misma funcion: la transaccion compara con la suya, asi que se calcula
+    // aparte para no rechazar todas las promociones por "el contenido cambio".
+    const huellaEsperada = huellaDeContenido(dirPropuesta);
+    // Se rellena dentro de `verificar` (que corre antes del asiento) con la huella de 16 de promover, para
+    // que el diario conserve el mismo contrato de siempre sin dejar de tener la del motor al lado.
+    let huellaPublicada = null;
+
+    // La sustitución la hace la transacción central —la misma que usan aprobar, el panel y el modo
+    // automático—: aparta la versión viva con su manifiesto, instala, verifica contra lo validado, escribe
+    // el asiento y confirma; si algo no cuadra, revierte ella. Lo que es propio de promover (meta, base y el
+    // verificador del integrador) se comprueba DENTRO, antes de confirmar: así hay una sola reversión y no
+    // dos mecanismos que puedan contradecirse.
+    const resultado = ejecutarAprobacion({
+      root, key, id,
+      esperada: huellaEsperada,
+      scope: 'project',
+      por, canal: 'promocion', now,
+      nota: `promocion de ${id}`,
+      decision: 'promovida',
+      cerrojo: false, // `promover` ya corre dentro de `conCerrojo`
+      // Solo para pruebas: puntos de fallo/interrupcion del motor transaccional.
+      hooks,
+      camposDelAsiento: {
+        group: grupo?.id ?? null, nivel, reglas,
+        hashAnterior,
+        get hashResultante() { return huellaPublicada; },
+        // `hashAnterior`/`hashResultante` siguen en la huella de 16 de promover (su contrato). El getter se
+        // evalua al escribir el asiento, ya con `verificar` hecho.
+        base: meta?.base ?? null, diff: meta?.diff ?? null,
+        pruebas: regresion.pruebas, cuerpoBytes: meta?.repair?.bytesAntes ?? null,
+      },
+      verificar: ({ destino, huellaActivada: _instalada, meta: metaActivada }) => {
+        const problemas = [];
+        const publicado = folderHash(destino);
+        huellaPublicada = publicado;
+        if (publicado !== huellaPropuesta) problemas.push(`lo publicado (${publicado.slice(0, 12)}) no coincide con lo propuesto (${huellaPropuesta.slice(0, 12)})`);
+        if (metaActivada !== null && metaActivada.state !== 'approved') problemas.push(`el meta dice «${metaActivada.state}» en vez de approved`);
+        if (!existsSync(join(destino, 'SKILL.md'))) problemas.push('no hay SKILL.md en la versión activada');
+        if (metaActivada?.base?.hash && metaActivada.base.hash !== meta?.base?.hash) problemas.push('la versión publicada dice haberse construido sobre otra base');
+        // Un integrador puede añadir sus propias comprobaciones (las de su proyecto, por ejemplo). Y sólo
+        // pueden **añadir** problemas: ninguna comprobación externa puede autorizar lo que el motor no autorizó.
+        if (typeof verificador === 'function') {
+          try {
+            for (const problema of verificador({ root, key, id, dir: destino, huellaActivada: publicado, huellaPropuesta, meta: metaActivada }) ?? []) problemas.push(String(problema));
+          } catch (error) {
+            problemas.push(`la comprobación externa lanzó: ${error.message}`);
+          }
+        }
+        return problemas;
+      },
+    });
+
+    if (resultado.ok) {
+      return {
+        status: 'promoted', id, nivel, regresion,
+        hashAnterior, hashResultante: folderHash(join(root, 'projects', key, 'approved', id)),
+        hashContenido: resultado.nuevo,
+        superseded: resultado.superseded ?? null, manifiesto: resultado.manifiesto ?? null,
+      };
     }
-    if (!resultado?.ok) {
+
+    // No llegó a sustituirse (o la transacción ya devolvió todo a su sitio): se declara el motivo real.
+    if (!resultado.verificacion) {
       return {
         status: 'critical', id, nivel, regresion,
-        reason: `no se pudo activar: ${resultado?.reason ?? 'sin motivo'}`,
+        reason: `no se pudo activar: ${resultado.error}`,
         reasonCode: 'promote.reason.activation-failed',
-        reasonParams: { reason: resultado?.reason ?? 'sin motivo' },
+        reasonParams: { reason: resultado.error },
         hashAnterior,
       };
     }
 
-    // ── Verificación DESPUÉS de escribir: se relee y se compara por huella ────────────────────────
-    const activada = join(root, 'projects', key, 'approved', id);
-    const huellaActivada = folderHash(activada);
-    const puertaTras = checkProposal(id, key, opts); // ya no hay propuesta: su fallo aquí no es un problema
-    const problemas = [];
-    if (huellaActivada !== huellaPropuesta) problemas.push(`lo publicado (${huellaActivada.slice(0, 12)}) no coincide con lo propuesto (${huellaPropuesta.slice(0, 12)})`);
-    const metaActivada = (() => { try { return JSON.parse(readFileSync(join(activada, 'meta.json'), 'utf8')); } catch { return null; } })();
-    if (metaActivada !== null && metaActivada.state !== 'approved') problemas.push(`el meta dice «${metaActivada.state}» en vez de approved`);
-    if (!existsSync(join(activada, 'SKILL.md'))) problemas.push('no hay SKILL.md en la versión activada');
-    if (metaActivada?.base?.hash && metaActivada.base.hash !== meta?.base?.hash) problemas.push('la versión publicada dice haberse construido sobre otra base');
-    // Un integrador puede añadir sus propias comprobaciones (las de su proyecto, por ejemplo). Y sólo
-    // pueden **añadir** problemas: ninguna comprobación externa puede autorizar lo que el motor no autorizó.
-    if (typeof verificador === 'function') {
-      try {
-        for (const problema of verificador({ root, key, id, dir: activada, huellaActivada, huellaPropuesta, meta: metaActivada }) ?? []) problemas.push(String(problema));
-      } catch (error) {
-        problemas.push(`la comprobación externa lanzó: ${error.message}`);
-      }
-    }
-
-    if (problemas.length === 0) {
-      anotarEnDiario(key, { id, key, group: grupo?.id ?? null, nivel, reglas, base: meta?.base ?? null, diff: meta?.diff ?? null, pruebas: regresion.pruebas, decision: 'promovida', por, hashResultante: huellaActivada, hashAnterior, superseded: resultado.superseded ?? null, cuerpoBytes: meta?.repair?.bytesAntes ?? null }, { root, now });
-      return { status: 'promoted', id, nivel, regresion, hashAnterior, hashResultante: huellaActivada, superseded: resultado.superseded ?? null };
-    }
-
-    // ── Reversión: volver a la versión anterior, con su huella ────────────────────────────────────
-    const reverso = deshacer({ root, key, id, huellaActivada, hashAnterior, superseded: resultado.superseded ?? null });
+    // Se activó y no cuadró: la transacción revirtió. Se comprueba que la versión anterior está de vuelta y
+    // con su huella; si no lo está, no se dice «deshecho» — se dice lo que pasa.
+    const problemas = resultado.verificacion;
+    const repuesta = vigenteDe(id, key, opts);
+    const reversoOk = resultado.problemas.length === 0 && repuesta?.hash === hashAnterior;
+    const reverso = { ok: reversoOk, hash: repuesta?.hash ?? null, apartada: resultado.superseded ?? null, problemas: resultado.problemas };
     anotarEnDiario(key, {
-      id, key, group: grupo?.id ?? null, nivel, reglas, base: meta?.base ?? null, diff: meta?.diff ?? null, pruebas: regresion.pruebas,
-      decision: reverso.ok ? 'revertida' : 'reversion-fallida', por, hashResultante: reverso.hash ?? null, hashAnterior,
+      id, key, group: grupo?.id ?? null, nivel, reglas, base: meta?.base ?? null, diff: meta?.diff ?? null,
+      pruebas: regresion.pruebas,
+      decision: reversoOk ? 'revertida' : 'reversion-fallida', por, hashResultante: reverso.hash, hashAnterior,
       why: problemas.join(' | '), reverso,
     }, { root, now });
-    return reverso.ok
+    return reversoOk
       ? {
         status: 'reverted', id, nivel, regresion, problems: problemas,
-        hashAnterior, hashRestaurado: reverso.hash, hashApartado: reverso.huellaApartada, apartada: reverso.apartada,
+        hashAnterior, hashRestaurado: reverso.hash, apartada: resultado.superseded ?? null,
         reason: `se activó y no cuadró (${problemas.join(' | ')}): se ha deshecho y la versión anterior está de vuelta, con su huella`,
         reasonCode: 'promote.reason.reverted',
         reasonParams: { problems: problemas.join(' | ') },
@@ -440,35 +479,6 @@ export function promover(id, key, {
 
   if (cerrado?.ok === false && cerrado.reason?.startsWith('ya hay una operación')) return { status: 'locked', id, ...cerrado };
   return cerrado;
-}
-
-/**
- * Deshace una activación que no cuadró: la versión publicada se aparta (nunca se borra) y la anterior vuelve
- * a su sitio. La huella restaurada se **comprueba**: si no coincide, se dice.
- */
-function deshacer({ root, key, id, huellaActivada, hashAnterior, superseded }) {
-  const activada = join(root, 'projects', key, 'approved', id);
-  const apartada = join(root, 'projects', key, 'superseded', `${id}-deshecho-${new Date().toISOString().replace(/[:.]/g, '-')}`);
-  try {
-    mkdirSync(dirname(apartada), { recursive: true });
-    renameSync(activada, apartada);
-  } catch (error) {
-    return { ok: false, reason: `no se pudo apartar la versión que no cuadró: ${error.message}` };
-  }
-  if (superseded === null || !existsSync(superseded)) {
-    return { ok: false, reason: `no hay versión anterior que reponer (se esperaba en ${superseded ?? 'ninguna'})`, apartada };
-  }
-  try {
-    mkdirSync(dirname(activada), { recursive: true });
-    renameSync(superseded, activada);
-  } catch (error) {
-    return { ok: false, reason: `no se pudo reponer la versión anterior: ${error.message}`, apartada };
-  }
-  const hash = folderHash(activada);
-  if (hashAnterior !== null && hash !== hashAnterior) {
-    return { ok: false, reason: `la versión repuesta (${hash.slice(0, 12)}) no coincide con la anterior (${hashAnterior.slice(0, 12)})`, hash, apartada };
-  }
-  return { ok: true, hash, apartada, huellaApartada: huellaActivada };
 }
 
 /**
