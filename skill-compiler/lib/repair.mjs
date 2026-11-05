@@ -911,7 +911,9 @@ export function similitudDeReglas(a, b) {
  * explicar de ninguna de las dos formas es una perdida. Lo que no se puede juzgar con confianza -porque la
  * version de origen tenia delimitadores sueltos- se declara `incierta`, ni perdida ni conservada.
  *
- * @returns `{ reubicadas, reformuladas, perdidas, inciertas, conservadas, resumen }`.
+ * @returns `{ reubicadas, reformuladas, perdidas, inciertas, conservadas, estructurales, resumen }`.
+ *   Cada elemento cae en UNA categoria: un encabezado renumerado es estructural, no una regla movida ni
+ *   una perdida.
  */
 export function clasificarPerdidas(antesTexto, despuesTexto) {
   const antes = inventario(antesTexto);
@@ -920,13 +922,16 @@ export function clasificarPerdidas(antesTexto, despuesTexto) {
   const reformuladas = [];
   const perdidas = [];
   const inciertas = [];
+  const estructurales = [];
 
   const porTexto = new Map(despues.reglas.map((r) => [r.texto, r.seccion]));
+  // El numero del titulo no identifica la seccion: renumerar no es mover una regla de sitio.
+  const sinNumero = (titulo) => String(titulo ?? '').replace(/^\d+\.\s*/, '').trim().toLowerCase();
   const textoDespues = String(despuesTexto ?? '');
   for (const regla of antes.reglas) {
     if (porTexto.has(regla.texto)) {
       const destino = porTexto.get(regla.texto);
-      if (destino !== regla.seccion) reubicadas.push({ regla: regla.texto, desde: regla.seccion, hasta: destino });
+      if (sinNumero(destino) !== sinNumero(regla.seccion)) reubicadas.push({ regla: regla.texto, desde: regla.seccion, hasta: destino });
       continue;
     }
     if (textoDespues.toLowerCase().includes(regla.texto)) {
@@ -952,25 +957,27 @@ export function clasificarPerdidas(antesTexto, despuesTexto) {
   // convertiria una perdida en tres.
   for (const [categoria, faltan] of Object.entries(inventarioPerdido(antes, despues))) {
     if (categoria === 'pasos') continue;
-    const destino = categoria === 'encabezados' ? 'reubicadas' : 'perdidas';
     for (const elemento of faltan) {
-      if (categoria === 'encabezados') reubicadas.push({ regla: elemento, desde: '(encabezado)', hasta: '(renumerado o movido)' });
-      else if (antes.inciertas.length > 0) inciertas.push({ regla: `${categoria}: ${elemento}`, motivo: 'delimitadores sueltos en el origen' });
-      else perdidas.push({ regla: `${categoria}: ${elemento}`, seccion: destino });
+      // Un encabezado que cambia de numero o de sitio es un cambio ESTRUCTURAL: no es conocimiento que
+      // se pierda, y contarlo como reubicacion de una regla lo mezclaba con el contenido.
+      if (categoria === 'encabezados') { estructurales.push({ encabezado: elemento }); continue; }
+      if (antes.inciertas.length > 0) inciertas.push({ regla: `${categoria}: ${elemento}`, motivo: 'delimitadores sueltos en el origen' });
+      else perdidas.push({ regla: `${categoria}: ${elemento}`, seccion: '(sin seccion)' });
     }
   }
 
   const conservadas = antes.reglas.filter((r) => porTexto.has(r.texto)).length;
   return {
-    reubicadas, reformuladas, perdidas, inciertas, conservadas,
+    reubicadas, reformuladas, perdidas, inciertas, conservadas, estructurales,
     resumen: {
       reglasAntes: antes.reglas.length,
       reglasDespues: despues.reglas.length,
-      conservadas,
-      reubicadas: reubicadas.length,
-      reformuladas: reformuladas.length,
-      perdidas: perdidas.length,
+      reglasConservadas: conservadas,
+      reglasMovidas: reubicadas.length,
+      reglasReformuladas: reformuladas.length,
+      perdidasConfirmadas: perdidas.length,
       inciertas: inciertas.length,
+      estructurales: estructurales.length,
     },
   };
 }

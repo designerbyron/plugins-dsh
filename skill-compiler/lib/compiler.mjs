@@ -1238,7 +1238,9 @@ export function renderSkill({ id, description, whenToUse, body, project, project
     '',
   ].join('\n') : '';
 
-  return `${front.join('\n')}${banner}${body.replace(/^\s*\n/, '')}\n`;
+  // Un salto mas tras el H1: `front` acaba en el H1 y sin esto el primer `##` quedaba pegado al titulo
+  // (`# desc\n## 1.`), que no es Markdown valido como separacion de secciones.
+  return `${front.join('\n')}\n${banner}${body.replace(/^\s*\n/, '')}\n`;
 }
 
 // ── escritura: proponer, aprobar, rechazar ───────────────────────────────────────────────────────

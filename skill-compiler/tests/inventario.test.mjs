@@ -164,12 +164,14 @@ describe('clasificarPerdidas · que se conserva, se mueve, se reformula o se pie
     assert.ok(r.inciertas.length > 0, 'se declara incierta');
   });
 
-  it('los encabezados renumerados no cuentan como perdida', () => {
+  it('los encabezados renumerados son un cambio estructural, no una perdida', () => {
     const antes = ['## 1. Medir', '', '1. Paso concreto del procedimiento.'].join('\n');
     const despues = ['## 7. Medir', '', '1. Paso concreto del procedimiento.'].join('\n');
     const r = clasificarPerdidas(antes, despues);
-    assert.equal(r.perdidas.length, 0);
-    assert.ok(r.reubicadas.some((x) => String(x.regla).includes('Medir')));
+    assert.equal(r.perdidas.length, 0, 'no se pierde conocimiento');
+    assert.equal(r.reubicadas.length, 0, 'y no es una regla movida');
+    assert.equal(r.estructurales.length, 1, 'es un cambio de encabezado');
+    assert.match(r.estructurales[0].encabezado, /1\. Medir/);
   });
 
   it('el resumen cuenta cada categoria y cuadra con las reglas de origen', () => {
@@ -178,7 +180,7 @@ describe('clasificarPerdidas · que se conserva, se mueve, se reformula o se pie
     const r = clasificarPerdidas(antes, despues);
     assert.equal(r.resumen.reglasAntes, 3);
     assert.equal(r.resumen.reglasDespues, 3);
-    assert.equal(r.resumen.conservadas + r.resumen.reformuladas + r.resumen.perdidas + r.resumen.inciertas, 3);
+    assert.equal(r.resumen.reglasConservadas + r.resumen.reglasReformuladas + r.resumen.perdidasConfirmadas, 3);
   });
 });
 

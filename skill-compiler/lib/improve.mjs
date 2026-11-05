@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { cuerpoSinTitulo, normalizeRel, propose, vigenteDe } from './compiler.mjs';
-import { clasificarPerdidas, inventario, inventarioPerdido } from './repair.mjs';
+import { clasificarPerdidas, inventario, inventarioPerdido, seccionesConBloques } from './repair.mjs';
 
 /** Las operaciones que el llamador puede declarar. El motor las valida contra lo que de verdad cambio. */
 export const OPERACIONES = Object.freeze(['new', 'patch', 'enhance', 'write', 'reorganize', 'no_change']);
@@ -313,7 +313,6 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
     const quedan = faltan.filter((x) => !justificadas.some((j) => j.trim().length > 0 && (x.includes(j) || j.includes(x))));
     if (quedan.length > 0) sinJustificar[categoria] = quedan;
   }
-  const totalPerdidas = Object.values(perdido).reduce((n, l) => n + l.length, 0);
   const totalSinJustificar = Object.values(sinJustificar).reduce((n, l) => n + l.length, 0);
   if (totalSinJustificar > 0) {
     const detalle = Object.entries(sinJustificar).map(([c, l]) => `${c}: ${l.slice(0, 6).join(' - ')}`).join(' | ');
@@ -336,6 +335,11 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
       id,
       description: descripcionFinal,
       whenToUse: whenToUseFinal,
+      // La procedencia se HEREDA de la skill viva: `propose` resuelve `input.project ?? cwd` y una mejora
+      // no tiene cwd propio, asi que sin esto el campo quedaba vacio (regresion medida el 2026-11-05).
+      // Se pasa siempre (aunque sea "") para que el cwd de la sesion no sustituya en silencio la
+      // procedencia original: una skill sin proyecto no debe ganar uno por venir de un directorio.
+      project: metaBase.project ?? '',
       tags: input.tags ?? metaBase.tags,
       body: cuerpoFinal,
       evidence: Array.isArray(input.evidencia) ? input.evidencia : [],
@@ -345,20 +349,37 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
   );
   if (propuesta.status !== 'proposed') return { status: propuesta.status, id, operacion, errors: propuesta.errors ?? [], errores: propuesta.errors ?? [], propuesta };
 
+  //  Contadores del informe: cada uno con su fuente, y ningun elemento en dos categorias
+  // Una seccion "conservada" es la que sigue con el mismo titulo (sin su numero) y el mismo texto: asi una
+  // renumeracion no cuenta como perdida. Las reglas, las movidas y las reformuladas salen de la
+  // clasificacion, no del inventario bruto: el bruto es el gate, no el informe.
+  const secAntes = seccionesConBloques(cuerpoSinTitulo(textoAntes)).filter((s) => s.titulo !== '');
+  const secDespues = seccionesConBloques(cuerpoSinTitulo(textoDespues)).filter((s) => s.titulo !== '');
+  const claveSeccion = (s) => s.titulo.replace(/^\d+\.\s*/, '').trim().toLowerCase();
+  // Se compara el CUERPO de la seccion, no su titulo: renumerar no cambia el conocimiento, y contar la
+  // seccion como no conservada por el numero seria el mismo error que ya tenia el informe con las reglas.
+  const cuerpoDeSeccion = (s) => s.lineas.slice(1).join('\n').trim();
+  const porClave = new Map(secDespues.map((s) => [claveSeccion(s), cuerpoDeSeccion(s)]));
+  const seccionesConservadas = secAntes.filter((s) => porClave.get(claveSeccion(s)) === cuerpoDeSeccion(s)).length;
+  const justificadasEfectivas = clasificacion.perdidas.filter((p) => justificadas
+    .some((j) => j.trim().length > 0 && (p.regla.includes(j) || j.includes(p.regla)))).length;
+
   const resumen = {
     revisadas: 1,
     mejoradas: 1,
     parcheados: informe.cuenta.patched,
     escritos: informe.cuenta.written,
     sinCambios: informe.cuenta.unchanged,
-    reglasAntes: invAntes.reglas.length,
-    reglasDespues: invDespues.reglas.length,
-    conservadas: clasificacion.resumen.conservadas,
-    reubicadas: clasificacion.resumen.reubicadas,
-    reformuladas: clasificacion.resumen.reformuladas,
-    inciertas: clasificacion.resumen.inciertas,
-    perdidas: totalPerdidas,
-    perdidasJustificadas: totalPerdidas - totalSinJustificar,
+    seccionesRevisadas: secAntes.length,
+    seccionesConservadas,
+    reglasRevisadas: invDespues.reglas.length,
+    reglasConservadas: clasificacion.resumen.reglasConservadas,
+    reglasMovidas: clasificacion.resumen.reglasMovidas,
+    reglasReformuladas: clasificacion.resumen.reglasReformuladas,
+    perdidas: clasificacion.perdidas.length,
+    perdidasJustificadas: justificadasEfectivas,
+    inciertas: clasificacion.inciertas.length,
+    estructurales: clasificacion.resumen.estructurales,
   };
   return {
     status: 'proposed',
@@ -416,9 +437,11 @@ export function textoDelInforme(resultado) {
   lineas.push(`- ${r.escritos} reference(s) written.`);
   lineas.push(`- ${r.sinCambios} file(s) unchanged.`);
   if (resultado.superseded) lineas.push(`- Previous proposal archived (superseded/proposals/${resultado.id}/${resultado.superseded.revision}).`);
-  lineas.push(`- ${r.reglasDespues} rules reviewed, ${r.conservadas} preserved${r.reubicadas ? `, ${r.reubicadas} moved` : ''}${r.reformuladas ? `, ${r.reformuladas} reworded` : ''}.`);
+  lineas.push(`- ${r.seccionesRevisadas} section(s) reviewed, ${r.seccionesConservadas} preserved.`);
+  lineas.push(`- ${r.reglasRevisadas} rule(s) reviewed: ${r.reglasConservadas} preserved${r.reglasMovidas ? `, ${r.reglasMovidas} moved` : ''}${r.reglasReformuladas ? `, ${r.reglasReformuladas} reworded` : ''}.`);
   lineas.push(`- ${r.perdidas} confirmed loss(es)${r.perdidasJustificadas ? ` (${r.perdidasJustificadas} justified)` : ''}.`);
   if (r.inciertas > 0) lineas.push(`- ${r.inciertas} uncertain item(s): no se pueden juzgar con esta lectura, ni perdidos ni conservados.`);
+  if (r.estructurales > 0) lineas.push(`- ${r.estructurales} structural change(s): headings renumbered or moved, not knowledge lost.`);
   lineas.push('- Validation: PASS.');
   lineas.push('- Revision: awaiting approval.');
   return lineas.join('\n');
