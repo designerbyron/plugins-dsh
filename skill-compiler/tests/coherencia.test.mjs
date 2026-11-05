@@ -83,6 +83,38 @@ describe('la versión, la ayuda y la documentación dicen lo mismo que el códig
       assert.ok(readme.includes(herramienta), `la herramienta «${herramienta}» no aparece en el README`);
     }
   });
+
+  it('la portada del repositorio anuncia la versión del manifiesto, no otra', () => {
+    // El defecto que esto vigila: la tabla de la portada se quedó en «v4.0.1 · 777 pruebas» mientras el
+    // propio README declaraba la 5.0.2 con 902. Nadie lo vio porque ninguna prueba leía la portada, y una
+    // versión vieja en la tabla es una promesa falsa sobre lo que hay publicado.
+    const version = JSON.parse(leer('package.json')).version;
+    const portada = readFileSync(join(REPO, 'README.md'), 'utf8');
+    const fila = portada.split('\n').find((linea) => linea.startsWith('| [`LifeCode Skill-Compiler`]'));
+    assert.ok(fila !== undefined, 'la portada tiene que tener la fila de este plugin en la tabla');
+    const anunciada = fila.match(/Estable\s*·\s*v(\d+\.\d+\.\d+)/);
+    assert.ok(anunciada !== null, 'la fila tiene que declarar su versión estable');
+    assert.equal(anunciada[1], version, `la portada anuncia v${anunciada[1]} y el manifiesto dice ${version}`);
+  });
+
+  it('la compatibilidad declara UN anfitrión, y el README cita el mismo que la ficha', () => {
+    // El defecto que esto vigila: el README citaba la rc.2 mientras la ficha declaraba otra, y dos versiones
+    // de anfitrión en la misma documentación se leen como una sola promesa. El número no se fija aquí: se
+    // fija en la ficha —su fila «Anfitrión», con la fecha de la medición— y el README tiene que decir el mismo.
+    const ficha = leer('docs', 'ANFITRION.md');
+    const lineas = ficha.split(/\r?\n/);
+    const fila = lineas.find((linea) => linea.startsWith('| **Anfitrión** (DSH instalado)'));
+    assert.ok(fila !== undefined, 'ANFITRION.md tiene que declarar el anfitrión con el que se midió');
+    const declarado = fila.match(/`(\d+\.\d+\.\d+-rc\.\d+)`/);
+    assert.ok(declarado !== null, 'la ficha tiene que dar la versión del anfitrión, no sólo su nombre');
+    // Sin fecha, «compatible» no se puede comprobar.
+    assert.match(ficha, /^\| \*\*Medición\*\* \| \d{4}-\d{2}-\d{2}/m, 'la ficha no fecha la medición');
+
+    const readme = leer('README.md');
+    const citados = [...new Set([...readme.matchAll(/`(\d+\.\d+\.\d+-rc\.\d+)`/g)].map((m) => m[1]))];
+    assert.equal(citados.length, 1, `el README tiene que citar un solo anfitrión medido, y cita: ${citados.join(', ') || 'ninguno'}`);
+    assert.equal(citados[0], declarado[1], `el README cita el anfitrión ${citados[0]} y la ficha declara el ${declarado[1]}`);
+  });
 });
 
 describe('la píldora cuenta lo que pasó, y se retira', () => {

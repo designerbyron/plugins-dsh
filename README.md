@@ -12,7 +12,7 @@ absoluta** con el gestor de plugins del harness.
 
 | Plugin | Qué hace | Estado |
 |---|---|---|
-| [`LifeCode Skill-Compiler`](skill-compiler/README.md) | Aprendizaje progresivo: convierte el conocimiento reutilizable de una tarea en una **skill propuesta**, con **ámbito** —de un proyecto o de todos, lo eliges tú al aprobar—; y vendoriza skills de repositorios ajenos como **nuestra versión**, con procedencia. Se decide **dentro** de la sesión: comandos, una fila por pendiente en el menú `/` y tarjetas de resultado que se pueden **cerrar**. Con feedback visual en la interfaz: engranaje mientras analiza, y aviso de skill **nueva** o **actualizada**. | Estable · v4.0.1 · 777 pruebas en verde |
+| [`LifeCode Skill-Compiler`](skill-compiler/README.md) | Aprendizaje progresivo: convierte el conocimiento reutilizable de una tarea en una **skill propuesta**, con **ámbito** —de un proyecto o de todos, lo eliges tú al aprobar—; y vendoriza skills de repositorios ajenos como **nuestra versión**, con procedencia. Se decide **dentro** de la sesión: comandos, una fila por pendiente en el menú `/` y tarjetas de resultado que se pueden **cerrar**. Con feedback visual en la interfaz: engranaje mientras analiza, y aviso de skill **nueva** o **actualizada**. | Estable · v5.0.2 · suite en verde (902 pruebas en la última ejecución medida) |
 
 ## Por qué está en `htdocs`
 
@@ -151,6 +151,11 @@ criterios y un compromiso.
 
 **Lo que «estable» no significa**: que no haya límites —los hay, y están declarados uno a uno— ni que la
 versión pase a 1.0.0. La numeración es la que es; esto declara una garantía, no renombra nada.
+
+**Los recuentos de pruebas son mediciones, no una cifra prometida.** La garantía es que la suite esté en
+verde —con sus puertas colgadas— en la ejecución sobre la que se declara la versión; el total cambia cada vez
+que se añade una prueba, y por eso cada número de este documento va pegado a la ejecución de la que sale en vez
+de leerse como un estado permanente.
 
 ### Historia: la primera declaración (1.7.1)
 

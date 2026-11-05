@@ -1,17 +1,31 @@
 # MEMORY — estado vivo de la colección
 
 Memoria durable del repositorio. No es el historial de una sesión: es lo que hay que saber al entrar.
-Última actualización: 2026-10-23.
+Última actualización: 2026-11-04.
 
 ## Versión publicada
+
+**v5.0.2** (2026-10-23, parche del panel: cero lecturas al listar, generacion en el store para que una lectura
+vieja no pise la nueva, y la foto comun independiente del verbo de la tarjeta; + la guia de idiomas en la
+documentacion) sobre **v5.0.1** (una sola foto de pendientes por sesion y ninguna propuesta ya decidida
+ofreciendose otra vez) y **v5.0.0**, publicada ese mismo dia: tag anotado `v5.0.0` sobre el commit de cierre de
+ese acto (`git rev-parse v5.0.0^{}`; la version y el CHANGELOG entran en `354e93a`) y release estable en
+`designerbyron/plugins-dsh`. **902 pruebas en verde** en **224 suites** (889/220 al publicar la 5.0.0), suite
+hermética en verde (huella del almacén real idéntica antes y después); i18n **938 claves por idioma** y 16
+operaciones x 2 nombres; ASCII **8.289 medidos con tope 8.289** en **26/26** ficheros de primera parte. Cambio de
+contrato de la 5.0.0: **un nombre de comando por operación en el idioma activo** y el modelo de alias, retirado.
+El tag de la publicada es `v5.0.2` sobre `bbd5e38`, y `origin/main` apunta al mismo commit.
+
+Antes, los 805/8.401/24 eran el estado de la rama `hardening/post-4.0.1` sola, y los 860/695/8.353 el del primer
+candidato integrado.
+
+### Historia de las versiones anteriores (registro, no estado de hoy)
 
 **v4.0.1**, publicada el 2026-10-23: tag anotado `v4.0.1` sobre `8393977`, release estable en
 `designerbyron/plugins-dsh`. Cierra el defecto que daba por bueno un almacén que no se podía leer (el
 `ENOENT` de `projects/` es «todavía no hay», no «no pude leer»), y deja el contrato de verbos del panel
 probado con cuatro arenas. **v4.0.0** (tag `v4.0.0`) fue la entrega del idioma ES/EN con el contrato del
 modelo congelado, las puertas obligatorias y el contrato de resultado por elemento.
-
-### Historia de las versiones anteriores (registro, no estado de hoy)
 
 **v3.2.0**, en su día y sin commitear mientras se validaba: la propiedad con
 **cuatro estados** (`ausente` · `declarada` · `invalida` · `ilegible`), el inventario que distingue
@@ -29,19 +43,6 @@ silencio dejando la sesión sin superficie de decisión. **v3.0.0** en `main` lo
 medias, y el aviso del turno **cuenta por tipo y se retira**. **v2.0.0** publicada (`8ecd891`): la puerta de
 calidad vigente, `audit`, `repair`/`promote` con los tres niveles de riesgo y la promoción automática
 **apagada** por defecto.
-
-**v5.0.2** (2026-10-23, parche del panel: cero lecturas al listar, generacion en el store para que una lectura
-vieja no pise la nueva, y la foto comun independiente del verbo de la tarjeta; + la guia de idiomas en la
-documentacion) sobre **v5.0.1** (una sola foto de pendientes por sesion y ninguna propuesta ya decidida
-ofreciendose otra vez) y **v5.0.0**, publicada ese mismo dia: tag anotado `v5.0.0` sobre el commit de cierre de
-ese acto (`git rev-parse v5.0.0^{}`; la version y el CHANGELOG entran en `354e93a`) y release estable en
-`designerbyron/plugins-dsh`. **902 pruebas en verde** en **224 suites** (889/220 al publicar la 5.0.0), suite
-hermética en verde (huella del almacén real idéntica antes y después); i18n **938 claves por idioma** y 16
-operaciones x 2 nombres; ASCII **8.289 medidos con tope 8.289** en **26/26** ficheros de primera parte. Cambio de
-contrato de la 5.0.0: **un nombre de comando por operación en el idioma activo** y el modelo de alias, retirado.
-
-Antes, los 805/8.401/24 eran el estado de la rama `hardening/post-4.0.1` sola, y los 860/695/8.353 el del primer
-candidato integrado.
 
 ## Almacén: el objetivo del `DIAGNOSTICO-2026-10-15`, alcanzado
 
@@ -709,3 +710,25 @@ El acto que cerró el bloqueo anterior, con lo medido al publicar:
 - **Publicación**: `package.json` y `package-lock.json` a 5.0.0, entrada `[5.0.0]` en el CHANGELOG, portada y
   `docs/` con los números medidos, tag anotado `v5.0.0` sobre el commit de cierre y release estable en
   `designerbyron/plugins-dsh`. Las releases `v4.0.0` y `v4.0.1` quedan intactas y el historial no se reescribió.
+
+## Acto 2026-11-04 — coherencia documental y compatibilidad medida del anfitrión
+
+Acto **sin versión nueva**: no cambia comportamiento, contratos ni datos. Cierra contradicciones documentales y
+deja el anfitrión declarado con su fecha.
+
+- **Portada**: la tabla de plugins decía `v4.0.1 · 777 pruebas` mientras el mismo README declaraba la `5.0.2` con
+  **902 pruebas**. Corregida a la versión del manifiesto, y añadida la regla de que un recuento de pruebas es una
+  medición fechada, no una cifra prometida.
+- **`docs/ANFITRION.md`**: gana la ficha de las cuatro versiones (plugin / anfitrión / dependencias / medición) y
+  la medición del **2026-11-04** sobre **DSH `0.2.1-rc.5`** (build `d4db512a`, canal nightly, `app.asar` del
+  2026-10-29): las cuatro herramientas en la lista de una sesión real (56 herramientas), el protocolo en el prompt
+  de sistema (938 caracteres), la proyección aceptada por el registro **real** y las filas de pendientes
+  materializadas (`2 pending -> 8 menu rows` desde un proyecto con dos propuestas). La etiqueta vigente pasa de
+  `v5.0.1` a `v5.0.2`.
+- **`MEMORY.md`**: la sección «Versión publicada» abría con la `v4.0.1`; ahora abre con la `v5.0.2` sobre
+  `bbd5e38`, y la `v4.0.1` se conserva como historia.
+- **Dependencias: sin cambios, y con motivo medido.** `0.2.1-rc.5` **no** satisface `^0.2.0-rc.2` con las reglas
+  por defecto de SemVer 7.7.4 (`satisfies` devuelve `false`; solo con `includePrerelease: true`). Un rango no
+  habría seguido al anfitrión: habría dejado de fijar la versión sin acercarse a la del runtime. El pin exacto se
+  queda, como ya documenta `docs/DEPENDENCIAS.md`.
+- **Lo que no se toca**: `app.asar`, el almacén real, las propuestas pendientes y la release `v5.0.2`.

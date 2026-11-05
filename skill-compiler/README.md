@@ -223,9 +223,11 @@ node bin/skill-compiler.mjs doctor        # "16 operaciones y 16 filas en <idiom
 /skill-compiler-language --es             # y el menú "/" pasa a los nombres españoles, sin reiniciar
 ```
 
-**Lo que el anfitrión impone** (medido en la `0.2.1-rc.2`): el cambio se hace dando las altas antes que las
-bajas sobre `commands/change`, así que la ventana muestra dos nombres y **nunca cero**; la visibilidad del menú
-no se puede medir sin pantalla, y se informa aparte de la invocabilidad y del registro.
+**Lo que el anfitrión impone** (medido el 2026-11-04 sobre DSH `0.2.1-rc.5`, build `d4db512a`, canal nightly):
+el cambio se hace dando las altas antes que las bajas sobre `commands/change`, así que la ventana muestra dos
+nombres y **nunca cero**; la visibilidad del menú no se puede medir sin pantalla, y se informa aparte de la
+invocabilidad y del registro. Qué versión es del plugin, cuál del anfitrión, cuál de las dependencias y qué se
+comprobó exactamente: [`docs/ANFITRION.md`](docs/ANFITRION.md).
 
 ### Los comandos, con su nombre en cada idioma
 
