@@ -768,3 +768,47 @@ ningún tag y la superficie aprobada de `skill_propose`/`approve` queda intacta.
      existe para propuestas). En este acto eso sobrescribió el texto literal de la propuesta del 14-oct —su
      contenido temático quedó integrado y verificado, pero el original no se conserva—. Un `superseded/` por id
      eliminaría el riesgo.
+
+## Acto 2026-11-05 — endurecimiento del motor (E.1, rama de trabajo, sin versión)
+
+Cierra las cuatro brechas que el ACTO E dejó dichas. **Ninguna candidata se aprueba y la activa sigue intacta.**
+
+- **`superseded/proposals/<id>/<revision>/`**: cada nueva candidata del mismo id archiva la anterior **entera**
+  (SKILL.md, meta.json, `references/`, cualquier fichero del paquete) antes de instalar la nueva. El manifiesto
+  (`<revision>.json`) va **fuera** de la carpeta archivada —así el paquete queda byte a byte— y declara `sha256`
+  y bytes por fichero, huella del paquete, motivo y la huella de la candidata que la reemplaza. El revision-id
+  lleva sello y huella del paquete y **no se reutiliza** (si colisiona, se numera). Es histórico: no sale en
+  pendientes, no se aprueba, no se publica; `audit` no lo cuenta como skill apartada.
+- **Escritura transaccional**: la protección vive en el punto de escritura de `propose` (única vía: la usan
+  `skill_propose`, `skill_improve`, `vendor` y la reparación). Orden: archivar → instalar (con la verificación
+  de `writeAtomic`) → anotar en el diario. Si falla la instalación, la anterior **se restaura**; si falla el
+  diario, se deshace todo y no se archiva nada. El asiento es `tipo: "propuesta-sustituida"` y entra en la
+  cadena del diario.
+- **Inventario de reglas corregido** (`lib/repair.mjs`): el emparejamiento de backticks es **por línea** y
+  respeta los bloques de código; un tramo de un solo carácter ya no desalinea el resto del documento (era el
+  defecto real: `{2,}` no casaba y el motor saltaba al backtick siguiente). El inventario conserva la
+  **sección de origen** de cada regla y añade `bloques` e `inciertas`. Nuevo `clasificarPerdidas`:
+  conservada · reubicada · reformulada (Jaccard ≥ 0,6, declarado) · perdida · **incierta** (delimitadores
+  sueltos en el origen: no se afirma ni pérdida ni conservación).
+- **Frontmatter**: `skill_improve` puede cambiar `description` y `whenToUse` y **solo** esos dos. Cualquier
+  otro campo (`name`, `id`, `metadata`, `origin`, `project`, `projectKey`, `learnedAt`, `state`, `scope`) es
+  `invalid` y no escribe. Valor vacío o con saltos, también. Si no cambia, no aparece en el informe.
+- **Informe**: añade `superseded` («Previous proposal archived (superseded/proposals/…)»), `preserved`,
+  `reworded`/`moved` y `uncertain`; `meta.json` solo se declara si el frontmatter cambió.
+- **Suite**: **964 pruebas en 239 suites** (41 nuevas: `tests/superseded.test.mjs` 11,
+  `tests/inventario.test.mjs` 15, `tests/frontmatter.test.mjs` 15). ASCII 8.287 en 27/27 (el tope bajó 2 en
+  `repair.mjs`); i18n verde; hermética verde.
+- **La propuesta del 14-oct SE RECUPERO.** Búsqueda forense en `~/.dsh/sessions/**` (las sesiones son tramas
+  zstd concatenadas: hay que cortar por el magic `28 b5 2f fd`, porque `zstdDecompressSync` solo devuelve la
+  primera). El evento guarda el JSON completo de la llamada a `skill_propose`: `id`, `description`,
+  `whenToUse`, `body` (4.811 caracteres, 6 secciones), `tags` y `evidence`. Queda en el scratch de la sesión;
+  **su restauración en `superseded/proposals/` necesita autorización** porque es escritura en el almacén.
+- **Hallazgo al comparar**: la candidata actual **no contiene todo** el material de esa propuesta. Medido con
+  el inventario nuevo: faltan **13 tramos** (`BOM = EF BB BF`, `TextDecoder('utf-8',{fatal:true})`, `bin2hex`,
+  `codePointAt`, `Buffer`, `.mjs`, `npm.ps1`, `buildId`, `"exit=$LASTEXITCODE"`, `comando *> ruta\en\…`,
+  `npm run build *> log`, `node node_modules/<paquete>/<cli>.mjs`, `Â·`), **4 bloques** con la tabla de puntos
+  de código (`'É' correcto   C3 89`, `'★' correcto   E2 98 85`, y las dos filas de la vuelta de mojibake) y
+  **2 viñetas**. La afirmación del ACTO E («contenido temático integrado») era demasiado generosa: hay que
+  regenerar la candidata con esas secciones íntegras.
+- **Deuda**: publicar exigirá versión **mayor** con su `CHANGELOG`; y el frontmatter administrado por el
+  sistema sigue sin poder migrarse por esta vía (a propósito).

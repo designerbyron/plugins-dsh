@@ -780,27 +780,199 @@ export function reparar(id, key, { root = defaultRoot(), curated = null, cwd = n
   };
 }
 
-/** El inventario del conocimiento de una skill: lo que no puede desaparecer sin que alguien lo diga. */
-export function inventario(cuerpo) {
-  const texto = String(cuerpo ?? '');
-  const entreBackticks = [...texto.matchAll(/`([^`\n]{2,})`/g)].map((m) => m[1].trim());
-  const numeros = [...texto.matchAll(/\b\d[\d.,]*\b/g)].map((m) => m[0]);
-  const rutas = [...texto.matchAll(/[\w./-]+\/[\w./-]+/g)].map((m) => m[0]);
-  const encabezados = [...texto.matchAll(/^##[^#\n].*$/gm)].map((m) => m[0].trim());
-  const claves = [...texto.matchAll(/^\s*(?:[-*]|\d+\.)\s+(.{0,60})/gm)].map((m) => m[1].trim().toLowerCase());
-  const unicos = (lista) => [...new Set(lista)].sort();
-  return { entreBackticks: unicos(entreBackticks), numeros: unicos(numeros), rutas: unicos(rutas), encabezados: unicos(encabezados), pasos: unicos(claves) };
+/**
+ * El cuerpo en secciones, **respetando los bloques de codigo**: un `## algo` dentro de ``` no abre
+ * seccion (es contenido), y un delimitador suelto no cambia donde empieza la siguiente.
+ *
+ * El preambulo (lo que va antes del primer `##`) viaja como una seccion con titulo vacio, para que no
+ * desaparezca del inventario.
+ */
+export function seccionesConBloques(cuerpo) {
+  const lineas = String(cuerpo ?? '').split('\n');
+  const trozos = [];
+  let actual = { titulo: '', lineas: [] };
+  let enBloque = false;
+  for (const linea of lineas) {
+    if (/^\s*(```|~~~)/.test(linea)) {
+      enBloque = !enBloque;
+      actual.lineas.push(linea);
+      continue;
+    }
+    if (!enBloque && /^##[^#]/.test(linea)) {
+      if (actual.lineas.length > 0) trozos.push(actual);
+      actual = { titulo: linea.replace(/^##\s*/, '').trim(), lineas: [linea] };
+      continue;
+    }
+    actual.lineas.push(linea);
+  }
+  if (actual.lineas.length > 0) trozos.push(actual);
+  return trozos.map((t) => ({ ...t, texto: t.lineas.join('\n') }));
 }
 
-/** Qué se perdió entre dos inventarios. */
+/**
+ * Los tramos entre backticks de **una linea**, sin cruzar de linea. Devuelve `impar` cuando la linea deja
+ * un delimitador suelto: entonces solo se aceptan los pares completos y el resto se declara incierto, en
+ * vez de emparejar hacia adelante y desalinear las lineas siguientes (el defecto que tenia el inventario
+ * global: una seccion con siete backticks desplazaba el emparejamiento de todo el documento).
+ */
+function tramosDeLinea(linea) {
+  const partes = String(linea).split('`');
+  const tramos = [];
+  for (let i = 1; i + 1 < partes.length; i += 2) {
+    const tramo = partes[i].trim();
+    if (tramo.length >= 2) tramos.push(tramo);
+  }
+  return { tramos, impar: (partes.length - 1) % 2 === 1 };
+}
+
+/** El inventario del conocimiento de una skill: lo que no puede desaparecer sin que alguien lo diga. */
+export function inventario(cuerpo) {
+  const secciones = seccionesConBloques(cuerpo);
+  const entreBackticks = [];
+  const numeros = [];
+  const rutas = [];
+  const encabezados = [];
+  const pasos = [];
+  const bloques = [];
+  const reglas = [];
+  const inciertas = [];
+
+  for (const seccion of secciones) {
+    if (seccion.titulo !== '') encabezados.push(seccion.lineas[0].trim());
+    // El preambulo no tiene encabezado: su primera linea es contenido, no titulo.
+    const cuerpoSeccion = seccion.titulo === '' ? seccion.lineas : seccion.lineas.slice(1);
+    let enBloque = false;
+    for (const linea of cuerpoSeccion) {
+      if (/^\s*(```|~~~)/.test(linea)) { enBloque = !enBloque; continue; }
+      if (enBloque) {
+        const limpia = linea.trim();
+        if (limpia.length >= 2) bloques.push(limpia);
+        continue;
+      }
+      const { tramos, impar } = tramosDeLinea(linea);
+      entreBackticks.push(...tramos);
+      if (impar) inciertas.push(linea.trim().slice(0, 120));
+      numeros.push(...[...linea.matchAll(/\b\d[\d.,]*\b/g)].map((m) => m[0]));
+      rutas.push(...[...linea.matchAll(/[\w./-]+\/[\w./-]+/g)].map((m) => m[0]));
+      const paso = /^\s*(?:[-*]|\d+\.)\s+(.{0,60})/.exec(linea);
+      if (paso) {
+        const clave = paso[1].trim().toLowerCase();
+        pasos.push(clave);
+        // La regla conserva su **seccion de origen**: sin eso no se puede distinguir "se movio" de
+        // "desaparecio", y mover una regla a otra seccion es reorganizar, no perder.
+        reglas.push({ texto: clave, seccion: seccion.titulo });
+      }
+    }
+  }
+  const unicos = (lista) => [...new Set(lista)].sort();
+  return {
+    entreBackticks: unicos(entreBackticks),
+    numeros: unicos(numeros),
+    rutas: unicos(rutas),
+    encabezados: unicos(encabezados),
+    pasos: unicos(pasos),
+    bloques: unicos(bloques),
+    reglas,
+    inciertas: unicos(inciertas),
+  };
+}
+
+/** Las categorias que se comparan una a una; `reglas` e `inciertas` tienen su propia clasificacion. */
+const COMPARABLES = ['entreBackticks', 'numeros', 'rutas', 'encabezados', 'pasos', 'bloques'];
+
+/** Que se perdio entre dos inventarios. */
 export function inventarioPerdido(antes, despues) {
   const perdido = {};
-  for (const clave of Object.keys(antes)) {
+  for (const clave of COMPARABLES) {
     const quedan = new Set(despues[clave] ?? []);
-    const faltan = antes[clave].filter((x) => !quedan.has(x));
+    const faltan = (antes[clave] ?? []).filter((x) => !quedan.has(x));
     if (faltan.length > 0) perdido[clave] = faltan;
   }
   return perdido;
+}
+
+/** Las palabras significativas de una regla, para medir si se reformulo o si se perdio. */
+const palabras = (texto) => new Set(String(texto ?? '').toLowerCase()
+  .replace(/[^a-z0-9aeiouun]+/gi, ' ').split(' ').filter((palabra) => palabra.length > 3));
+
+/** Similitud de Jaccard entre dos textos: 0 = nada en comun, 1 = las mismas palabras. */
+export function similitudDeReglas(a, b) {
+  const A = palabras(a);
+  const B = palabras(b);
+  if (A.size === 0 || B.size === 0) return 0;
+  let comunes = 0;
+  for (const palabra of A) if (B.has(palabra)) comunes += 1;
+  return comunes / (A.size + B.size - comunes);
+}
+
+/**
+ * Clasifica lo que falta entre dos versiones. No basta con "estaba y ya no esta": una regla puede haberse
+ * movido a otra seccion (reorganizar) o reformulado sin perder el sentido, y solo lo que no se puede
+ * explicar de ninguna de las dos formas es una perdida. Lo que no se puede juzgar con confianza -porque la
+ * version de origen tenia delimitadores sueltos- se declara `incierta`, ni perdida ni conservada.
+ *
+ * @returns `{ reubicadas, reformuladas, perdidas, inciertas, conservadas, resumen }`.
+ */
+export function clasificarPerdidas(antesTexto, despuesTexto) {
+  const antes = inventario(antesTexto);
+  const despues = inventario(despuesTexto);
+  const reubicadas = [];
+  const reformuladas = [];
+  const perdidas = [];
+  const inciertas = [];
+
+  const porTexto = new Map(despues.reglas.map((r) => [r.texto, r.seccion]));
+  const textoDespues = String(despuesTexto ?? '');
+  for (const regla of antes.reglas) {
+    if (porTexto.has(regla.texto)) {
+      const destino = porTexto.get(regla.texto);
+      if (destino !== regla.seccion) reubicadas.push({ regla: regla.texto, desde: regla.seccion, hasta: destino });
+      continue;
+    }
+    if (textoDespues.toLowerCase().includes(regla.texto)) {
+      reubicadas.push({ regla: regla.texto, desde: regla.seccion, hasta: '(otro punto del documento)' });
+      continue;
+    }
+    const candidatas = despues.reglas.filter((r) => r.seccion === regla.seccion)
+      .map((r) => ({ regla: r.texto, parecido: similitudDeReglas(regla.texto, r.texto) }))
+      .sort((a, b) => b.parecido - a.parecido);
+    if (candidatas.length > 0 && candidatas[0].parecido >= 0.6) {
+      reformuladas.push({ regla: regla.texto, como: candidatas[0].regla, parecido: Number(candidatas[0].parecido.toFixed(2)) });
+      continue;
+    }
+    if (antes.inciertas.length > 0) {
+      inciertas.push({ regla: regla.texto, motivo: 'la version de origen tiene delimitadores sueltos' });
+      continue;
+    }
+    perdidas.push({ regla: regla.texto, seccion: regla.seccion });
+  }
+
+  // Los fragmentos y las cifras no son reglas, pero tambien son conocimiento: se clasifican igual.
+  // `pasos` se salta: son las mismas vinetas que ya se clasificaron como reglas, y contarlas dos veces
+  // convertiria una perdida en tres.
+  for (const [categoria, faltan] of Object.entries(inventarioPerdido(antes, despues))) {
+    if (categoria === 'pasos') continue;
+    const destino = categoria === 'encabezados' ? 'reubicadas' : 'perdidas';
+    for (const elemento of faltan) {
+      if (categoria === 'encabezados') reubicadas.push({ regla: elemento, desde: '(encabezado)', hasta: '(renumerado o movido)' });
+      else if (antes.inciertas.length > 0) inciertas.push({ regla: `${categoria}: ${elemento}`, motivo: 'delimitadores sueltos en el origen' });
+      else perdidas.push({ regla: `${categoria}: ${elemento}`, seccion: destino });
+    }
+  }
+
+  const conservadas = antes.reglas.filter((r) => porTexto.has(r.texto)).length;
+  return {
+    reubicadas, reformuladas, perdidas, inciertas, conservadas,
+    resumen: {
+      reglasAntes: antes.reglas.length,
+      reglasDespues: despues.reglas.length,
+      conservadas,
+      reubicadas: reubicadas.length,
+      reformuladas: reformuladas.length,
+      perdidas: perdidas.length,
+      inciertas: inciertas.length,
+    },
+  };
 }
 
 /** Lo que hay hoy en el almacén para un id, sin inventarse nada. */

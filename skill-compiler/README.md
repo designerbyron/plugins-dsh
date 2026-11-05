@@ -50,11 +50,15 @@ que se tomó, sin tocar nuestra versión (que está adaptada a propósito: sobre
 lo que la hace útil).
 
 Y la herramienta que **mantiene vivo** lo aprendido: `skill_improve` corrige o amplía una skill que ya
-existe **por secciones** —lo que no se nombra queda byte a byte—, crea o actualiza sus referencias y
-compara el inventario de conocimiento de la versión viva con el de la candidata, de modo que una regla que
-desaparece sin justificar **impide escribir**. No toca la versión activa: deja la revisión en `proposed/`,
+existe **por secciones** —lo que no se nombra queda byte a byte—, crea o actualiza sus referencias, puede
+ajustar `description` y `whenToUse` (y **solo** esos dos campos del frontmatter: id, procedencia, ámbito y
+estado los administra el sistema) y compara el inventario de conocimiento de la versión viva con el de la
+candidata, de modo que una regla que desaparece sin justificar **impide escribir**. Cada nueva candidata del
+mismo id **archiva la anterior entera** en `superseded/proposals/<id>/<revision>/`, con su hash y su motivo:
+la revisión que se sustituye ya no se pierde. No toca la versión activa: deja la revisión en `proposed/`,
 con su diff y sus huellas, esperando tu decisión. Y devuelve el informe `Self-improvement review`, una
-línea por archivo con lo que de verdad pasó (`patched`, `written`, `unchanged`).
+línea por archivo con lo que de verdad pasó (`patched`, `written`, `unchanged`), la candidata archivada y el
+recuento de reglas conservadas, movidas, reformuladas, perdidas e **inciertas**.
 
 ## Vendorizar: nuestra versión de una skill externa
 

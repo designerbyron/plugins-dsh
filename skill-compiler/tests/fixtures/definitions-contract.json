@@ -898,6 +898,11 @@
           "required": false,
           "enum": null
         },
+        "frontmatter": {
+          "type": "object",
+          "required": false,
+          "enum": null
+        },
         "id": {
           "type": "string",
           "required": true,
@@ -953,6 +958,24 @@
             "type": "string",
             "required": false,
             "enum": null
+          }
+        },
+        "frontmatter": {
+          "type": "object",
+          "required": false,
+          "enum": null,
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string",
+              "required": false,
+              "enum": null
+            },
+            "whenToUse": {
+              "type": "string",
+              "required": false,
+              "enum": null
+            }
           }
         },
         "id": {
@@ -1208,8 +1231,9 @@
         ],
         "efectos": [
           "prepara una revision candidata de una skill viva en proposed/",
-          "no toca la version activa: sigue sirviendose hasta que un humano decida",
-          "guarda base, revision, diff y huellas en el meta de la propuesta"
+          "archiva la propuesta anterior entera en superseded/ antes de instalar la nueva",
+          "puede cambiar description y whenToUse; el resto del frontmatter no",
+          "no toca la version activa: sigue sirviendose hasta que un humano decida"
         ],
         "restricciones": [
           "exige revision con medicion cuando la skill esta viva",

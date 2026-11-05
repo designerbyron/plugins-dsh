@@ -20,7 +20,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
-import { auditarCarpeta, curatedLibraryRoot, defaultRoot, isOurs, listProjects } from './compiler.mjs';
+import { CARPETA_PROPUESTAS_ARCHIVADAS, auditarCarpeta, curatedLibraryRoot, defaultRoot, isOurs, listProjects } from './compiler.mjs';
 import { t } from './i18n/index.mjs';
 
 /**
@@ -174,7 +174,11 @@ export function auditarAlmacen({ root = defaultRoot(), curated = curatedLibraryR
     const base = join(root, 'projects', projectKey);
     for (const estado of ESTADOS_ARCHIVADOS) {
       const { nombres } = subcarpetas(join(base, estado));
-      archivadas.push(...nombres.map((id) => `${estado}/${projectKey}/${id}`));
+      // `superseded/proposals/<id>/<revision>/` son candidatas archivadas, no skills apartadas: se
+      // conservan para comparar versiones, pero no se cuentan como versiones anteriores de una skill.
+      archivadas.push(...nombres
+        .filter((nombre) => nombre !== CARPETA_PROPUESTAS_ARCHIVADAS)
+        .map((id) => `${estado}/${projectKey}/${id}`));
     }
     for (const estado of ESTADOS_DE_PROYECTO) {
       if (!quiere(estado)) continue;

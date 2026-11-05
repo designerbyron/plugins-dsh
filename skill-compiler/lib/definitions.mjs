@@ -731,6 +731,15 @@ export function skillImprove({ root = defaultRoot(), curated } = {}) {
         },
       },
       retirarSecciones: { type: 'array', description: 'Sections to remove. Their content must survive elsewhere (usually a reference) or the conservation check refuses the change.', items: { type: 'string' } },
+      frontmatter: {
+        type: 'object',
+        description: 'Frontmatter fields to change. Only `description` and `whenToUse` are allowed: id, identity, provenance, scope and state are managed by the system and a content improvement cannot change them. Use it when the improvement changes WHEN the skill applies or how it presents itself; the body and the trigger have to agree.',
+        additionalProperties: false,
+        properties: {
+          description: { type: 'string', description: 'The new description (one line, at least 60 characters).' },
+          whenToUse: { type: 'string', description: 'The new trigger, in one line.' },
+        },
+      },
       perdidasJustificadas: { type: 'array', description: 'Inventory items (a literal, a path, a number, a step) that are allowed to disappear, each justified by its reason. Without this, any loss blocks the write.', items: { type: 'string' } },
       evidencia: { type: 'array', description: 'Workspace-relative paths that prove the improvement (a report, a test, a log).', items: { type: 'string' } },
       revision: {

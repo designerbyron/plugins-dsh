@@ -25,7 +25,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { cuerpoSinTitulo, normalizeRel, propose, vigenteDe } from './compiler.mjs';
-import { inventario, inventarioPerdido } from './repair.mjs';
+import { clasificarPerdidas, inventario, inventarioPerdido } from './repair.mjs';
 
 /** Las operaciones que el llamador puede declarar. El motor las valida contra lo que de verdad cambio. */
 export const OPERACIONES = Object.freeze(['new', 'patch', 'enhance', 'write', 'reorganize', 'no_change']);
@@ -136,6 +136,12 @@ export function aplicarParches(cuerpo, parches = []) {
 }
 
 /**
+ * Los campos del frontmatter que una mejora de contenido puede tocar. El resto (id, identidad,
+ * procedencia, ambito y estado) lo administra el sistema.
+ */
+export const CAMPOS_DE_FRONTMATTER = Object.freeze(['description', 'whenToUse']);
+
+/**
  * Informe por archivo: que se toco de verdad.
  *
  * @param antes - `{ 'SKILL.md': texto, 'references/x.md': texto }`
@@ -229,6 +235,34 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
       .replace(/\s+$/, '');
   }
 
+  //  El frontmatter: solo lo que el contrato deja tocar
+  // `description` y `whenToUse` son contenido de la skill. Todo lo demas -id, identidad, procedencia,
+  // ambito y estado- lo administra el sistema: una mejora de contenido no puede cambiarlo ni por descuido.
+  const frontmatter = input?.frontmatter ?? null;
+  if (frontmatter !== null) {
+    if (!esObjeto(frontmatter)) {
+      return { status: 'invalid', id, errors: ['"frontmatter" tiene que ser un objeto con los campos a cambiar'] };
+    }
+    const noPermitidos = Object.keys(frontmatter).filter((campo) => !CAMPOS_DE_FRONTMATTER.includes(campo));
+    if (noPermitidos.length > 0) {
+      return {
+        status: 'invalid', id,
+        errors: [`el frontmatter solo admite ${CAMPOS_DE_FRONTMATTER.join(' y ')}: ${noPermitidos.join(', ')} ${noPermitidos.length === 1 ? 'es un campo administrado por el sistema' : 'son campos administrados por el sistema'} (identidad, procedencia, ambito y estado no los cambia una mejora de contenido)`],
+      };
+    }
+    for (const campo of Object.keys(frontmatter)) {
+      const valor = frontmatter[campo];
+      if (typeof valor !== 'string' || valor.trim().length === 0) {
+        return { status: 'invalid', id, errors: [`"${campo}" tiene que ser texto con contenido`] };
+      }
+      if (/[\r\n]/.test(valor)) {
+        return { status: 'invalid', id, errors: [`"${campo}" tiene que ser una sola linea: el frontmatter no admite saltos`] };
+      }
+    }
+  }
+  const descripcionFinal = frontmatter?.description ?? input?.description ?? metaBase.description;
+  const whenToUseFinal = frontmatter?.whenToUse ?? input?.whenToUse ?? metaBase.whenToUse;
+
   //  Las referencias: crear o actualizar 
   const referencias = (Array.isArray(input?.referencias) ? input.referencias : [])
     .filter((r) => esObjeto(r) && typeof r.path === 'string' && typeof r.content === 'string')
@@ -237,7 +271,21 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
   for (const [ruta, texto] of Object.entries(antes)) if (ruta !== 'SKILL.md') despues[ruta] = texto;
   for (const ref of referencias) despues[ref.path] = ref.content;
 
+  // Al informe solo entra el `meta.json` si el frontmatter CAMBIA: se reescribe en cada propuesta (por el
+  // `createdAt`), asi que declararlo `unchanged` siempre seria ruido, y declararlo `patched` siempre seria
+  // mentira. Lo que importa es si `description` o `whenToUse` se tocaron.
+  const metaAntes = JSON.stringify({ description: metaBase.description ?? '', whenToUse: metaBase.whenToUse ?? '' });
+  const metaDespues = JSON.stringify({ description: descripcionFinal ?? '', whenToUse: whenToUseFinal ?? '' });
   const informe = informeDeArchivos(antes, despues);
+  if (metaAntes !== metaDespues) {
+    informe.lineas.push({
+      ruta: 'meta.json',
+      accion: 'patched',
+      shaAntes: createHash('sha256').update(metaAntes).digest('hex'),
+      shaDespues: createHash('sha256').update(metaDespues).digest('hex'),
+    });
+    informe.cuenta.patched += 1;
+  }
 
   //  Cambio algo? 
   if (informe.cuenta.patched === 0 && informe.cuenta.written === 0) {
@@ -258,6 +306,7 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
   const invAntes = inventario(cuerpoSinTitulo(textoAntes));
   const invDespues = inventario(cuerpoSinTitulo(textoDespues));
   const perdido = inventarioPerdido(invAntes, invDespues);
+  const clasificacion = clasificarPerdidas(cuerpoSinTitulo(textoAntes), cuerpoSinTitulo(textoDespues));
   const justificadas = Array.isArray(input?.perdidasJustificadas) ? input.perdidasJustificadas.map(String) : [];
   const sinJustificar = {};
   for (const [categoria, faltan] of Object.entries(perdido)) {
@@ -285,8 +334,8 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
   const propuesta = propose(
     {
       id,
-      description: input.description ?? metaBase.description,
-      whenToUse: input.whenToUse ?? metaBase.whenToUse,
+      description: descripcionFinal,
+      whenToUse: whenToUseFinal,
       tags: input.tags ?? metaBase.tags,
       body: cuerpoFinal,
       evidence: Array.isArray(input.evidencia) ? input.evidencia : [],
@@ -294,7 +343,7 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
     },
     { root, key, ...(cwd ? { cwd } : {}), ...(curated ? { curated } : {}), references: referenciasParaLaPuerta, now },
   );
-  if (propuesta.status !== 'proposed') return { status: propuesta.status, id, operacion, errores: propuesta.errors ?? [], propuesta };
+  if (propuesta.status !== 'proposed') return { status: propuesta.status, id, operacion, errors: propuesta.errors ?? [], errores: propuesta.errors ?? [], propuesta };
 
   const resumen = {
     revisadas: 1,
@@ -302,8 +351,12 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
     parcheados: informe.cuenta.patched,
     escritos: informe.cuenta.written,
     sinCambios: informe.cuenta.unchanged,
-    reglasAntes: Object.values(invAntes).reduce((n, l) => n + l.length, 0),
-    reglasDespues: Object.values(invDespues).reduce((n, l) => n + l.length, 0),
+    reglasAntes: invAntes.reglas.length,
+    reglasDespues: invDespues.reglas.length,
+    conservadas: clasificacion.resumen.conservadas,
+    reubicadas: clasificacion.resumen.reubicadas,
+    reformuladas: clasificacion.resumen.reformuladas,
+    inciertas: clasificacion.resumen.inciertas,
     perdidas: totalPerdidas,
     perdidasJustificadas: totalPerdidas - totalSinJustificar,
   };
@@ -316,6 +369,7 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
     estadoPropuesto: 'proposed',
     hashAnterior: base.hash,
     sha256: propuesta.sha256,
+    superseded: propuesta.superseded ?? null,
     base: propuesta.base,
     diff: propuesta.diff,
     informe,
@@ -361,7 +415,10 @@ export function textoDelInforme(resultado) {
   lineas.push(`- ${r.parcheados} file(s) patched.`);
   lineas.push(`- ${r.escritos} reference(s) written.`);
   lineas.push(`- ${r.sinCambios} file(s) unchanged.`);
-  lineas.push(`- ${r.reglasDespues} rules in the review, ${r.perdidas} lost${r.perdidasJustificadas ? ` (${r.perdidasJustificadas} justified)` : ''}.`);
+  if (resultado.superseded) lineas.push(`- Previous proposal archived (superseded/proposals/${resultado.id}/${resultado.superseded.revision}).`);
+  lineas.push(`- ${r.reglasDespues} rules reviewed, ${r.conservadas} preserved${r.reubicadas ? `, ${r.reubicadas} moved` : ''}${r.reformuladas ? `, ${r.reformuladas} reworded` : ''}.`);
+  lineas.push(`- ${r.perdidas} confirmed loss(es)${r.perdidasJustificadas ? ` (${r.perdidasJustificadas} justified)` : ''}.`);
+  if (r.inciertas > 0) lineas.push(`- ${r.inciertas} uncertain item(s): no se pueden juzgar con esta lectura, ni perdidos ni conservados.`);
   lineas.push('- Validation: PASS.');
   lineas.push('- Revision: awaiting approval.');
   return lineas.join('\n');
