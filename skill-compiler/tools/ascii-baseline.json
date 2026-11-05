@@ -1,5 +1,5 @@
 {
-  "generado": "2026-10-23T21:13:46.585Z",
+  "generado": "2026-11-05T04:04:19.964Z",
   "ficheros": {
     "bin/skill-compiler.mjs": 0,
     "client.js": 884,
@@ -15,6 +15,7 @@
     "lib/i18n/en.mjs": 0,
     "lib/i18n/es.mjs": 0,
     "lib/i18n/index.mjs": 45,
+    "lib/improve.mjs": 0,
     "lib/localized-commands.mjs": 0,
     "lib/lock.mjs": 21,
     "lib/operations.mjs": 0,

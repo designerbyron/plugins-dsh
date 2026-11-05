@@ -732,3 +732,39 @@ deja el anfitrión declarado con su fecha.
   habría seguido al anfitrión: habría dejado de fijar la versión sin acercarse a la del runtime. El pin exacto se
   queda, como ya documenta `docs/DEPENDENCIAS.md`.
 - **Lo que no se toca**: `app.asar`, el almacén real, las propuestas pendientes y la release `v5.0.2`.
+
+## Acto 2026-11-04/05 — motor de auto-mejora (rama de trabajo, sin versión)
+
+Acto **funcional y sin versión nueva**: añade una quinta herramienta y un motor. No se publica nada, no se mueve
+ningún tag y la superficie aprobada de `skill_propose`/`approve` queda intacta.
+
+- **`lib/improve.mjs`** (nuevo): mejora una skill **viva** por secciones. `partirCuerpo` separa preámbulo y
+  secciones `##`; `aplicarParches` sustituye por clave de título (sin el número) e inserta las nuevas con
+  `despuesDe`; `mejorar` compone la candidata, crea o actualiza referencias, compara el inventario de reglas de la
+  versión viva contra el de la candidata y pasa **la misma puerta que `propose`**. Lo que no se nombra queda byte a
+  byte. No abre una segunda vía de escritura y no mueve la versión activa: deja la revisión en `proposed/`.
+- **`skill_improve`**: quinta herramienta, registrada en `index.js`. Parámetros: `id`, `operacion`
+  (`patch`/`enhance`/`reorganize`/`no_change`/`new`), `parches` (por sección y por referencia), `revision`
+  (claim/evidence/measurement/change/removed), `perdidasJustificadas`, `retirarSecciones`, `evidencia`.
+- **Informe `Self-improvement review`**: una línea por archivo con lo que **de verdad** pasó en disco
+  (`patched`/`written`/`unchanged`), más el recuento de reglas antes y después y las pérdidas justificadas. Los
+  números salen del resultado, no de una estimación.
+- **Conservación**: una regla del inventario que desaparece sin justificar **bloquea la escritura**. Se comprobó
+  con el caso real: 92 reglas frente a 38, y las cinco secciones de la versión activa presentes literalmente.
+- **Caso de aceptación `shell-and-source-editing-traps`**: candidata de **12 secciones** y 8.236 B en
+  `saas-corporative-a3c393fa/proposed/` (base: activa `e45cc88…`, que sigue intacta y sirviendo). Integra las
+  cinco reglas de la activa y las seis de la propuesta del 14-oct, ordenadas por momento de uso. Cuatro pérdidas
+  declaradas: los cuatro encabezados que cambian de número al reordenar.
+- **Medición propia de la sección de shell** (Windows 11, PowerShell 5.1.26100): `*>` no crea la carpeta, el
+  comando no llega a ejecutarse y `$LASTEXITCODE` conserva el valor anterior; `Get-ExecutionPolicy` = `Restricted`.
+- **Suite**: **921 pruebas en 226 suites** (17 nuevas en `tests/improve.test.mjs`), hermética verde, i18n y ASCII
+  en verde con **8.289 caracteres heredados en 27/27** ficheros de primera parte (el módulo nuevo entra con 0 de
+  deuda no ASCII).
+- **Deudas que este acto deja dichas**:
+  1. Publicar exigirá versión **mayor** (superficie visible nueva) con su entrada de `CHANGELOG` y la portada.
+  2. El motor **no toca el frontmatter**: un `whenToUse` mejorado no se puede aplicar por esta vía (hoy queda
+     fuera del alcance o se declara en la revisión).
+  3. `propose` **reemplaza** la propuesta existente del mismo id sin archivar la anterior (`superseded/` no
+     existe para propuestas). En este acto eso sobrescribió el texto literal de la propuesta del 14-oct —su
+     contenido temático quedó integrado y verificado, pero el original no se conserva—. Un `superseded/` por id
+     eliminaría el riesgo.

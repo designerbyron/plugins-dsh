@@ -10,6 +10,7 @@
   },
   "superficie": {
     "herramientas": [
+      "skill_improve",
       "skill_propose",
       "skill_review",
       "skill_upstream_check",
@@ -880,6 +881,344 @@
         ],
         "seguridad": [
           "no sobrescribe la version local: la decision de re-vendorizar es humana"
+        ]
+      }
+    },
+    "skill_improve": {
+      "factory": "skillImprove",
+      "name": "skill_improve",
+      "params": {
+        "description": {
+          "type": "string",
+          "required": false,
+          "enum": null
+        },
+        "evidencia": {
+          "type": "array",
+          "required": false,
+          "enum": null
+        },
+        "id": {
+          "type": "string",
+          "required": true,
+          "enum": null
+        },
+        "operacion": {
+          "type": "string",
+          "required": true,
+          "enum": null
+        },
+        "parches": {
+          "type": "array",
+          "required": false,
+          "enum": null
+        },
+        "perdidasJustificadas": {
+          "type": "array",
+          "required": false,
+          "enum": null
+        },
+        "referencias": {
+          "type": "array",
+          "required": false,
+          "enum": null
+        },
+        "retirarSecciones": {
+          "type": "array",
+          "required": false,
+          "enum": null
+        },
+        "revision": {
+          "type": "object",
+          "required": false,
+          "enum": null
+        },
+        "whenToUse": {
+          "type": "string",
+          "required": false,
+          "enum": null
+        }
+      },
+      "params_arbol": {
+        "description": {
+          "type": "string",
+          "required": false,
+          "enum": null
+        },
+        "evidencia": {
+          "type": "array",
+          "required": false,
+          "enum": null,
+          "items": {
+            "type": "string",
+            "required": false,
+            "enum": null
+          }
+        },
+        "id": {
+          "type": "string",
+          "required": true,
+          "enum": null
+        },
+        "operacion": {
+          "type": "string",
+          "required": true,
+          "enum": null
+        },
+        "parches": {
+          "type": "array",
+          "required": false,
+          "enum": null,
+          "items": {
+            "type": "object",
+            "required": false,
+            "enum": null,
+            "additionalProperties": false,
+            "properties": {
+              "contenido": {
+                "type": "string",
+                "required": true,
+                "enum": null
+              },
+              "despuesDe": {
+                "type": "string",
+                "required": false,
+                "enum": null
+              },
+              "nuevaAqui": {
+                "type": "boolean",
+                "required": false,
+                "enum": null
+              },
+              "seccion": {
+                "type": "string",
+                "required": true,
+                "enum": null
+              },
+              "titulo": {
+                "type": "string",
+                "required": false,
+                "enum": null
+              }
+            }
+          }
+        },
+        "perdidasJustificadas": {
+          "type": "array",
+          "required": false,
+          "enum": null,
+          "items": {
+            "type": "string",
+            "required": false,
+            "enum": null
+          }
+        },
+        "referencias": {
+          "type": "array",
+          "required": false,
+          "enum": null,
+          "items": {
+            "type": "object",
+            "required": false,
+            "enum": null,
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string",
+                "required": true,
+                "enum": null
+              },
+              "path": {
+                "type": "string",
+                "required": true,
+                "enum": null
+              }
+            }
+          }
+        },
+        "retirarSecciones": {
+          "type": "array",
+          "required": false,
+          "enum": null,
+          "items": {
+            "type": "string",
+            "required": false,
+            "enum": null
+          }
+        },
+        "revision": {
+          "type": "object",
+          "required": false,
+          "enum": null,
+          "additionalProperties": false,
+          "properties": {
+            "change": {
+              "type": "string",
+              "required": true,
+              "enum": null
+            },
+            "claim": {
+              "type": "string",
+              "required": true,
+              "enum": null
+            },
+            "evidence": {
+              "type": "string",
+              "required": true,
+              "enum": null
+            },
+            "measurement": {
+              "type": "string",
+              "required": true,
+              "enum": null
+            },
+            "removed": {
+              "type": "string",
+              "required": false,
+              "enum": null
+            }
+          }
+        },
+        "whenToUse": {
+          "type": "string",
+          "required": false,
+          "enum": null
+        }
+      },
+      "output_estructura": {
+        "additionalProperties": false,
+        "properties": {
+          "archivos": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "accion": {
+                  "type": "string"
+                },
+                "ruta": {
+                  "type": "string"
+                },
+                "shaAntes": {
+                  "type": "string"
+                },
+                "shaDespues": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "base": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "diff": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "estadoAnterior": {
+            "type": "string"
+          },
+          "estadoPropuesto": {
+            "type": "string"
+          },
+          "hashAnterior": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "operacion": {
+            "type": "string"
+          },
+          "projectKey": {
+            "type": "string"
+          },
+          "resumen": {
+            "additionalProperties": false,
+            "properties": {
+              "escritos": {
+                "type": "number"
+              },
+              "mejoradas": {
+                "type": "number"
+              },
+              "parcheados": {
+                "type": "number"
+              },
+              "perdidas": {
+                "type": "number"
+              },
+              "perdidasJustificadas": {
+                "type": "number"
+              },
+              "reglasAntes": {
+                "type": "number"
+              },
+              "reglasDespues": {
+                "type": "number"
+              },
+              "revisadas": {
+                "type": "number"
+              },
+              "sinCambios": {
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "review": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "status": {
+            "required": true,
+            "type": "string"
+          },
+          "summary": {
+            "required": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "texto_obligatorio": [
+        "description"
+      ],
+      "contrato": {
+        "permisos": "escribe",
+        "solo_lectura": false,
+        "aprueba": false,
+        "atajo_de_seguridad": false,
+        "confirmacion": "ninguna: escribe en proposed/ y espera aprobacion humana",
+        "status_permitidos": [
+          "proposed",
+          "no_change",
+          "invalid",
+          "no-base"
+        ],
+        "efectos": [
+          "prepara una revision candidata de una skill viva en proposed/",
+          "no toca la version activa: sigue sirviendose hasta que un humano decida",
+          "guarda base, revision, diff y huellas en el meta de la propuesta"
+        ],
+        "restricciones": [
+          "exige revision con medicion cuando la skill esta viva",
+          "no deja desaparecer una regla del inventario sin justificarla",
+          "trabaja por secciones: lo que no se nombra queda byte a byte"
+        ],
+        "seguridad": [
+          "la misma puerta que skill_propose (una sola)",
+          "escritura atomica bajo el cerrojo por skill"
         ]
       }
     }

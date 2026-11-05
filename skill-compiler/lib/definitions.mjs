@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import { autoApproveFor } from './auto-approve.mjs';
 import { medirAutoActualizacion } from './auto-update.mjs';
+import { mejorar, textoDelInforme } from './improve.mjs';
 import { promover } from './promote.mjs';
 import { approve, checkProposal, defaultRoot, listForProject, overview, projectKey, propose, readSkill } from './compiler.mjs';
 import { markerLine } from './presentation.mjs';
@@ -680,6 +681,147 @@ export function skillUpstreamCheck({ root = defaultRoot(), fetchImpl, timeoutMs 
             ? 'Nuestra versión NO se ha tocado: está adaptada a propósito. Decide el humano si merece la pena re-vendorizar.'
             : 'Nada que hacer.',
         ].join('\n'),
+      };
+    },
+  };
+}
+
+/**
+ * Fabrica de la herramienta de auto-mejora.
+ *
+ * La diferencia con `skill_propose` no es de grado: aqui el trabajo se declara **por seccion y por
+ * archivo**, no como un cuerpo entero reescrito. Quien mejora una skill viva dice que seccion cambia, que
+ * pasa a una referencia y que se conserva; el motor compone el cuerpo, comprueba que no se pierde ninguna
+ * regla del inventario y escribe la candidata con la misma puerta de siempre.
+ *
+ * No sustituye nada: la version activa sigue sirviendose hasta que un humano aprueba la revision.
+ */
+export function skillImprove({ root = defaultRoot(), curated } = {}) {
+  return {
+    name: 'skill_improve',
+    description: 'Improve a skill that ALREADY EXISTS: correct it, extend it, move material into a reference, or reorganise it, without rewriting the whole body. Work by SECTION, not by file: each patch names the section it changes and gives its new content; anything you do not name stays byte for byte as it was. The engine reads the current version, applies the patches, creates or updates references, compares the inventory of knowledge (headings, steps, paths, numbers, backticked literals) and REFUSES to write if a rule of the live version would disappear without being declared in `perdidasJustificadas`. It never touches the active version: it prepares a candidate in proposed/ and waits for human approval. Use `operacion` to say what kind of change it is (patch, enhance, write, reorganize, or no_change when there is nothing worth writing). A change to a live skill REQUIRES `revision`: what the old version asserted, what contradicts it, how it was measured, and what it says now.',
+    parameters: {
+      id: { type: 'string', required: true, description: 'Id of the skill to improve. It has to name a live skill (approved, disabled or published) of this project.' },
+      operacion: { type: 'string', required: true, description: 'patch (correct an existing section) | enhance (extend it with new knowledge) | write (add a reference) | reorganize (move material without losing it) | no_change (nothing worth writing).' },
+      parches: {
+        type: 'array',
+        description: 'The sections to change. Each item names an existing section by its title (the `## ` line, number prefix optional) and gives its complete new content, without the heading. To add a section that does not exist, set `nuevaAqui: true` and give it a `titulo`; `despuesDe` places it after another section.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            seccion: { type: 'string', required: true, description: 'Title of the existing section, e.g. "3. Comillas" or "Comillas".' },
+            contenido: { type: 'string', required: true, description: 'The complete new content of that section, without the `## ` heading. Keep every rule you still need: what is not here disappears from that section.' },
+            titulo: { type: 'string', description: 'Optional: new title for the section (for a new section it is required).' },
+            nuevaAqui: { type: 'boolean', description: 'True to create a section that does not exist yet.' },
+            despuesDe: { type: 'string', description: 'Optional: title of the section it goes after.' },
+          },
+        },
+      },
+      referencias: {
+        type: 'array',
+        description: 'References to write beside the skill: a path under references/ that does not exist yet is created (written), one that exists is updated (patched). The body has to link it, or the gate rejects the proposal.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            path: { type: 'string', required: true, description: 'Relative path under references/, e.g. "references/trampas.md".' },
+            content: { type: 'string', required: true, description: 'The material itself, verbatim.' },
+          },
+        },
+      },
+      retirarSecciones: { type: 'array', description: 'Sections to remove. Their content must survive elsewhere (usually a reference) or the conservation check refuses the change.', items: { type: 'string' } },
+      perdidasJustificadas: { type: 'array', description: 'Inventory items (a literal, a path, a number, a step) that are allowed to disappear, each justified by its reason. Without this, any loss blocks the write.', items: { type: 'string' } },
+      evidencia: { type: 'array', description: 'Workspace-relative paths that prove the improvement (a report, a test, a log).', items: { type: 'string' } },
+      revision: {
+        type: 'object',
+        description: 'REQUIRED for any change to a live skill: the same four fields `skill_propose` demands. This is what separates a measured correction from an opinion.',
+        additionalProperties: false,
+        properties: {
+          claim: { type: 'string', required: true, description: 'What the current version asserts (at least 20 characters).' },
+          evidence: { type: 'string', required: true, description: 'What contradicts it. A workspace-relative path that exists is observed evidence; anything else is reported as an unverified claim.' },
+          measurement: { type: 'string', required: true, description: 'How it was measured, with a number or a command in backticks.' },
+          change: { type: 'string', required: true, description: 'What the skill says from now on.' },
+          removed: { type: 'string', description: 'Required if the change removes lines or material: why, and what replaces it.' },
+        },
+      },
+      description: { type: 'string', description: 'Optional: only if the improvement changes when the skill should be triggered.' },
+      whenToUse: { type: 'string', description: 'Optional: only if the trigger changes. Otherwise the live one is kept.' },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          status: { type: 'string', required: true, description: 'proposed | no_change | invalid | no-base' },
+          summary: { type: 'string', required: true },
+          review: { type: 'string', description: 'The Self-improvement review, one line per file, with what actually happened.' },
+          id: { type: 'string' },
+          projectKey: { type: 'string' },
+          operacion: { type: 'string' },
+          archivos: {
+            type: 'array',
+            description: 'One entry per file examined: patched, written or unchanged, with both hashes.',
+            items: { type: 'object', additionalProperties: false, properties: { ruta: { type: 'string' }, accion: { type: 'string' }, shaAntes: { type: 'string' }, shaDespues: { type: 'string' } } },
+          },
+          resumen: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              revisadas: { type: 'number' }, mejoradas: { type: 'number' }, parcheados: { type: 'number' },
+              escritos: { type: 'number' }, sinCambios: { type: 'number' },
+              reglasAntes: { type: 'number' }, reglasDespues: { type: 'number' },
+              perdidas: { type: 'number' }, perdidasJustificadas: { type: 'number' },
+            },
+          },
+          hashAnterior: { type: 'string' },
+          sha256: { type: 'string' },
+          estadoAnterior: { type: 'string' },
+          estadoPropuesto: { type: 'string' },
+          base: { type: 'object', additionalProperties: true },
+          diff: { type: 'object', additionalProperties: true },
+          errors: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      render: (_args, value) => [{ type: 'text', text: value.review ?? value.summary }],
+    },
+    execute(args, exec) {
+      const cwd = scopeOf(exec);
+      const key = projectKey(cwd);
+      if (key === null) return { status: 'no-project', summary: 'No hay ambito: la sesion no tiene un cwd utilizable.' };
+      const r = mejorar(args ?? {}, { root, key, cwd, ...(curated ? { curated } : {}) });
+      if (r.status !== 'proposed') {
+        const errores = r.errors ?? r.errores ?? [];
+        return {
+          status: r.status,
+          id: r.id,
+          projectKey: key,
+          operacion: r.operacion,
+          errors: errores,
+          summary: [
+            r.status === 'no_change'
+              ? `Sin cambios en "${r.id}": no hay ninguna mejora que justifique escribir.`
+              : `No se escribio nada para "${r.id}" (${r.status}).`,
+            ...errores.map((e) => `- ${e}`),
+          ].join('\n'),
+        };
+      }
+      const review = textoDelInforme(r);
+      return {
+        status: 'proposed',
+        id: r.id,
+        projectKey: r.projectKey,
+        operacion: r.operacion,
+        review,
+        summary: review,
+        archivos: r.informe.lineas.map((f) => ({ ruta: f.ruta, accion: f.accion, shaAntes: f.shaAntes ?? '', shaDespues: f.shaDespues ?? '' })),
+        resumen: r.resumen,
+        hashAnterior: r.hashAnterior,
+        sha256: r.sha256,
+        estadoAnterior: r.estadoAnterior,
+        estadoPropuesto: r.estadoPropuesto,
+        base: r.base,
+        diff: r.diff,
       };
     },
   };

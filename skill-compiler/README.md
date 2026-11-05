@@ -49,6 +49,13 @@ Y una tercera herramienta, de solo lectura: `skill_upstream_check` dice si el or
 que se tomó, sin tocar nuestra versión (que está adaptada a propósito: sobrescribirla destruiría justo
 lo que la hace útil).
 
+Y la herramienta que **mantiene vivo** lo aprendido: `skill_improve` corrige o amplía una skill que ya
+existe **por secciones** —lo que no se nombra queda byte a byte—, crea o actualiza sus referencias y
+compara el inventario de conocimiento de la versión viva con el de la candidata, de modo que una regla que
+desaparece sin justificar **impide escribir**. No toca la versión activa: deja la revisión en `proposed/`,
+con su diff y sus huellas, esperando tu decisión. Y devuelve el informe `Self-improvement review`, una
+línea por archivo con lo que de verdad pasó (`patched`, `written`, `unchanged`).
+
 ## Vendorizar: nuestra versión de una skill externa
 
 Le dices al agente, por ejemplo:

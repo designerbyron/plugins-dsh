@@ -26,7 +26,7 @@ import { after, describe, it } from 'node:test';
 import { skillCommands } from '../lib/commands.mjs';
 import { LOCALIZED_OPERATIONS } from '../lib/localized-commands.mjs';
 import {
-  PROTOCOL, PROVIDER_RANK, skillPropose, skillReview, skillUpstreamCheck, skillVendor,
+  PROTOCOL, PROVIDER_RANK, skillImprove, skillPropose, skillReview, skillUpstreamCheck, skillVendor,
 } from '../lib/definitions.mjs';
 import { cleanupSandboxes, fakeExec, goodInput, sandbox } from './helpers.mjs';
 
@@ -34,8 +34,8 @@ after(cleanupSandboxes);
 
 const CWD = 'C:\\xampp\\htdocs\\saas-corporative';
 const MANIFIESTO = JSON.parse(readFileSync(join(process.cwd(), 'tests/fixtures/definitions-contract.json'), 'utf8'));
-const FABRICAS = { skillPropose, skillReview, skillVendor, skillUpstreamCheck };
-const HERRAMIENTAS = ['skill_propose', 'skill_review', 'skill_upstream_check', 'skill_vendor'];
+const FABRICAS = { skillImprove, skillPropose, skillReview, skillVendor, skillUpstreamCheck };
+const HERRAMIENTAS = ['skill_improve', 'skill_propose', 'skill_review', 'skill_upstream_check', 'skill_vendor'];
 
 const ordenado = (obj) => Object.fromEntries(Object.entries(obj).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 const sinFunciones = (o) => JSON.parse(JSON.stringify(o, (k, v) => (typeof v === 'function' ? undefined : v)));
@@ -138,7 +138,7 @@ describe('definitions · inventario del contrato', () => {
     // entrar al contrato, y una que se retire tiene que salir.
     const fuente = readFileSync(join(process.cwd(), 'index.js'), 'utf8');
     const registradas = [...fuente.matchAll(/ctx\.tools\.register\(defineTool\((\w+)\(/g)].map((m) => m[1]);
-    assert.deepEqual(registradas.sort(), ['skillPropose', 'skillReview', 'skillUpstreamCheck', 'skillVendor']);
+    assert.deepEqual(registradas.sort(), ['skillImprove', 'skillPropose', 'skillReview', 'skillUpstreamCheck', 'skillVendor']);
     const nombres = registradas.map((f) => Object.keys(MANIFIESTO.tools).find((n) => MANIFIESTO.tools[n].factory === f)).sort();
     assert.deepEqual(nombres, Object.keys(MANIFIESTO.tools).sort());
     // Y ninguna herramienta de la superficie puede aprobar: aprobar no es una herramienta.
