@@ -273,3 +273,36 @@ describe('mejorar una skill viva', () => {
     assert.ok(!hayPropuesta(arena));
   });
 });
+
+describe('Self-improvement · informe y entradas mal declaradas', () => {
+  it('una referencia con las claves equivocadas es invalid, no un no_change silencioso', () => {
+    const arena = sandbox({ curated: false });
+    sembrar(arena);
+    const r = mejorar(
+      {
+        id: ID,
+        operacion: 'reorganize',
+        parches: [],
+        referencias: [{ ruta: 'references/x.md', contenido: 'material' }],
+        revision: buenaRevision(),
+      },
+      { root: arena.root, key: KEY },
+    );
+    assert.equal(r.status, 'invalid');
+    assert.match(r.errors[0], /path/);
+    assert.ok(!hayPropuesta(arena), 'no se escribe nada cuando la entrada está mal');
+    assert.match(textoDelInforme(r), /Validation: FAIL/);
+  });
+
+  it('el informe de un no_change dice que no hay nada que aprobar, en vez de reventar', () => {
+    const arena = sandbox({ curated: false });
+    sembrar(arena);
+    const r = mejorar({ id: ID, operacion: 'no_change', parches: [], revision: buenaRevision() }, { root: arena.root, key: KEY });
+    assert.equal(r.status, 'no_change');
+    const texto = textoDelInforme(r);
+    assert.match(texto, /No change:/);
+    assert.match(texto, /nothing to approve/);
+    assert.match(texto, /1 file\(s\) unchanged/);
+    assert.ok(!hayPropuesta(arena));
+  });
+});

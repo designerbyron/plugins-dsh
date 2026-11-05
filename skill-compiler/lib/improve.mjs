@@ -178,6 +178,17 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
     return { status: 'no-base', id, errors: [`no hay ninguna version viva de "${id}" en ${key}: una mejora necesita algo que mejorar`] };
   }
 
+  // Una referencia mal declarada NO se ignora: si el llamador se equivoca de clave, sin esto la operacion
+  // acabaria en un `no_change` silencioso y el conocimiento que traia se perderia sin rastro.
+  const declaradas = Array.isArray(input?.referencias) ? input.referencias : [];
+  const malDeclaradas = declaradas.filter((r) => !esObjeto(r) || typeof r.path !== 'string' || typeof r.content !== 'string');
+  if (malDeclaradas.length > 0) {
+    return {
+      status: 'invalid', id,
+      errors: [`${malDeclaradas.length} referencia(s) mal declaradas: cada una necesita "path" y "content" como cadenas (ruta relativa bajo references/)`],
+    };
+  }
+
   //  Lo que hay hoy, medido 
   // La descripcion y el disparador no se reescriben por gusto: si la mejora no los cambia, se conservan
   // los de la version viva, que son parte del contrato con el modelo (y `propose` los exige).
@@ -321,11 +332,30 @@ export function mejorar(input, { root, key, cwd = null, curated = null, now = ne
  */
 export function textoDelInforme(resultado) {
   const lineas = ['Self-improvement review'];
-  for (const f of resultado.informe.lineas) {
+  for (const f of resultado?.informe?.lineas ?? []) {
     lineas.push(`  Skill '${resultado.id}' ${f.accion} (${f.ruta})`);
   }
-  const r = resultado.resumen;
   lineas.push('');
+
+  // Un `no_change` y un `invalid` tambien se informan: sin esto el camino normal de "no hay nada que
+  // justifique escribir" reventaba al pedir el resumen, y el llamador se quedaba sin informe ni motivo.
+  if (resultado?.status !== 'proposed') {
+    if (resultado?.status === 'no_change') {
+      lineas.push('- 1 skill reviewed.');
+      lineas.push('- 0 skill enhanced.');
+      lineas.push('- 0 file(s) patched.');
+      lineas.push('- 0 reference(s) written.');
+      lineas.push(`- ${resultado?.informe?.cuenta?.unchanged ?? 0} file(s) unchanged.`);
+      lineas.push(`- No change: ${resultado.reason ?? 'nothing to justify a write'}.`);
+      lineas.push('- Revision: nothing to approve.');
+      return lineas.join('\n');
+    }
+    lineas.push(`- Validation: FAIL (${resultado?.status ?? 'unknown'}).`);
+    for (const error of resultado?.errors ?? ['no detail available']) lineas.push(`- ${error}`);
+    return lineas.join('\n');
+  }
+
+  const r = resultado.resumen;
   lineas.push(`- ${r.revisadas} skill reviewed.`);
   lineas.push(`- ${r.mejoradas} skill ${resultado.operacion === 'enhance' || resultado.operacion === 'reorganize' ? 'enhanced' : 'patched'}.`);
   lineas.push(`- ${r.parcheados} file(s) patched.`);
