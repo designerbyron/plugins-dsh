@@ -1,0 +1,8 @@
+# LifeCode Skill Center — capa de composición del plugin.
+#
+# Una entrada, un plugin: el host (`index.js`) registra las herramientas, el proveedor de skills y la
+# API del panel; el cliente (`client.js`) registra la página y su icono en la barra lateral. El id es el
+# que el Loader usa para dirigir la configuración, así que no cambia sin mover el perfil.
+- insert:
+    - id: lifecode-skill-center
+      name: '@local/lifecode-skill-center'

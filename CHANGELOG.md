@@ -4,6 +4,38 @@ El formato sigue la idea de [Keep a Changelog](https://keepachangelog.com/es-ES/
 es semántico: `mayor` cuando cambia un contrato (herramientas o formato del almacén), `menor` cuando se
 añade capacidad, `parche` cuando se corrige un defecto.
 
+## [lifecode-skill-center 1.0.0] — 2026-11-08 · inicial
+
+**Plugin nuevo, no una versión del compilador.** `lifecode-skill-center/` es el centro que administra el
+conocimiento reutilizable: biblioteca persistente, compuerta de calidad, versiones inmutables con vuelta
+atrás, **interruptor por skill y proyecto** y detección de lo que ya existe en disco. El compilador anterior
+sigue siendo el que propone; este es el que decide qué se enciende y dónde.
+
+Lo que entra:
+
+- **Panel completo** en la barra lateral (clave propia en el slot `main`): Overview, Library, Projects,
+  Improvements y Analytics, con cajón de skill, modal de creación y avisos. Se habla con el host por una ruta
+  propia (`/lifecode-skill-center/api/`) porque los resultados de comando se normalizan a `{kind,text}`.
+- **Cuatro herramientas** para el agente: `lifecode_skill_search`, `lifecode_skill_create`,
+  `lifecode_skill_improve`, `lifecode_skill_status`. Ninguna aprueba ni activa.
+- **Proveedor de skills** que sirve sólo lo encendido para la ruta que pregunta, con rango `160` (por debajo
+  del compilador) y vista materializada en disco.
+- **Invalidación real del catálogo**: cada acción del panel y el vigilante del almacén (`fs.watch` + sondeo)
+  llaman a `control.invalidate()`; sin eso, encender una skill no se notaría hasta reiniciar.
+- **Autorización en el borde**: `lib/api.mjs` devuelve `approval-required` a `actor:'ai'` para encender,
+  volver de versión, decidir, publicar e importar.
+- **Detección tolerante a la flexión** (`desplegar`/`despliega`), con umbrales distintos para biblioteca y
+  disco externo.
+
+Evidencia: **103 pruebas en verde**, puerta hermética con la huella del almacén real idéntica antes y después,
+`npm run check` 100/100, y la promesa del producto medida de punta a punta en `tests/api.test.mjs` (crear con
+`actor:'ai'`, servir en A y B, apagar en A y B sigue sirviendo).
+
+Defectos reales encontrados y cerrados durante la construcción, no antes: el diario de eventos se reiniciaba
+por un guard con `isObject` en vez de `Array.isArray`; el resultado del `manifest.json` se descartaba y una
+asignación nueva no se reflejaba; un `POST` sin acción contestaba con el estado y escondía el fallo; la
+detección exacta no veía la biblioteca propia.
+
 ## [5.0.2] — 2026-10-23 · parche
 
 **Tres defectos mas del panel de pendientes, medidos con la 5.0.1 ya instalada y validados a mano por el

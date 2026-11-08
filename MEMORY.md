@@ -1,7 +1,31 @@
 # MEMORY — estado vivo de la colección
 
 Memoria durable del repositorio. No es el historial de una sesión: es lo que hay que saber al entrar.
-Última actualización: 2026-11-04.
+Última actualización: 2026-11-08.
+
+## LifeCode Skill Center (plugin nuevo, v1.0.0 sin publicar)
+
+`lifecode-skill-center/` — el centro visual del conocimiento reutilizable. **No es el compilador con un panel
+encima**: es otro plugin, con su almacén propio (`%USERPROFILE%\.dsh\lifecode-skill-center\center.json`), su
+proveedor de skills (rango 160, por debajo del compilador) y su ruta HTTP
+(`/lifecode-skill-center/api/`). Ciclo: crear → evaluar → publicar → asignar → usar → medir → mejorar.
+
+Lo que hay que saber antes de tocarlo:
+
+- **La autorización vive en el borde.** `lib/operations.mjs` muta y anota `actor`; `lib/api.mjs` es el único
+  camino de entrada y devuelve `approval-required` a `actor:'ai'` para encender, volver de versión, decidir,
+  publicar e importar. Si añades una acción, la política va ahí.
+- **Una asignación apunta a una versión exacta.** Aprobar `1.1.0` no cambia lo que carga un proyecto que tenía
+  `1.0.0`; el panel mueve la versión con la acción `rollback` (que es «pon esta versión»).
+- **Invalidar el catálogo es obligatorio.** `CHANGES_CATALOG` en `index.js` + `lib/watch.mjs`; el registro de
+  skills cachea y no tiene TTL.
+- **El panel no recibe la carpeta de la sesión** (el slot `main` sólo da binding a `conversation`), así que
+  usa la del proceso (`hostCwd`) y la persona confirma en el selector de proyectos.
+- **103 pruebas + puerta hermética** (`npm run test:hermetic`) y `npm run check` (pureza del núcleo y
+  coherencia de instalación). Las trampas ya pagadas están en `lifecode-skill-center/docs/DESARROLLO.md`.
+
+Pendiente declarado: instalación en el perfil verificada visualmente y decisión de push (no ejecutados por
+gobernanza: un commit se decide y el envío se declara).
 
 ## Versión publicada
 

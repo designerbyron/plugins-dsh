@@ -1,0 +1,45 @@
+{
+  "name": "@local/lifecode-skill-center",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LifeCode Skill Center: centro visual para crear, evaluar, publicar, asignar y mejorar Skills de DeepSeek Harness, con biblioteca versionada y asignaciones por proyecto.",
+  "license": "MIT",
+  "author": "designerbyron",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/designerbyron/plugins-dsh.git",
+    "directory": "lifecode-skill-center"
+  },
+  "homepage": "https://github.com/designerbyron/plugins-dsh/tree/main/lifecode-skill-center#readme",
+  "bugs": {
+    "url": "https://github.com/designerbyron/plugins-dsh/issues"
+  },
+  "icon": "./icon.svg",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./lib/*": "./lib/*.mjs"
+  },
+  "scripts": {
+    "test": "node --test",
+    "test:hermetic": "node tests/check-hermetic.mjs",
+    "check": "node tools/check.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}

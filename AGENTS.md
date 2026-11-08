@@ -6,9 +6,14 @@
 
 ## Qué es este repositorio
 
-**LifeCode Plugins** — plugins propios para DeepSeek Harness. Ahora mismo contiene uno:
-[`skill-compiler`](skill-compiler/README.md), el compilador de conocimiento que convierte lo aprendido en
-una tarea en una skill **propuesta**, con ámbito de proyecto y esperando aprobación humana.
+**LifeCode Plugins** — plugins propios para DeepSeek Harness. Ahora mismo contiene dos:
+
+- [`skill-compiler`](skill-compiler/README.md) — el compilador de conocimiento que convierte lo aprendido en
+  una tarea en una skill **propuesta**, con ámbito de proyecto y esperando aprobación humana.
+- [`lifecode-skill-center`](lifecode-skill-center/README.md) — el centro visual que administra ese
+  conocimiento: biblioteca, compuerta de calidad, versiones con vuelta atrás, **interruptor por proyecto** y
+  detección de lo que ya existe. Panel propio en la barra lateral; la IA crea y propone, la persona aprueba y
+  enciende.
 
 Cada plugin vive en su carpeta, con su código, sus pruebas y su documentación, y **se instala por ruta
 absoluta** con el gestor de plugins del harness. El contrato de la casa está en
@@ -37,6 +42,8 @@ absoluta** con el gestor de plugins del harness. El contrato de la casa está en
 |---|---|
 | `skill-compiler/` | El plugin: `lib/` (lo que decide), `index.js` (adaptador Cordis), `client.js` (pieza de interfaz), `bin/` (CLI), `tests/` |
 | `skill-compiler/docs/` | Documentación del plugin: operación, dependencias, desarrollo, feedback visual, confianza |
+| `lifecode-skill-center/` | El centro de skills: `lib/` (núcleo puro), `index.js` (adaptador), `client.js` (panel completo), `tools/`, `tests/` |
+| `lifecode-skill-center/docs/` | Arquitectura, operación y desarrollo del centro |
 | `plans/` | Planes de trabajo, con sus hashes cuando se autorizan |
 | `CHANGELOG.md` | Historial de la colección |
 | `docs/` | La gobernanza de este repositorio (este contrato, visión, arquitectura, reglas de oro, sistema de diseño) |
@@ -49,6 +56,12 @@ npm install            # dependencias del harness, declaradas en el manifiesto
 npm test               # 276 pruebas
 npm run test:hermetic  # las pruebas + huella del almacén real antes y después
 node bin/skill-compiler.mjs doctor   # dice si algo falta y con qué comando se arregla
+
+cd lifecode-skill-center
+npm install            # @deepseek-ai/dsh-tools, para el adaptador
+npm test               # 103 pruebas
+npm run test:hermetic  # la suite + huella del almacén real antes y después
+npm run check          # instalación y pureza del núcleo
 ```
 
 Antes de tocar código: leer este fichero y el índice de [`docs/`](docs/README.md). Mantener
