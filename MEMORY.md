@@ -3,12 +3,23 @@
 Memoria durable del repositorio. No es el historial de una sesión: es lo que hay que saber al entrar.
 Última actualización: 2026-11-08.
 
-## LifeCode Skill Center (plugin nuevo, v1.0.0 sin publicar)
+## LifeCode Skill Center (plugin nuevo, v1.0.1 sin publicar)
 
 `lifecode-skill-center/` — el centro visual del conocimiento reutilizable. **No es el compilador con un panel
 encima**: es otro plugin, con su almacén propio (`%USERPROFILE%\.dsh\lifecode-skill-center\center.json`), su
 proveedor de skills (rango 160, por debajo del compilador) y su ruta HTTP
 (`/lifecode-skill-center/api/`). Ciclo: crear → evaluar → publicar → asignar → usar → medir → mejorar.
+
+Auditoría del 8 de noviembre (commit `0505207`, acto LSC-001): **119 pruebas**, puerta hermética con
+el almacén real idéntico antes y después de la suite, `check` 102/102, y la promesa medida en el harness vivo
+(creada desde el panel, servida en dos proyectos, apagada en uno sin tocar el otro, pin de versión distinto por
+proyecto: A en 1.1.0 y B en 1.0.0). Defectos reales que la auditoría encontró y cerró: `POST` imposible con una
+ruta `resource` (405 antes de mirar la ruta), escrituras perdidas sin candado (50 aperturas → 31 proyectos),
+materializado que no seguía al pin, referencias lista descartadas en silencio, `skill.loaded` con actor
+`system` colapsado a `human`, y abrir el panel escribiendo sin que nada cambiara. Para recargar el plugin en
+vivo basta `plugin_manager({action:'set_bundle', target:'@local/lifecode-skill-center', enabled:true})`: el
+harness lo re-importa sin reiniciar la app. Los registros antiguos conservan lo que tenían (un `skill.loaded`
+con actor `human`, una mejora sin `version`): las correcciones aplican hacia adelante, no reescriben historia.
 
 Lo que hay que saber antes de tocarlo:
 
@@ -21,7 +32,7 @@ Lo que hay que saber antes de tocarlo:
   skills cachea y no tiene TTL.
 - **El panel no recibe la carpeta de la sesión** (el slot `main` sólo da binding a `conversation`), así que
   usa la del proceso (`hostCwd`) y la persona confirma en el selector de proyectos.
-- **103 pruebas + puerta hermética** (`npm run test:hermetic`) y `npm run check` (pureza del núcleo y
+- **119 pruebas + puerta hermética** (`npm run test:hermetic`) y `npm run check` (pureza del núcleo y
   coherencia de instalación). Las trampas ya pagadas están en `lifecode-skill-center/docs/DESARROLLO.md`.
 
 Pendiente declarado: instalación en el perfil verificada visualmente y decisión de push (no ejecutados por
@@ -830,7 +841,7 @@ Cierra las cuatro brechas que el ACTO E dejó dichas. **Ninguna candidata se apr
 - **Hallazgo al comparar**: la candidata actual **no contiene todo** el material de esa propuesta. Medido con
   el inventario nuevo: faltan **13 tramos** (`BOM = EF BB BF`, `TextDecoder('utf-8',{fatal:true})`, `bin2hex`,
   `codePointAt`, `Buffer`, `.mjs`, `npm.ps1`, `buildId`, `"exit=$LASTEXITCODE"`, `comando *> ruta\en\…`,
-  `npm run build *> log`, `node node_modules/<paquete>/<cli>.mjs`, `Â·`), **4 bloques** con la tabla de puntos
+  `npm run build *> log`, `node node_modules/<paquete>/<cli>.mjs`, `·`), **4 bloques** con la tabla de puntos
   de código (`'É' correcto   C3 89`, `'★' correcto   E2 98 85`, y las dos filas de la vuelta de mojibake) y
   **2 viñetas**. La afirmación del ACTO E («contenido temático integrado») era demasiado generosa: hay que
   regenerar la candidata con esas secciones íntegras.

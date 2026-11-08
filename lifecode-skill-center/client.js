@@ -99,6 +99,7 @@ window.__ModuleLoader__.load({
         'library.filter.published': 'Publicadas',
         'library.filter.deprecated': 'Retiradas',
         'library.count': '{n} skills',
+        'library.countOne': '1 skill',
         'library.empty': 'La biblioteca está vacía. Crea la primera skill o trae una detectada.',
         'library.col.name': 'Skill',
         'library.col.version': 'Versión',
@@ -171,6 +172,7 @@ window.__ModuleLoader__.load({
         'drawer.body': 'Contenido de la versión {version}',
         'drawer.references': 'Referencias',
         'drawer.versions': 'Versiones',
+        'drawer.use': 'Usar aquí',
         'drawer.projects': 'Proyectos',
         'drawer.evaluate': 'Reevaluar',
         'drawer.tags': 'Etiquetas',
@@ -296,6 +298,7 @@ window.__ModuleLoader__.load({
         'library.filter.published': 'Published',
         'library.filter.deprecated': 'Deprecated',
         'library.count': '{n} skills',
+        'library.countOne': '1 skill',
         'library.empty': 'The library is empty. Create the first skill or bring in a detected one.',
         'library.col.name': 'Skill',
         'library.col.version': 'Version',
@@ -368,6 +371,7 @@ window.__ModuleLoader__.load({
         'drawer.body': 'Content of version {version}',
         'drawer.references': 'References',
         'drawer.versions': 'Versions',
+        'drawer.use': 'Use here',
         'drawer.projects': 'Projects',
         'drawer.evaluate': 'Re-evaluate',
         'drawer.tags': 'Tags',
@@ -782,6 +786,30 @@ window.__ModuleLoader__.load({
       return text(snapshot?.project?.cwd ?? snapshot?.cwd ?? snapshot?.hostCwd ?? '');
     }
 
+    /**
+     * Lee una respuesta del servidor sin romper el panel por un cuerpo vacío o ilegible.
+     *
+     * `response.json()` lanza `Unexpected end of JSON input` y el panel entero se quedaba con un
+     * mensaje en inglés del navegador. Encontrado midiendo el harness vivo: la ruta contestaba 405
+     * sin cuerpo cuando el registro era un `resource` y no un `handler`.
+     */
+    async function readJson(response) {
+      let raw = '';
+      try {
+        raw = await response.text();
+      } catch {
+        raw = '';
+      }
+      if (text(raw) === '') {
+        return { ok: false, data: null, message: `HTTP ${response.status} · respuesta vacía` };
+      }
+      try {
+        return { ok: true, data: JSON.parse(raw), message: '' };
+      } catch {
+        return { ok: false, data: null, message: `HTTP ${response.status} · respuesta ilegible` };
+      }
+    }
+
     /* ---------------------------------------------------------------------- iconos */
 
     function Icon({ size = 16 }) {
@@ -1089,8 +1117,8 @@ window.__ModuleLoader__.load({
         ),
 
         e(Section, {
-          title: t('library.count', { n: filtered.length }),
-          action: e(Pill, { tone: 'mute' }, t('library.count', { n: skills.length })),
+          title: t(filtered.length === 1 ? 'library.countOne' : 'library.count', { n: filtered.length }),
+          action: e(Pill, { tone: 'mute' }, t(skills.length === 1 ? 'library.countOne' : 'library.count', { n: skills.length })),
         },
           e('div', { className: 'lsc-toolbar' },
             e('input', { className: 'lsc-input search', placeholder: t('library.search'), value: query, onChange: (event) => setQuery(event.target.value) }),
@@ -1131,7 +1159,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function ProjectsView({ t, snapshot, onToggle, onVersion, onSync, onAdd, onSelect, cwd, busy }) {
+    function ProjectsView({ t, snapshot, onToggle, onVersion, onSync, onAdd, onSelect, onOpen, cwd, busy }) {
       const [adding, setAdding] = useState(false);
       const [path, setPath] = useState('');
       const projects = projectsOf(snapshot);
@@ -1182,7 +1210,7 @@ window.__ModuleLoader__.load({
                       const selected = assignment?.version ?? skill.currentVersion ?? '';
                       return e('div', { key: skill.id, className: 'lsc-skill-row' },
                         e('div', { className: 'lsc-col', style: { minWidth: 0, flex: 1 } },
-                          e('button', { type: 'button', className: 'lsc-btn ghost small', style: { padding: 0, border: 0, textAlign: 'left', fontWeight: 600 } }, skill.title ?? skill.id),
+                          e('button', { type: 'button', className: 'lsc-btn ghost small', style: { padding: 0, border: 0, textAlign: 'left', fontWeight: 600 }, onClick: () => onOpen(skill.id) }, skill.title ?? skill.id),
                           e('span', { className: 'lsc-hint lsc-nowrap' }, skill.id),
                         ),
                         enabled
@@ -1346,6 +1374,11 @@ window.__ModuleLoader__.load({
       const evaluation = current.evaluation ?? null;
       const versions = asArray(skill.versions);
       const projects = projectsOf(snapshot);
+      // El proyecto del panel es el de la sesión: sirve para ofrecer «usar esta versión aquí» sin
+      // depender del desplegable nativo, que no se puede accionar desde fuera de la app.
+      const currentProject = projects.find((project) => samePath(project.cwd, pickCwd(snapshot))) ?? null;
+      const hereAssignment = currentProject === null ? null : assignmentOf(snapshot, currentProject.id, skill.id);
+      const hereEnabled = hereAssignment?.enabled === true;
 
       return e('div', { className: 'lsc-overlay', onClick: onClose },
         e('div', { className: 'lsc-drawer', onClick: (event) => event.stopPropagation() },
@@ -1403,6 +1436,9 @@ window.__ModuleLoader__.load({
                 e('span', { className: 'lsc-dim' }, formatDate(version.createdAt, lang)),
                 e('span', { className: 'lsc-spacer' }),
                 version.status ? e(Pill, { tone: qualityTone(version.status) }, `${version.status} ${version.score ?? ''}`) : null,
+                hereEnabled && currentProject !== null && version.version !== hereAssignment?.version
+                  ? e('button', { type: 'button', className: 'lsc-btn ghost small', disabled: busy, onClick: () => onVersion(currentProject.id, skill.id, version.version) }, t('drawer.use'))
+                  : null,
               ),
             )),
           ),
@@ -1526,9 +1562,10 @@ window.__ModuleLoader__.load({
             if (options.scan === false) params.set('scan', '0');
             const query = params.toString();
             const response = await fetch(`${API}/state${query === '' ? '' : `?${query}`}`, { headers: { accept: 'application/json' } });
-            const data = await response.json();
-            if (!data || data.ok !== true) {
-              setError(data?.message ?? `HTTP ${response.status}`);
+            const parsed = await readJson(response);
+            const data = parsed.data;
+            if (!parsed.ok || !data || data.ok !== true) {
+              setError(data?.message ?? parsed.message);
               return null;
             }
             // La recarga rápida (sin barrido) no vuelve a caminar el disco: conservamos lo último
@@ -1553,7 +1590,67 @@ window.__ModuleLoader__.load({
           }
         }, []);
 
-        useEffect(() => { load().catch(() => {}); }, [load]);
+        // Abrir el panel es un acto humano: registra la vista del proyecto actual en el centro (un
+        // avistamiento, no un permiso) y devuelve el retrato. Sin esto, el proyecto real aparecía en
+        // la cabecera como «sin registrar» y la vista Proyectos decía que no había ninguno.
+        const openPanel = useCallback(async () => {
+          setBusy(true);
+          setError('');
+          try {
+            const response = await fetch(`${API}/state`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ action: 'open', payload: {}, cwd: cwdRef.current }),
+            });
+            const parsed = await readJson(response);
+            const data = parsed.data;
+            if (!parsed.ok || !data || data.ok !== true) {
+              setError(data?.message ?? parsed.message);
+              return;
+            }
+            setSnapshot(data);
+            if (cwdRef.current === '') {
+              const next = pickCwd(data);
+              cwdRef.current = next;
+              setCwd(next);
+            }
+          } catch (failure) {
+            setError(String(failure?.message ?? failure));
+          } finally {
+            setBusy(false);
+          }
+        }, []);
+
+        useEffect(() => { openPanel().catch(() => {}); }, [openPanel]);
+
+        // El centro también cambia desde fuera del panel: la IA crea o propone, otra ventana mueve un
+        // interruptor, el vigilante del almacén invalida el catálogo. Sin refrescar, la vista se queda
+        // con el retrato del montaje — en la auditoría Mejoras decía «no hay mejoras» con una propuesta
+        // ya registrada, y Proyectos mostraba un solo proyecto cuando había dos.
+        const firstView = useRef(true);
+        useEffect(() => {
+          if (firstView.current) {
+            firstView.current = false;
+            return undefined;
+          }
+          load({ scan: false }).catch(() => {});
+          return undefined;
+        }, [view, load]);
+
+        useEffect(() => {
+          if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined;
+          const refresh = () => {
+            const state = typeof document !== 'undefined' ? document?.visibilityState : 'visible';
+            if (state === 'hidden') return;
+            load({ scan: false }).catch(() => {});
+          };
+          const timer = typeof setInterval === 'function' ? setInterval(refresh, 20000) : null;
+          window.addEventListener('focus', refresh);
+          return () => {
+            if (timer !== null) clearInterval(timer);
+            window.removeEventListener?.('focus', refresh);
+          };
+        }, [load]);
 
         const act = useCallback(async (action, payload = {}) => {
           setBusy(true);
@@ -1563,9 +1660,10 @@ window.__ModuleLoader__.load({
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify({ action, payload, cwd: cwdRef.current }),
             });
-            const result = await response.json();
-            if (!result || result.ok === false) {
-              const message = result?.message ?? `HTTP ${response.status}`;
+            const parsed = await readJson(response);
+            const result = parsed.data;
+            if (!parsed.ok || !result || result.ok === false) {
+              const message = result?.message ?? parsed.message;
               notify(t('toast.failed', { message }), 'bad');
               setError(message);
               return null;
@@ -1643,9 +1741,10 @@ window.__ModuleLoader__.load({
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify({ action: 'create', payload, cwd: cwdRef.current }),
             });
-            const result = await response.json();
-            if (!result || result.ok === false) {
-              const message = result?.message ?? `HTTP ${response.status}`;
+            const parsed = await readJson(response);
+            const result = parsed.data;
+            if (!parsed.ok || !result || result.ok === false) {
+              const message = result?.message ?? parsed.message;
               if (typeof setError === 'function') setError(asArray(result?.findings).map((finding) => finding.message).join(' · ') || message);
               return;
             }
@@ -1665,6 +1764,14 @@ window.__ModuleLoader__.load({
           const result = await act('detect', { text: detectText.trim() });
           if (result !== null) setDetectResult(result);
         }, [act, detectText]);
+
+        // Un solo objeto para el cuadro de detección: `LibraryView` lo recibe por `detect` (texto y
+        // resultado) y por `onDetect` (cambiar y buscar). Compartir la referencia evita que las dos
+        // vistas del contrato se separen otra vez, que es lo que dejó «Biblioteca» en blanco.
+        const detectState = useMemo(
+          () => ({ text: detectText, result: detectResult, change: setDetectText, run: runDetect }),
+          [detectText, detectResult, runDetect],
+        );
 
         const nav = useMemo(() => {
           const pending = asArray(snapshot?.improvements).filter((entry) => entry.status === 'proposed').length;
@@ -1745,9 +1852,12 @@ window.__ModuleLoader__.load({
                 t, lang, snapshot, busy,
                 onOpen: setDrawerId,
                 onNew: () => setModalOpen(true),
-                onDetect: { text: detectText, result: detectResult, change: setDetectText, run: runDetect },
+                // `LibraryView` lee el cuadro de detección por `detect` y los manejadores por `onDetect`:
+                // pasar sólo uno de los dos dejaba la vista en blanco (encontrado en la auditoría).
+                detect: detectState,
+                onDetect: detectState,
               }) : null,
-              view === 'projects' ? e(ProjectsView, { t, snapshot, cwd, busy, onToggle, onVersion, onSync, onAdd: onAddProject, onSelect: selectProject }) : null,
+              view === 'projects' ? e(ProjectsView, { t, snapshot, cwd, busy, onToggle, onVersion, onSync, onAdd: onAddProject, onSelect: selectProject, onOpen: setDrawerId }) : null,
               view === 'improvements' ? e(ImprovementsView, { t, lang, snapshot, onDecide, onOpen: setDrawerId, busy, actionPending }) : null,
               view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot }) : null,
             ),

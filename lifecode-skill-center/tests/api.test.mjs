@@ -5,12 +5,12 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { buildSnapshot, runAction, listAssignedFor, centerRoot, API_VERSION } from '../lib/api.mjs';
+import { buildSnapshot, runAction, listAssignedFor, centerRoot, API_VERSION, API_PREFIX, handleApiRequest } from '../lib/api.mjs';
 import { skillProviderFor } from '../lib/provider.mjs';
-import { loadState, centerFile } from '../lib/state.mjs';
+import { loadState, centerFile, materializedRoot } from '../lib/state.mjs';
 import { parseSkillFile } from '../lib/skillfile.mjs';
 import { candidate, tempProject, tempRoot } from './helpers.mjs';
 
@@ -40,6 +40,19 @@ test('open registra el proyecto de la sesión y lo devuelve marcado', () => {
   assert.equal(opened.project.registered, true);
   assert.equal(opened.project.cwd, cwd.replace(/\\/g, '/'));
   assert.ok(existsSync(centerFile(store)));
+});
+
+test('abrir el panel dos veces escribe una sola vez: la segunda apertura no es un cambio', () => {
+  const store = root();
+  const cwd = projectA();
+  runAction({ root: store, action: 'open', cwd, now: NOW });
+  const first = loadState(store).state.updatedAt;
+  const again = runAction({ root: store, action: 'open', cwd, now: '2026-11-09T10:00:00.000Z' });
+  assert.equal(again.ok, true);
+  assert.equal(again.project.registered, true);
+  const second = loadState(store).state.updatedAt;
+  assert.equal(second, first, 'una apertura repetida no puede tocar el documento ni despertar al vigilante');
+  assert.equal(Object.keys(loadState(store).state.projects).length, 1);
 });
 
 test('el snapshot cuenta lo que hay y deja claro en qué proyectos está cada skill', () => {
@@ -139,10 +152,17 @@ test('sync escribe el proyecto materializado con su manifiesto y es idempotente'
   const projectId = runAction({ root: store, action: 'open', cwd, now: NOW }).project.id;
   runAction({ root: store, action: 'toggle', actor: 'human', payload: { projectId, skillId: created.id, enabled: true }, cwd, now: NOW });
 
+  // Encender ya deja el disco al día: la vista materializada se rehace en el mismo acto, así que el
+  // `sync` explícito posterior no tiene nada que escribir (antes hacía falta sincronizar a mano).
+  const projectDirectory = join(materializedRoot(store), projectId);
+  assert.ok(existsSync(join(projectDirectory, created.id, 'SKILL.md')), 'encender escribe el SKILL.md de la skill en su carpeta');
+  const manifestBefore = JSON.parse(readFileSync(join(projectDirectory, 'manifest.json'), 'utf8'));
+  assert.deepEqual(manifestBefore.skills.map((entry) => `${entry.id}@${entry.version}`), [`${created.id}@1.0.0`]);
+
   const first = runAction({ root: store, action: 'sync', cwd, now: NOW, payload: { projectId } });
   assert.equal(first.ok, true);
   assert.equal(first.results.length, 1);
-  assert.ok(first.results[0].written.length >= 2, 'SKILL.md y manifiesto');
+  assert.deepEqual(first.results[0].written, [], 'encender ya lo escribió');
   const directory = first.results[0].directory;
   const manifest = JSON.parse(readFileSync(join(directory, 'manifest.json'), 'utf8'));
   assert.equal(manifest.projectId, projectId);
@@ -151,6 +171,33 @@ test('sync escribe el proyecto materializado con su manifiesto y es idempotente'
   const second = runAction({ root: store, action: 'sync', cwd, now: NOW, payload: { projectId } });
   assert.deepEqual(second.results[0].written, [], 'sin cambios no se reescribe');
   assert.ok(second.results[0].unchanged >= 2);
+});
+
+test('cambiar la versión fijada reescribe el SKILL.md materializado en el mismo acto', () => {
+  const store = root();
+  const cwd = projectA();
+  const created = createOne(store, cwd);
+  const projectId = runAction({ root: store, action: 'open', cwd, now: NOW }).project.id;
+  runAction({ root: store, action: 'toggle', actor: 'human', payload: { projectId, skillId: created.id, enabled: true }, cwd, now: NOW });
+
+  const improved = runAction({
+    root: store,
+    action: 'improve',
+    actor: 'ai',
+    cwd,
+    payload: { skillId: created.id, rationale: 'Añade un límite explícito.', body: `${candidate().body}\n\n## Limite\n\nQue el catálogo la ofrezca no prueba que se aplicara.` },
+    now: NOW,
+  });
+  assert.equal(improved.ok, true);
+  const approved = runAction({ root: store, action: 'decide', actor: 'human', cwd, payload: { improvementId: improved.improvementId, decision: 'approve' }, now: NOW });
+  assert.equal(approved.ok, true);
+
+  const skillFile = join(materializedRoot(store), projectId, created.id, 'SKILL.md');
+  assert.ok(!readFileSync(skillFile, 'utf8').includes('## Limite'), 'la asignación sigue fijada a la 1.0.0');
+
+  const moved = runAction({ root: store, action: 'rollback', actor: 'human', cwd, payload: { projectId, skillId: created.id, version: approved.version.version }, now: NOW });
+  assert.equal(moved.ok, true);
+  assert.ok(readFileSync(skillFile, 'utf8').includes('## Limite'), 'fijar la 1.1.0 la escribe sin pedir sync');
 });
 
 test('la detección ve la biblioteca propia y las skills que ya viven en el disco', () => {
@@ -220,4 +267,52 @@ test('una acción que no existe se dice, no se ignora', () => {
   const store = root();
   const unknown = runAction({ root: store, action: 'inventada', now: NOW });
   assert.equal(unknown.code, 'unknown-action');
+});
+
+
+/* ------------------------------------------------------------------------------------------- */
+/* El despacho HTTP: la misma lógica que el adaptador monta, probada sin Node ni harness.       */
+/* ------------------------------------------------------------------------------------------- */
+
+test('el despacho HTTP respeta ruta, método, cuerpo y aviso de invalidación', async () => {
+  const root = tempRoot('lsc-http');
+  const skill = candidate();
+  const base = API_PREFIX + '/state';
+
+  const foreign = handleApiRequest({ root, method: 'GET', pathname: '/otra-cosa' });
+  assert.equal(foreign.status, 404);
+  assert.equal(foreign.body.code, 'not-found');
+
+  const method = handleApiRequest({ root, method: 'DELETE', pathname: base });
+  assert.equal(method.status, 405);
+  assert.match(method.body.message, /GET/);
+
+  const broken = handleApiRequest({ root, method: 'POST', pathname: base, body: null });
+  assert.equal(broken.status, 400);
+  assert.equal(broken.body.code, 'bad-request');
+
+  const read = handleApiRequest({ root, method: 'GET', pathname: base, search: '?scan=0', hostCwd: 'C:/proyecto/actual' });
+  assert.equal(read.status, 200);
+  assert.equal(read.body.ok, true);
+  assert.equal(read.body.project.cwd, 'C:/proyecto/actual');
+  assert.equal(read.invalidate, false, 'leer no invalida nada');
+
+  const created = handleApiRequest({
+    root,
+    method: 'POST',
+    pathname: base,
+    body: { action: 'create', actor: 'human', payload: skill },
+  });
+  assert.equal(created.status, 200);
+  assert.equal(created.body.ok, true, JSON.stringify(created.body.findings ?? created.body.message ?? ''));
+  assert.equal(created.invalidate, true, 'crear cambia el catálogo');
+
+  const refused = handleApiRequest({
+    root,
+    method: 'POST',
+    pathname: base,
+    body: { action: 'create', actor: 'human', payload: skill },
+  });
+  assert.equal(refused.body.code, 'exists', 'la segunda vez la skill ya existe');
+  assert.equal(refused.invalidate, false, 'sin cambio no hay nada que invalidar');
 });

@@ -36,6 +36,97 @@ import { defaultRoot, emptyState, loadState, materializedRoot, withState } from 
 export const API_VERSION = 1;
 export const EXTERNAL_LIMIT = 140;
 
+/**
+ * La base de la API del panel, sin barra final.
+ *
+ * Medido en el harness vivo: la ruta con nombre se casa por `path` o `path + '/'`, nunca por
+ * `path + 'x'`; registrada como `.../api/`, sólo respondía la base exacta y `.../api/state` caía en el
+ * 404 del fallback del SPA.
+ */
+export const API_PREFIX = '/lifecode-skill-center/api';
+
+/** Las acciones que cambian el catálogo que ve el agente: hay que invalidarlo después. */
+export const CHANGES_CATALOG = new Set(['create', 'publish', 'improve', 'decide', 'toggle', 'rollback', 'fork', 'import', 'evaluate']);
+
+/** Un objeto de verdad: ni `null` ni un array. */
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * La subruta de la API a la que corresponde un `pathname`, o `null` si no es de la API.
+ * Devuelve `''` para la propia base.
+ */
+export function apiRouteOf(pathname) {
+  const value = typeof pathname === 'string' ? pathname : '';
+  if (value === API_PREFIX) return '';
+  if (value.startsWith(`${API_PREFIX}/`)) return value.slice(API_PREFIX.length + 1);
+  return null;
+}
+
+/** Toda respuesta de la API tiene la misma forma: estado, cuerpo y si hay que invalidar el catálogo. */
+function answer(status, body, invalidate = false) {
+  return { status, body, invalidate: invalidate === true };
+}
+
+function notFound() {
+  return answer(404, { ok: false, code: 'not-found', message: `esa ruta no es de la API (${API_PREFIX})` });
+}
+
+/**
+ * El despacho de la API del panel: método + ruta + cuerpo entran, estado HTTP y cuerpo JSON salen.
+ *
+ * Vive aquí y no en `index.js` a propósito. El adaptador es la única pieza que no se puede probar antes
+ * de instalar; si la semántica de la API viviera allí, cada defecto de la interfaz habría que buscarlo
+ * dentro del harness. `outcome.invalidate` dice al adaptador si tiene que tirar el catálogo cacheado.
+ */
+export function handleApiRequest({
+  root = centerRoot(),
+  method = 'GET',
+  pathname = '/',
+  search = '',
+  body = null,
+  hostCwd = '',
+  now = new Date().toISOString(),
+} = {}) {
+  const verb = String(method ?? 'GET').toUpperCase();
+  const route = apiRouteOf(pathname);
+  if (route === null) return notFound();
+
+  if (verb === 'GET' || verb === 'HEAD') {
+    const params = new URLSearchParams(typeof search === 'string' ? search.replace(/^\?/, '') : '');
+    const cwd = params.get('cwd') ?? '';
+    const scan = params.get('scan') !== '0';
+    return answer(200, buildSnapshot({ root, cwd: cwd !== '' ? cwd : hostCwd, hostCwd, scan, now }));
+  }
+
+  if (verb !== 'POST') {
+    return answer(405, { ok: false, code: 'method', message: 'usa GET para el estado y POST para las acciones' });
+  }
+
+  if (route !== '' && route !== 'state') return notFound();
+
+  // Un POST sin acción es un error del cliente, no una consulta: contestar con el estado escondería el
+  // fallo justo cuando alguien está depurando el panel.
+  const action = isPlainObject(body) ? String(body.action ?? '') : '';
+  if (!isPlainObject(body) || action === '') {
+    return answer(400, { ok: false, code: 'bad-request', message: 'un POST necesita un cuerpo JSON con «action»' });
+  }
+
+  const payload = isPlainObject(body.payload) ? body.payload : body;
+  const cwd = String(body.cwd ?? payload.cwd ?? '');
+  const result = runAction({
+    root,
+    action,
+    payload,
+    actor: body.actor === 'ai' ? 'ai' : 'human',
+    cwd: cwd !== '' ? cwd : hostCwd,
+    hostCwd,
+    now,
+  });
+  return answer(200, result, result?.ok === true && CHANGES_CATALOG.has(action));
+}
+
 /** La raíz del centro. Se puede redirigir por entorno para poder probarla sin tocar el almacén real. */
 export function centerRoot(env = process.env) {
   const override = typeof env?.LIFECODE_SKILL_CENTER_ROOT === 'string' ? env.LIFECODE_SKILL_CENTER_ROOT.trim() : '';
@@ -196,7 +287,11 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
   if (name === 'state') return buildSnapshot({ root, cwd, now, hostCwd, scan: data.scan !== false });
 
   if (name === 'open') {
-    if (normalizeCwd(cwd) !== '') {
+    // Abrir el panel no debe escribir si el proyecto ya está en el registro: un guardado por cada
+    // apertura cambia `updatedAt`, despierta al vigilante y hace creer que hubo un cambio. Sólo la
+    // primera vez que se ve un proyecto se anota.
+    const known = normalizeCwd(cwd) === '' ? null : findProject(loadState(root).state, cwd);
+    if (normalizeCwd(cwd) !== '' && known === null) {
       const opened = withState(root, (state) => {
         const project = ensureProject(state, cwd, { now });
         return project === null ? { ok: false, code: 'bad-cwd', message: 'la ruta no da un proyecto' } : { ok: true, project };
@@ -320,7 +415,25 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
   }, { now });
 
   if (!mutation.ok) return { ok: false, code: 'store', message: 'no se pudo guardar el centro', storeError: mutation.storeError };
-  return mutation.result ?? { ok: false, code: 'empty', message: 'la acción no devolvió nada' };
+  const result = mutation.result ?? { ok: false, code: 'empty', message: 'la acción no devolvió nada' };
+
+  // Un cambio de versión fijada tiene que verse en el disco en el mismo acto: si no, la asignación
+  // dice 1.1.0 y el SKILL.md materializado sigue en 1.0.0 hasta que alguien pida el catálogo
+  // (encontrado en la auditoría: «Usar aquí» dejaba el fichero viejo).
+  if (result?.ok === true && (name === 'toggle' || name === 'rollback')) {
+    const loaded = loadState(root);
+    const project = typeof data.projectId === 'string' && data.projectId !== ''
+      ? loaded.state.projects[data.projectId]
+      : findProject(loaded.state, cwd);
+    if (project !== undefined && project !== null) {
+      try {
+        ensureProjectView({ root, state: loaded.state, project, now });
+      } catch {
+        // Si el disco no se deja escribir, la próxima lectura del catálogo lo reintenta.
+      }
+    }
+  }
+  return result;
 }
 
 /** Lo que el proveedor de skills necesita: sólo lo encendido para esta ruta. */

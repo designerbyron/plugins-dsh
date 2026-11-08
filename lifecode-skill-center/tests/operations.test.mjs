@@ -108,6 +108,7 @@ test('una mejora se propone, espera decisión humana y sólo entonces crea la ve
   assert.equal(byHuman.ok, true);
   assert.equal(byHuman.version.version, '1.1.0');
   assert.equal(state.improvements[proposed.improvementId].status, 'approved');
+  assert.equal(state.improvements[proposed.improvementId].version, '1.1.0', 'el historial dice qué versión salió de la propuesta');
   assert.ok(state.skills[id].versions.length === 2);
 });
 
@@ -231,3 +232,31 @@ function stateWithTwoVersions() {
   assert.equal(versionOf(skill, '1.0.0').version, '1.0.0');
   return skill;
 }
+
+
+test('las referencias se aceptan como mapa o como lista, y una ruta inválida se rechaza en voz alta', () => {
+  const state = freshState();
+  const lista = createSkill(state, {
+    ...candidate(),
+    id: 'con-referencias-en-lista',
+    references: [{ path: 'references/checklist.md', content: '# Checklist\n' }],
+  }, { now: NOW, actor: 'ai' });
+  assert.equal(lista.ok, true);
+  assert.deepEqual(Object.keys(lista.version.references), ['references/checklist.md']);
+
+  const mapa = createSkill(state, {
+    ...candidate(),
+    id: 'con-referencias-en-mapa',
+    references: { 'references/otra.md': '# Otra\n' },
+  }, { now: NOW, actor: 'ai' });
+  assert.equal(mapa.ok, true);
+  assert.deepEqual(Object.keys(mapa.version.references), ['references/otra.md']);
+
+  const mala = createSkill(state, {
+    ...candidate(),
+    id: 'con-referencia-que-escapa',
+    references: [{ path: '../../escapa.txt', content: 'x' }],
+  }, { now: NOW, actor: 'ai' });
+  assert.equal(mala.ok, false);
+  assert.equal(mala.code, 'invalid-references');
+});

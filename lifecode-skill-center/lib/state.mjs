@@ -10,7 +10,7 @@
  * deja el documento anterior entero, nunca medio documento.
  */
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -211,6 +211,9 @@ export function normalizeState(raw) {
         createdAt: text(improvement.createdAt),
         decidedAt: text(improvement.decidedAt),
         decidedBy: text(improvement.decidedBy),
+        // La versión que publicó una propuesta aprobada: sin este campo el historial no puede decir
+        // qué versión salió de qué propuesta (se perdía al recargar, no al aprobar).
+        version: text(improvement.version),
         evaluation: normalizeEvaluation(improvement.evaluation),
       };
     }
@@ -225,7 +228,9 @@ export function normalizeState(raw) {
       skillId: text(event.skillId),
       projectId: text(event.projectId),
       version: text(event.version),
-      actor: event.actor === 'ai' ? 'ai' : 'human',
+      // `system` no es una persona ni el modelo: es el harness pidiendo el catálogo. Colapsarlo a
+      // `human` falseaba la telemetría (una carga aparecía como acto de una persona).
+      actor: event.actor === 'ai' || event.actor === 'system' ? event.actor : 'human',
       note: text(event.note),
     }));
   return state;
@@ -249,7 +254,13 @@ export function loadState(root = defaultRoot()) {
   }
 }
 
-/** Escritura atómica: se escribe al lado y se renombra encima. */
+/**
+ * Escritura atómica: se escribe al lado y se renombra encima.
+ *
+ * En Windows, renombrar sobre un fichero que otro proceso está leyendo puede fallar con `EPERM`
+ * durante unos milisegundos (lo midió la auditoría con dos escritores). Se reintenta, porque el
+ * candado de `withState` ya serializa lo nuestro y esto cubre a quien lea por fuera.
+ */
 export function saveState(root, state, { now = new Date().toISOString() } = {}) {
   const file = centerFile(root);
   mkdirSync(dirname(file), { recursive: true });
@@ -257,20 +268,94 @@ export function saveState(root, state, { now = new Date().toISOString() } = {}) 
   state.updatedAt = now;
   const tmp = `${file}.${process.pid}.${Date.now().toString(36)}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-  renameSync(tmp, file);
+  renameWithRetry(tmp, file);
   return file;
 }
 
+const LOCK_WAIT_MS = 4000;
+const LOCK_RETRY_MS = 12;
+const LOCK_STALE_MS = 20000;
+const RENAME_RETRY_MS = 15;
+
+function lockFile(root) {
+  return `${centerFile(root)}.lock`;
+}
+
+/** Espera síncrona sin dependencias: el núcleo es síncrono a propósito y cada acción es corta. */
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function renameWithRetry(tmp, file) {
+  let last = null;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      renameSync(tmp, file);
+      return;
+    } catch (error) {
+      last = error;
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(error?.code)) throw error;
+      sleepSync(RENAME_RETRY_MS);
+    }
+  }
+  throw last;
+}
+
 /**
- * Lee, deja mutar y guarda. Si la mutación lanza, **no se guarda nada**: media operación escrita es
- * peor que ninguna, y el error viaja a quien llamó.
+ * Candado del documento, para que dos escritores no se pisen.
+ *
+ * Sin esto, dos procesos que leen-mutan-escriben a la vez producen **pérdida de escrituras**: el
+ * último guarda su copia y borra lo que el otro acababa de añadir (medido: 50 proyectos en 50
+ * aperturas concurrentes, sólo 31 sobrevivieron). El candado es un fichero `wx`; uno huérfano de un
+ * proceso muerto se retira por antigüedad, no se espera indefinidamente.
+ */
+function acquireLock(root) {
+  const file = lockFile(root);
+  mkdirSync(dirname(file), { recursive: true });
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      const handle = openSync(file, 'wx');
+      try {
+        writeFileSync(handle, `${process.pid}\n`, 'utf8');
+      } finally {
+        closeSync(handle);
+      }
+      return () => {
+        try {
+          rmSync(file, { force: true });
+        } catch {
+          // si no se puede borrar, el siguiente lo verá viejo y lo retirará
+        }
+      };
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      try {
+        if (Date.now() - statSync(file).mtimeMs > LOCK_STALE_MS) rmSync(file, { force: true });
+      } catch {
+        // el candado desapareció entre la comprobación y el borrado: se reintenta
+      }
+      if (Date.now() > deadline) throw new Error(`el centro está ocupado: no se pudo tomar el candado en ${LOCK_WAIT_MS} ms`);
+      sleepSync(LOCK_RETRY_MS);
+    }
+  }
+}
+
+/**
+ * Lee, deja mutar y guarda **bajo candado**. Si la mutación lanza, no se guarda nada: media operación
+ * escrita es peor que ninguna, y el error viaja a quien llamó.
  */
 export function withState(root = defaultRoot(), mutate, { now } = {}) {
   const stamp = now ?? new Date().toISOString();
-  const loaded = loadState(root);
-  const result = mutate(loaded.state, { now: stamp, loaded });
-  saveState(root, loaded.state, { now: stamp });
-  return { ok: true, result, state: loaded.state, storeError: loaded.error };
+  const release = acquireLock(root);
+  try {
+    const loaded = loadState(root);
+    const result = mutate(loaded.state, { now: stamp, loaded });
+    saveState(root, loaded.state, { now: stamp });
+    return { ok: true, result, state: loaded.state, storeError: loaded.error };
+  } finally {
+    release();
+  }
 }
 
 /** Añade un evento al diario, recortando por delante lo que ya no cabe. */
@@ -289,7 +374,9 @@ export function appendEvent(state, event) {
     skillId: text(event.skillId),
     projectId: text(event.projectId),
     version: text(event.version),
-    actor: event.actor === 'ai' ? 'ai' : 'human',
+    // `system` no es una persona ni el modelo: es el harness pidiendo el catálogo. Colapsarlo a
+      // `human` falseaba la telemetría (una carga aparecía como acto de una persona).
+      actor: event.actor === 'ai' || event.actor === 'system' ? event.actor : 'human',
     note: text(event.note),
   });
   if (state.events.length > MAX_EVENTS) state.events.splice(0, state.events.length - MAX_EVENTS);

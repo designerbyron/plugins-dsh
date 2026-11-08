@@ -4,6 +4,40 @@ El formato sigue la idea de [Keep a Changelog](https://keepachangelog.com/es-ES/
 es semántico: `mayor` cuando cambia un contrato (herramientas o formato del almacén), `menor` cuando se
 añade capacidad, `parche` cuando se corrige un defecto.
 
+## [lifecode-skill-center 1.0.1] — 2026-11-08 · auditoría del acto LSC-001
+
+Auditoría del plugin **instalado y en marcha**, no del código leído: validación visual real dentro de DSH,
+creación y activación desde el panel, dos proyectos, propuesta de mejora aprobada por una persona,
+detección e importación de una skill que sólo existía en la carpeta de un proyecto, concurrencia y
+persistencia. Lo que había roto se arregló; lo que es límite se declaró.
+
+Corregido:
+
+- **El panel no podía guardar nada.** La API estaba registrada como `resource`, que sólo contesta
+  `GET`/`HEAD`: el servidor devuelve 405 a cualquier `POST` antes de mirar la ruta. Pasó a `handler` con
+  lectura de cuerpo acotada (1 MiB) y respuestas JSON uniformes.
+- **Escrituras perdidas con dos escritores.** Renombrar `center.json` sobre un fichero abierto falla en
+  Windows con `EPERM`; 50 aperturas concurrentes dejaban 31 proyectos. Ahora hay candado de fichero
+  (`center.json.lock`, `wx`, caducidad 20 s) y rename con reintento: 50 de 50, medido.
+- **El disco no seguía a la decisión.** Encender o fijar una versión no reescribía el `SKILL.md`
+  materializado hasta que alguien pedía el catálogo; ahora se escribe en el mismo acto.
+- **Referencias perdidas en silencio.** Una lista `[{path, content}]` se descartaba y la skill se publicaba
+  sin sus ficheros; ahora se aceptan mapa y lista, y una ruta inválida devuelve `invalid-references`.
+- **Telemetría falseada.** `skill.loaded` llega con actor `system` y se colapsaba a `human`; se conserva.
+- **Panel:** abrir el panel registra el proyecto (antes el selector decía «sin registrar» para siempre), la
+  vista se refresca al cambiar de pestaña, al volver el foco y cada 20 s, la versión fijada se cambia con
+  «Usar aquí» en el cajón (el popup de un `<select>` nativo no se puede accionar desde fuera del proceso),
+  el nombre de la skill en Proyectos abre el cajón, y «1 skills» es «1 skill».
+- **Abrir el panel escribía el documento.** Cada apertura guardaba el estado aunque el proyecto ya
+  estuviera registrado: cambiaba `updatedAt` y despertaba al vigilante sin que nada hubiera cambiado. Ahora
+  sólo se anota la primera vez que se ve un proyecto, y hay una prueba que lo mide.
+- **Origen:** una página de otro origen ya no puede escribir (403 comparando `Origin` con el del harness).
+  No es autenticación: un proceso local puede omitir la cabecera, y eso queda dicho en `OPERACION.md`.
+
+Evidencia: **119 pruebas en verde**, puerta hermética intacta, `npm run check` 100/100, y la promesa del
+producto medida en el harness vivo: una skill creada desde el panel se sirve en dos proyectos, se apaga en
+uno sin tocar el otro, y el catálogo de esta sesión la pierde y la recupera con el interruptor.
+
 ## [lifecode-skill-center 1.0.0] — 2026-11-08 · inicial
 
 **Plugin nuevo, no una versión del compilador.** `lifecode-skill-center/` es el centro que administra el
@@ -27,7 +61,7 @@ Lo que entra:
 - **Detección tolerante a la flexión** (`desplegar`/`despliega`), con umbrales distintos para biblioteca y
   disco externo.
 
-Evidencia: **103 pruebas en verde**, puerta hermética con la huella del almacén real idéntica antes y después,
+Evidencia: **105 pruebas en verde** al cerrar la construcción, puerta hermética con la huella del almacén real idéntica antes y después,
 `npm run check` 100/100, y la promesa del producto medida de punta a punta en `tests/api.test.mjs` (crear con
 `actor:'ai'`, servir en A y B, apagar en A y B sigue sirviendo).
 

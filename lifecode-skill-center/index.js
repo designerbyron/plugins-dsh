@@ -20,10 +20,12 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
-import { buildSnapshot, centerRoot, runAction } from './lib/api.mjs';
+import { API_PREFIX, centerRoot, handleApiRequest } from './lib/api.mjs';
 import { skillProviderFor } from './lib/provider.mjs';
 import { centerTools } from './lib/tools.mjs';
 import { createStoreSignal } from './lib/watch.mjs';
+
+export { API_PREFIX };
 
 /** Identidad del Loader. */
 export const name = 'lifecode-skill-center';
@@ -34,8 +36,15 @@ export const inject = ['tools', 'skills', 'systemPrompt'];
 /** Orden de la sección estática: después de la guía del harness y del compilador anterior. */
 const SECTION_ORDER = 9001;
 
-/** La ruta del panel. Prefijo propio: una ruta con nombre gana al fallback del SPA. */
-export const API_PREFIX = '/lifecode-skill-center/api/';
+/**
+ * La base de la API del panel vive en `lib/api.mjs` (con la misma prueba que el resto de decisiones) y se
+ * reexporta desde aquí porque el Loader y los tests la leen del adaptador.
+ *
+ * **Sin barra final, y esto está medido en el harness vivo:** registrada como
+ * `/lifecode-skill-center/api/`, sólo respondía la ruta exacta de la base (200) y
+ * `/lifecode-skill-center/api/state` caía en el 404 del fallback. Con la base sin barra final, el
+ * prefijo cubre las subrutas. La coincidencia es `path` o `path + '/'`, nunca `path + 'x'`.
+ */
 
 /**
  * Lo que el agente necesita saber y no puede deducir de las descripciones de las herramientas: la
@@ -51,38 +60,101 @@ const PROTOCOL = [
   'never report a skill as active because you created it.',
 ].join('\n');
 
-/** Las acciones que cambian el catálogo que el agente ve. */
-const CHANGES_CATALOG = new Set(['create', 'publish', 'improve', 'decide', 'toggle', 'rollback', 'fork', 'import', 'evaluate']);
+/** Cuerpo máximo que acepta un POST del panel: una skill con sus referencias cabe de sobra. */
+const MAX_BODY_BYTES = 1_048_576;
 
-/** Un objeto de verdad: ni `null` ni un array. */
-function isObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+/**
+ * Lee el cuerpo de un POST y lo deja en texto.
+ *
+ * La ruta del panel es un `handler` de Node, no un `resource`: un `resource` sólo contesta `GET`/`HEAD` y
+ * el servidor devuelve 405 a cualquier `POST` antes de mirar la ruta (*«405 with Allow: GET, HEAD for any
+ * other method, checked before matching»*). Con un `resource`, el panel no podía escribir nada.
+ */
+function readRequestBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    let overflow = false;
+    req.on('data', (chunk) => {
+      if (overflow) return;
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        overflow = true;
+        chunks.length = 0;
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(overflow ? null : Buffer.concat(chunks).toString('utf8')));
+    req.on('error', () => resolve(null));
+  });
 }
 
-function jsonResponse(status, value) {
-  return new Response(`${JSON.stringify(value)}\n`, {
-    status,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'no-store',
-    },
-  });
+/** Escribe una respuesta JSON en el `ServerResponse` de Node. */
+function sendJson(res, status, value, { head = false } = {}) {
+  const payload = `${JSON.stringify(value)}\n`;
+  res.statusCode = status;
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.setHeader('cache-control', 'no-store');
+  res.setHeader('content-length', Buffer.byteLength(payload));
+  if (head) {
+    res.end();
+    return;
+  }
+  res.end(payload);
+}
+
+/**
+ * ¿Dos orígenes son el mismo? Se compara el origen serializado (`protocolo//host:puerto`) y se tolera
+ * la diferencia de puerto explícito frente a omitido, que el navegador no perdona.
+ */
+function sameOrigin(left, right) {
+  const parse = (value) => {
+    try {
+      const url = new URL(value);
+      const port = url.port !== '' ? url.port : url.protocol === 'https:' ? '443' : '80';
+      return `${url.protocol}//${url.hostname}:${port}`;
+    } catch {
+      return '';
+    }
+  };
+  const a = parse(left);
+  const b = parse(right);
+  return a !== '' && a === b;
+}
+
+/**
+ * El directorio que el panel muestra como proyecto actual.
+ *
+ * El slot `main` no da binding de sesión para claves que no sean `conversation`, así que el cliente no
+ * sabe en qué carpeta está trabajando. El host sí: `workingDirectory.get(session)` es la fuente, y las
+ * sesiones vivas se piden a `agents.list()`. Se resuelve **en cada petición** (y no una vez al aplicar)
+ * porque la persona cambia de proyecto durante la vida del plugin; la más reciente gana, que es lo que
+ * el panel debe ofrecer por defecto.
+ */
+function resolveHostCwd(ctx) {
+  const desktop = ctx.get?.('workingDirectory');
+  const agents = ctx.get?.('agents');
+  if (typeof desktop?.get !== 'function' || typeof agents?.list !== 'function') return '';
+  let live = [];
+  try {
+    live = agents.list();
+  } catch {
+    return '';
+  }
+  for (let index = live.length - 1; index >= 0; index -= 1) {
+    try {
+      const value = desktop.get(live[index]?.session);
+      if (typeof value === 'string' && value.trim() !== '') return value;
+    } catch {
+      /* una sesión sin directorio no es un fallo del panel */
+    }
+  }
+  return '';
 }
 
 export function apply(ctx, config = {}) {
   const root = config.root ?? centerRoot();
-
-  // La carpeta del harness, como sugerencia para el panel: la interfaz no recibe el directorio de la
-  // sesión —el slot `main` no da binding de sesión para claves que no sean `conversation`—, así que
-  // pregunta por el del proceso y la persona confirma en el selector de proyecto.
-  const hostCwd = (() => {
-    try {
-      const value = ctx.workingDirectory?.get?.();
-      return typeof value === 'string' ? value : '';
-    } catch {
-      return '';
-    }
-  })();
 
   ctx.systemPrompt.section({
     name: 'lifecode-skill-center:protocol',
@@ -118,51 +190,63 @@ export function apply(ctx, config = {}) {
     const registry = scoped?.webServer ?? ctx.webServer;
     if (registry === undefined || registry === null || typeof registry.register !== 'function') return;
 
-    const resource = async (request) => {
-      try {
-        const url = new URL(request.url, 'http://localhost');
-        const route = url.pathname.startsWith(API_PREFIX) ? url.pathname.slice(API_PREFIX.length) : '';
-
-        if (request.method === 'GET' && (route === '' || route === 'state')) {
-          const cwd = url.searchParams.get('cwd') ?? '';
-          const scan = url.searchParams.get('scan') !== '0';
-          return jsonResponse(200, buildSnapshot({ root, cwd: cwd !== '' ? cwd : hostCwd, hostCwd, scan }));
+    const handler = async (req, res) => {
+      // Un navegador manda `Origin` en cada POST; si viene y no es el del propio harness, la petición
+      // es de otra página y no se atiende. No sustituye a una credencial (la API vive en localhost y no
+      // tiene autenticación: es un riesgo declarado), pero cierra la vía de un sitio ajeno.
+      const origin = String(req.headers?.origin ?? '');
+      if (origin !== '') {
+        const own = String(registry.getOrigin?.() ?? '');
+        if (own !== '' && !sameOrigin(origin, own)) {
+          sendJson(res, 403, { ok: false, code: 'cross-origin', message: `este panel no atiende peticiones de ${origin}` });
+          return;
         }
-
-        if (request.method === 'POST') {
-          let body = null;
+      }
+      const method = String(req.method ?? 'GET').toUpperCase();
+      let body = null;
+      if (method === 'POST') {
+        const raw = await readRequestBody(req);
+        if (raw !== null) {
           try {
-            body = await request.json();
+            body = JSON.parse(raw);
           } catch {
             body = null;
           }
-          // Un POST sin acción es un error del cliente, no una consulta: contestar con el estado
-          // escondería el fallo justo cuando alguien está depurando el panel.
-          const action = String(body?.action ?? '');
-          if (body === null || !isObject(body) || action === '') {
-            return jsonResponse(400, { ok: false, code: 'bad-request', message: 'un POST necesita un cuerpo JSON con «action»' });
-          }
-          const payload = isObject(body.payload) ? body.payload : body;
-          const cwd = String(body.cwd ?? payload.cwd ?? '');
-          const result = runAction({ root, action, payload, actor: body.actor === 'ai' ? 'ai' : 'human', cwd: cwd !== '' ? cwd : hostCwd, hostCwd });
-          if (result?.ok === true && CHANGES_CATALOG.has(action)) {
-            try {
-              invalidate();
-            } catch {
-              /* sin invalidación queda el aviso del vigilante del almacén */
-            }
-          }
-          return jsonResponse(200, result);
         }
-
-        return jsonResponse(405, { ok: false, code: 'method', message: 'usa GET para el estado y POST para las acciones' });
-      } catch (error) {
-        return jsonResponse(500, { ok: false, code: 'internal', message: String(error?.message ?? error) });
       }
+      let url = null;
+      try {
+        url = new URL(String(req.url ?? '/'), 'http://localhost');
+      } catch {
+        url = new URL('/', 'http://localhost');
+      }
+      let outcome = null;
+      try {
+        outcome = handleApiRequest({
+          root,
+          method,
+          pathname: url.pathname,
+          search: url.search,
+          body,
+          hostCwd: resolveHostCwd(ctx),
+        });
+      } catch (error) {
+        outcome = { status: 500, body: { ok: false, code: 'internal', message: String(error?.message ?? error) } };
+      }
+      if (outcome.invalidate === true) {
+        try {
+          invalidate();
+        } catch {
+          /* sin invalidación queda el aviso del vigilante del almacén */
+        }
+      }
+      sendJson(res, outcome.status, outcome.body, { head: method === 'HEAD' });
     };
 
     ctx.effect(() => {
-      const off = registry.register({ kind: 'prefix', path: API_PREFIX, resource });
+      // Una ruta con `handler` y no con `resource`: un `resource` sólo contesta GET/HEAD y el servidor
+      // responde 405 a todo POST antes de mirar la ruta, así que el panel no podría guardar nada.
+      const off = registry.register({ kind: 'prefix', path: API_PREFIX, handler });
       return () => {
         try {
           off?.();

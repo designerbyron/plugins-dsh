@@ -160,3 +160,53 @@ test('todo lo que pide el panel va a su propia API en el mismo origen', () => {
   assert.ok(source.includes("'/lifecode-skill-center/api'") || source.includes("`/lifecode-skill-center/api"));
   assert.ok(!/https?:\/\/(?!127\.0\.0\.1|localhost)/.test(source), 'nada de CDNs ni orígenes externos');
 });
+
+/* Contratos de props entre el Panel y sus vistas.
+ *
+ * Esta prueba existe por un defecto real que sólo apareció en la interfaz de verdad: el Panel
+ * pasaba `onDetect` y la vista leía `detect`, así que `detect.text` reventaba y el runtime vaciaba
+ * el panel entero («slot entry crashed in 'main'»). Ninguna prueba de render podía verlo porque
+ * las vistas no se montan en el test. Comparar lo que cada vista desestructura con lo que el Panel
+ * le pasa sí lo ve, y no cuesta nada mantenerlo. */
+function destructuredParams(text, component) {
+  const clean = text.replace(/\/\/[^\n]*/g, '');
+  const match = new RegExp(`function ${component}\\(\\s*\\{([\\s\\S]*?)\\}\\s*\\)`).exec(clean);
+  assert.ok(match, `no encuentro la firma de ${component}`);
+  return match[1]
+    .split(',')
+    .map((entry) => entry.trim().split(/[:=]/)[0].trim())
+    .filter((name) => /^[A-Za-z_$][\w$]*$/.test(name));
+}
+
+function passedProps(text, component) {
+  const start = text.indexOf(`e(${component}, {`);
+  assert.ok(start !== -1, `el Panel no monta ${component}`);
+  let index = text.indexOf('{', start + `e(${component}, `.length);
+  let depth = 0;
+  let end = index;
+  for (; end < text.length; end += 1) {
+    if (text[end] === '{') depth += 1;
+    if (text[end] === '}') {
+      depth -= 1;
+      if (depth === 0) break;
+    }
+  }
+  const block = text.slice(index + 1, end);
+  return destructuredParams(`function x({${block}})`, 'x');
+}
+
+for (const component of ['OverviewView', 'LibraryView', 'ProjectsView', 'ImprovementsView', 'AnalyticsView']) {
+  test(`el Panel le pasa a ${component} todas las props que la vista desestructura`, () => {
+    const needed = destructuredParams(source, component);
+    assert.ok(needed.length >= 2, `${component} debería recibir varias props`);
+    const passed = new Set(passedProps(source, component));
+    const missing = needed.filter((name) => !passed.has(name));
+    assert.deepEqual(missing, [], `el Panel no le pasa ${missing.join(', ')} a ${component}`);
+  });
+}
+
+test('el cuadro de detección se comparte entre «detect» y «onDetect» sin separarse otra vez', () => {
+  assert.ok(source.includes('const detectState = useMemo('), 'el estado de detección se construye una vez');
+  assert.ok(source.includes('detect: detectState,'), 'la vista lee el cuadro por `detect`');
+  assert.ok(source.includes('onDetect: detectState,'), 'la vista recibe los manejadores por `onDetect`');
+});

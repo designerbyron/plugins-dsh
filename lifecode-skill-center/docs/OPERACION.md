@@ -5,7 +5,7 @@
 1. El plugin está instalado por ruta en el perfil (`link:` + entrada en `dsh.profile.bundles`).
 2. Al montar: deja su sección de prompt, registra las cuatro herramientas, registra el proveedor de skills,
    monta el vigilante del almacén y registra la ruta del panel si hay `webServer`.
-3. El log del arranque dice la raíz y la ruta: `lifecode-skill-center: centro en … · api /lifecode-skill-center/api/`.
+3. El log del arranque dice la raíz y la ruta: `lifecode-skill-center: centro en … · api /lifecode-skill-center/api` (la base se registra sin barra final).
    Es lo primero que se mira cuando «el panel no aparece».
 
 Si el perfil no tiene servidor web, el plugin sigue sirviendo herramientas y catálogo; lo único que falta es
@@ -56,4 +56,10 @@ node tests/check-hermetic.mjs
 - `skill.loaded` es telemetría de entrega, no de aplicación. La analítica lo dice en el panel.
 - La vista materializada no se limpia sola si un proyecto desaparece de la carpeta: se limpia al sincronizar
   ese proyecto. No borra nada fuera de su carpeta.
-- El texto visible está en español e inglés; el diccionario es del cliente, no del harness.
+- El texto visible está en español e inglés; el diccionario es del cliente, no del harness.- Mover o renombrar la carpeta de un proyecto cambia su id (sale de la ruta) y las asignaciones **no
+  siguen**. El registro conserva la identidad vieja: hay que volver a encender las skills en la nueva.
+- La API vive en localhost y **no tiene credenciales**: cualquier proceso local puede actuar como persona.
+  Las páginas de otro origen se rechazan con 403 comparando `Origin`, pero eso no autentica a un proceso.
+  El almacén está en el perfil del usuario y no hay acción de borrado de skills.
+- `skill.loaded` se anota **una vez por día, skill y proyecto** (deduplicado): la KPI «Cargas» cuenta días
+  con al menos una entrega del catálogo, no cada entrega.

@@ -38,13 +38,37 @@ function tagsOf(value) {
   return Array.isArray(value) ? value.map((tag) => oneLine(tag)).filter(Boolean) : [];
 }
 
-function referencesOf(value) {
-  const out = {};
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return out;
-  for (const [path, content] of Object.entries(value)) {
-    if (typeof content === 'string' && path.startsWith('references/') && !path.includes('..')) out[path] = content;
+/**
+ * Referencias aceptadas por la API: mapa `{ "references/x.md": "texto" }` **o** lista
+ * `[{ path, content }]` (la forma que usan las herramientas del agente). Antes la lista se descartaba
+ * en silencio y una skill se publicaba sin sus ficheros (encontrado en la auditoría).
+ */
+function referenceEntries(value) {
+  const valid = {};
+  const dropped = [];
+  if (value === null || value === undefined) return { valid, dropped };
+  const entries = Array.isArray(value)
+    ? value.map((item) => [item?.path, item?.content])
+    : typeof value === 'object'
+      ? Object.entries(value)
+      : [];
+  for (const [path, content] of entries) {
+    const name = typeof path === 'string' ? path : '';
+    if (typeof content === 'string' && name.startsWith('references/') && !name.includes('..') && !name.includes(':')) valid[name] = content;
+    else dropped.push(name === '' ? '(sin ruta)' : name);
   }
-  return out;
+  return { valid, dropped };
+}
+
+function referencesOf(value) {
+  return referenceEntries(value).valid;
+}
+
+/** Mensaje cuando una referencia no es utilizable; cadena vacía cuando todas lo son. */
+function referencesProblem(value) {
+  const { dropped } = referenceEntries(value);
+  if (dropped.length === 0) return '';
+  return `referencias inválidas (${dropped.slice(0, 3).join(', ')}): sólo se admiten rutas "references/…" sin ".." ni ":"`;
 }
 
 /** Registra un proyecto **visto**: su ruta, no su permiso. Asignar una skill es otro acto. */
@@ -100,6 +124,8 @@ export function versionOf(skill, version) {
  * decide si sirve, y lo que queda **publicado en la biblioteca**, no activo en ningún proyecto.
  */
 export function createSkill(state, input, { now = new Date().toISOString(), actor = 'human' } = {}) {
+  const badReferences = referencesProblem(input?.references);
+  if (badReferences !== '') return { ok: false, code: 'invalid-references', message: badReferences };
   const description = oneLine(input?.description);
   const title = oneLine(input?.title) || description;
   const requested = oneLine(input?.id);
@@ -189,6 +215,8 @@ export function publishVersion(state, id, input, { now = new Date().toISOString(
   }
   const base = currentVersionOf(skill);
   if (base === null) return { ok: false, code: 'corrupt', message: 'la skill no tiene ninguna versión legible' };
+  const badReferences = referencesProblem(input?.references);
+  if (badReferences !== '') return { ok: false, code: 'invalid-references', message: badReferences };
   const candidate = {
     id,
     description: oneLine(input?.description ?? skill.description),
@@ -228,6 +256,8 @@ export function publishVersion(state, id, input, { now = new Date().toISOString(
  * decisión. El diff que devuelve es lo que se lee antes de aprobar.
  */
 export function proposeImprovement(state, id, input, { now = new Date().toISOString(), actor = 'ai' } = {}) {
+  const badReferences = referencesProblem(input?.references);
+  if (badReferences !== '') return { ok: false, code: 'invalid-references', message: badReferences };
   const skill = state.skills[id];
   if (skill === undefined) return { ok: false, code: 'missing', message: `no hay ninguna skill con el id "${id}"` };
   const base = currentVersionOf(skill);

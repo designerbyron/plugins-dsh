@@ -7,7 +7,7 @@ la misma composición.
 ## De qué depende cada pieza
 
 ```text
-client.js  ──fetch──▶  /lifecode-skill-center/api/   (index.js, ruta de webServer)
+client.js  ──fetch──▶  /lifecode-skill-center/api    (index.js, ruta de webServer; base sin barra final)
                               │
                               ▼
                         lib/api.mjs  ──▶ lib/operations.mjs ──▶ lib/state.mjs (center.json)
@@ -21,7 +21,7 @@ index.js
   ├─ ctx.systemPrompt.section   (protocolo corto)
   ├─ ctx.tools.register         (cuatro herramientas)
   ├─ ctx.skills.registerProvider(lib/provider.mjs)  ──▶ lib/materialize.mjs
-  └─ ctx.webServer.register     (prefijo /lifecode-skill-center/api/)
+  └─ ctx.webServer.register     (prefijo /lifecode-skill-center/api, sin barra final)
 lib/watch.mjs  (fs.watch + sondeo) ──▶ control.invalidate() del registro de skills
 ```
 
@@ -88,6 +88,19 @@ Dos mitades: `lib/sources.mjs` recorre el disco (biblioteca de usuario, compilad
 del proyecto) sin escribir nada; `lib/detect.mjs` puntúa. La puntuación cuenta familias de palabras
 (`desplegar`/`despliega` comparten cinco letras de prefijo) y da más peso a un id repetido: un id igual es la
 misma skill con otro contenido. Umbral 0.16 en biblioteca, 0.22 en externos.
+
+## La compuerta de calidad## Concurrencia: el documento se escribe de uno en uno
+
+`withState` toma un candado de fichero (`center.json.lock`, creado con `wx`) antes de leer, deja mutar y
+guarda con rename atómico **bajo** ese candado. El candado caduca a los 20 s para que el de un proceso
+muerto no bloquee el centro, y el rename se reintenta unos milisegundos porque Windows devuelve `EPERM`
+cuando otro proceso tiene el fichero abierto. Medido: dos procesos × 25 aperturas dejan 50 de 50 proyectos.
+
+## Quién puede escribir
+
+La ruta del panel comprueba `Origin` y rechaza con 403 cualquier página que no sea el propio harness. No es
+autenticación: un proceso local puede omitir la cabecera. Lo que sí es frontera de verdad es `actor`:
+`'ai'` no publica versiones vivas, no aprueba propuestas, no importa y no enciende skills.
 
 ## La compuerta de calidad
 

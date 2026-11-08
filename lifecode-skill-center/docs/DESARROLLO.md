@@ -63,11 +63,33 @@ La puntuación es 100 − 40 por bloqueante − 8 por aviso, sin bajar de 0. Pru
 - Un `POST` sin acción no puede contestar con el estado: esconde el fallo justo cuando se depura. Ahora 400.
 - Un `ctx` de mentira en las pruebas tiene que desmontar lo que monta: el vigilante deja un asa abierta y
   `node --test` no termina. `teardown()` en `finally`.
+- Una ruta `kind:'prefix'` registrada **con barra final** sólo casa la base exacta: `/api/` respondía 200 y
+  `/api/state` caía en el 404 del fallback. La coincidencia es `path` o `path + '/'`, nunca `path + 'x'`:
+  se registra sin barra final y se calcula la subruta a mano.
+- `workingDirectory.get()` **necesita una sesión**: sin argumentos devuelve `undefined` y el panel abría sin
+  proyecto actual. La carpeta se resuelve con `agents.list()` (la sesión viva más reciente) en cada petición.
+- Reescribir ficheros con acentos desde PowerShell los dejó en mojibake (leer como cp1252 y guardar UTF-8).
+  Los cambios de texto se hacen con un script de Node sobre `utf8` y se comprueba que no queda `Ã`.- Una ruta registrada con `resource` **sólo contesta `GET`/`HEAD`**: el servidor devuelve 405 a
+  cualquier `POST` *antes* de mirar la ruta, así que el panel no podía guardar nada. La API va con
+  `handler` y este comprueba el método.
+- Renombrar `center.json` encima mientras otro proceso lo lee falla en Windows con `EPERM`. Se reintenta
+  el rename y, sobre todo, se escribe **bajo candado**: sin él, dos escritores concurrentes perdían
+  escrituras (50 aperturas en paralelo dejaban 31 proyectos). El candado es un fichero `wx` con tiempo de
+  espera y caducidad para que uno huérfano no bloquee el centro para siempre.
+- Las referencias se aceptan como mapa **o** como lista `[{path, content}]`. La lista se descartaba en
+  silencio y la skill se publicaba sin sus ficheros: ahora una referencia inválida devuelve
+  `invalid-references` en vez de desaparecer.
+- `skill.loaded` lo produce el harness pidiendo el catálogo, no una persona: el actor `system` se conserva.
+  Colapsarlo a `human` falseaba la telemetría.
+- El popup de un `<select>` nativo no se puede accionar desde fuera del proceso (ni clics ni teclas), así que
+  la versión fijada se cambia con el botón «Usar aquí» del cajón, no con el desplegable.
+- Fijar una versión tiene que **escribir el `SKILL.md` en el mismo acto**: si no, la asignación dice 1.1.0 y
+  el disco sigue en 1.0.0 hasta que alguien pide el catálogo.
 
 ## Estado de las pruebas
 
 ```sh
-npm test                 # 103 · pass 103
+npm test                 # 119 · pass 119
 npm run test:hermetic    # lo anterior + huella del almacén real intacta
 npm run check            # 100/100 comprobaciones
 ```

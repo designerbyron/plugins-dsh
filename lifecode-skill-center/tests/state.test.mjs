@@ -117,6 +117,23 @@ test('recordDailyEvent no repite el mismo evento el mismo día', () => {
   assert.equal(state.events[1].at, '2026-11-09T00:00:00.000Z');
 });
 
+test('normalizeState conserva la versión que publicó una propuesta aprobada', () => {
+  const state = normalizeState({
+    improvements: {
+      'imp-1': {
+        id: 'imp-1',
+        skillId: 'una-skill',
+        baseVersion: '1.0.0',
+        status: 'approved',
+        version: '1.1.0',
+        decidedAt: NOW,
+        decidedBy: 'human',
+      },
+    },
+  });
+  assert.equal(state.improvements['imp-1'].version, '1.1.0', 'el historial no puede perder qué versión salió de la propuesta');
+});
+
 test('defaultRoot sale de DSH_HOME y las rutas derivadas cuelgan de la raíz', () => {
   const root = defaultRoot({ DSH_HOME: 'C:/dsh-home' });
   assert.equal(root, join('C:/dsh-home', 'lifecode-skill-center'));

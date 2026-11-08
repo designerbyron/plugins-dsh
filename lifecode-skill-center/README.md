@@ -22,7 +22,7 @@ proveedor de skills la sirve en A y en B, se apaga en A y A deja de verla mientr
 | Adaptador | Registra prompt, herramientas, proveedor de skills y la ruta HTTP del panel | [`index.js`](index.js) |
 | Panel | Interfaz completa en la pestaña propia: Overview, Library, Projects, Improvements, Analytics | [`client.js`](client.js) |
 | Herramientas | Cuatro herramientas para el agente; ninguna aprueba ni activa | [`lib/tools.mjs`](lib/tools.mjs) |
-| Pruebas | 103 pruebas, sin tocar nunca el almacén real | [`tests/`](tests/) |
+| Pruebas | 119 pruebas, sin tocar nunca el almacén real | [`tests/`](tests/) |
 
 El ciclo de vida que el panel representa: **crear → evaluar → publicar → asignar → usar → medir → mejorar**.
 
@@ -66,7 +66,7 @@ harness**: el servidor web registra la ruta al montar el plugin, y los catálogo
 ## Comandos
 
 ```sh
-npm test               # 103 pruebas
+npm test               # 119 pruebas
 npm run test:hermetic  # la suite entera + huella del almacén real antes y después
 npm run check          # comprobaciones estáticas de instalación y pureza del núcleo
 node tests/check-hermetic.mjs

@@ -1,6 +1,6 @@
 {
   "name": "@local/lifecode-skill-center",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "LifeCode Skill Center: centro visual para crear, evaluar, publicar, asignar y mejorar Skills de DeepSeek Harness, con biblioteca versionada y asignaciones por proyecto.",

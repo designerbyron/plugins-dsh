@@ -59,7 +59,7 @@ node bin/skill-compiler.mjs doctor   # dice si algo falta y con qué comando se 
 
 cd lifecode-skill-center
 npm install            # @deepseek-ai/dsh-tools, para el adaptador
-npm test               # 103 pruebas
+npm test               # 119 pruebas
 npm run test:hermetic  # la suite + huella del almacén real antes y después
 npm run check          # instalación y pureza del núcleo
 ```
