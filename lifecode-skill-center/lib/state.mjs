@@ -11,9 +11,9 @@
  */
 
 import { createHash } from 'node:crypto';
-import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 
 import { isSafeId, parseVersion, shortHash } from './format.mjs';
 
@@ -575,11 +575,11 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-function renameWithRetry(tmp, file) {
+function renameWithRetry(tmp, file, rename = renameSync) {
   let last = null;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
-      renameSync(tmp, file);
+      rename(tmp, file);
       return;
     } catch (error) {
       last = error;
@@ -844,28 +844,143 @@ export function restoreStore(root = defaultRoot(), { sourcePath = '', expectedSh
  *   original, no se publica.
  * ---------------------------------------------------------------------------------------------- */
 
-/** Copia recuperable más reciente. */
+/** Copia de compatibilidad (legado). No es la fuente de verdad: el puntero lo es. */
 export function backupFile(root = defaultRoot()) {
   return `${centerFile(root)}.bak`;
 }
 
-/** Huella de la copia más reciente: `sha256  size  createdAt  origen`. */
+/** Huella de la copia de compatibilidad. Se mantiene por legado; la autoridad es el puntero. */
 export function backupMetaFile(root = defaultRoot()) {
   return `${backupFile(root)}.bak.sha256`;
 }
 
-/** Directorio del historial diario. */
+/** Directorio del historial de compatibilidad (ya no se escribe: la historia son las generaciones). */
 export function backupHistoryDir(root = defaultRoot()) {
   return join(dirname(centerFile(root)), 'backups');
 }
 
+/** Puntero autoritativo: un único fichero que se publica con un solo rename. */
+export function backupPointerFile(root = defaultRoot()) {
+  return `${centerFile(root)}.backup.json`;
+}
+
+/** Directorio de generaciones inmutables. */
+export function backupGenerationsDir(root = defaultRoot()) {
+  return join(dirname(centerFile(root)), 'backups', 'generations');
+}
+
+/** Versión del contrato del puntero. */
+export const BACKUP_POINTER_SCHEMA = 1;
+
+/** Cuántas generaciones recientes se conservan (además de la referenciada y la anterior). */
 const BACKUP_HISTORY = 7;
+
+/** Ventana mínima de antigüedad para limpiar temporales huérfanos: nunca se toca algo reciente. */
+const ORPHAN_MIN_AGE_MS = 10 * 60 * 1000;
+
+const GENERATION_PATTERN = /^g-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}(?:-[0-9]+)?$/;
+const RELATIVE_GENERATION_PATTERN = /^backups\/generations\/[A-Za-z0-9._-]+\.json$/;
 
 function dayOf(now) {
   return String(now).slice(0, 10);
 }
 
-/** Lee la huella de la copia más reciente. `null` si no hay o no se puede leer. */
+function stampOf(now) {
+  return String(now).replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+}
+
+/** Nombre de la generación: estable, ordenable y con la huella del contenido. */
+function generationName(now, sha256, taken) {
+  const base = `g-${stampOf(now)}-${sha256.slice(0, 8)}`;
+  let candidate = base;
+  let index = 1;
+  while (taken.has(candidate)) {
+    candidate = `${base}-${index}`;
+    index += 1;
+  }
+  return candidate;
+}
+
+function syncFile(path) {
+  // fsync sobre el descriptor: es la primitiva que Node ofrece para empujar los bytes al disco.
+  const fd = openSync(path, 'r+');
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Comprueba que el fichero de una generación está **dentro** del directorio autorizado y es un fichero
+ * normal (no un enlace ni un punto de reparse). Devuelve la ruta absoluta o un motivo de rechazo.
+ */
+function resolveGeneration(root, relativePath) {
+  if (typeof relativePath !== 'string' || relativePath === '') return { ok: false, reason: 'el puntero no nombra ningún fichero' };
+  if (relativePath.includes('\0')) return { ok: false, reason: 'la ruta contiene un byte nulo' };
+  const normalized = relativePath.replace(/\\/g, '/');
+  if (isAbsolute(normalized) || /^[a-zA-Z]:/.test(normalized)) return { ok: false, reason: 'la ruta es absoluta' };
+  if (!RELATIVE_GENERATION_PATTERN.test(normalized)) return { ok: false, reason: 'la ruta no es una generación del directorio autorizado' };
+  const segments = normalized.split('/');
+  if (segments.some((segment) => segment === '..' || segment === '.' || segment === '')) {
+    return { ok: false, reason: 'la ruta intenta salir del directorio de generaciones' };
+  }
+  const base = backupGenerationsDir(root);
+  const absolute = join(root, normalized);
+  const within = relative(base, absolute);
+  if (within === '' || within.startsWith('..') || isAbsolute(within)) {
+    return { ok: false, reason: 'la ruta queda fuera del directorio de generaciones' };
+  }
+  let stats;
+  try {
+    stats = lstatSync(absolute);
+  } catch {
+    return { ok: false, code: 'generation-missing', reason: 'la generación no existe' };
+  }
+  if (stats.isSymbolicLink()) return { ok: false, reason: 'la generación es un enlace simbólico' };
+  if (!stats.isFile()) return { ok: false, code: 'generation-missing', reason: 'la generación no es un fichero' };
+  return { ok: true, path: absolute, relative: normalized, size: stats.size };
+}
+
+/** Lee y valida el puntero. No sigue enlaces ni acepta rutas fuera del directorio autorizado. */
+export function readBackupPointer(root = defaultRoot()) {
+  const path = backupPointerFile(root);
+  let raw;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    return { ok: false, code: 'missing', path };
+  }
+  let pointer;
+  try {
+    pointer = JSON.parse(raw);
+  } catch (error) {
+    return { ok: false, code: 'pointer-invalid', path, message: `el puntero no es JSON: ${String(error?.message ?? error)}` };
+  }
+  if (!isObject(pointer)) return { ok: false, code: 'pointer-invalid', path, message: 'el puntero no es un objeto' };
+  if (pointer.schema !== BACKUP_POINTER_SCHEMA) return { ok: false, code: 'pointer-invalid', path, message: 'el puntero es de otro esquema' };
+  if (typeof pointer.generation !== 'string' || !GENERATION_PATTERN.test(pointer.generation)) {
+    return { ok: false, code: 'pointer-invalid', path, message: 'el identificador de generación no es válido' };
+  }
+  if (typeof pointer.file !== 'string' || basename(pointer.file.replace(/\\/g, '/')) !== `${pointer.generation}.json`) {
+    return { ok: false, code: 'pointer-invalid', path, message: 'el fichero del puntero no corresponde a su generación' };
+  }
+  if (typeof pointer.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(pointer.sha256)) {
+    return { ok: false, code: 'pointer-invalid', path, message: 'la huella del puntero no es válida' };
+  }
+  if (!Number.isInteger(pointer.size) || pointer.size <= 0) {
+    return { ok: false, code: 'pointer-invalid', path, message: 'el tamaño del puntero no es válido' };
+  }
+  if (typeof pointer.createdAt !== 'string' || Number.isNaN(Date.parse(pointer.createdAt))) {
+    return { ok: false, code: 'pointer-invalid', path, message: 'la fecha del puntero no es válida' };
+  }
+  if (typeof pointer.reason !== 'string') return { ok: false, code: 'pointer-invalid', path, message: 'el motivo del puntero no es válido' };
+  const resolved = resolveGeneration(root, pointer.file);
+  if (!resolved.ok) return { ok: false, code: resolved.code ?? 'pointer-invalid', path, message: resolved.reason };
+  return { ok: true, path, pointer, generationPath: resolved.path, generationSize: resolved.size };
+}
+
+/** Lee la huella de la copia de compatibilidad. `null` si no hay o no se puede leer. */
 export function readBackupMeta(root = defaultRoot()) {
   try {
     const raw = readFileSync(backupMetaFile(root), 'utf8').trim().split(/\s+/);
@@ -877,102 +992,296 @@ export function readBackupMeta(root = defaultRoot()) {
   }
 }
 
+/** ¿La pareja antigua (copia + huella) es un par válido? Se usa sólo para legado. */
+function legacyPair(root) {
+  let bytes;
+  try {
+    bytes = readFileSync(backupFile(root));
+  } catch {
+    return null;
+  }
+  const meta = readBackupMeta(root);
+  if (meta === null) return null;
+  const sha256 = sha256OfBytes(bytes);
+  if (meta.sha256 !== sha256 || (meta.size !== 0 && meta.size !== bytes.length)) return null;
+  return { path: backupFile(root), sha256, size: bytes.length, createdAt: meta.createdAt, source: meta.source };
+}
+
 /**
  * ¿Hay una copia utilizable?
  *
- * Comprobación completa: existe, su SHA-256 coincide con la huella registrada y, si se indica, el
- * documento original del que salió también coincide. Verificar en el momento de usar es lo que separa
- * «hay un fichero .bak» de «hay una copia recuperable».
+ * Autoridad: el puntero. Si existe y verifica, `ok:true` con `generation`. Si existe y no verifica,
+ * `ok:false` con el motivo (nunca se cae al par legado: eso lo promocionaría en silencio). Sólo cuando
+ * **no hay puntero** se mira la pareja antigua, que se devuelve como `legacy-copy`.
  */
 export function verifyBackup(root = defaultRoot()) {
-  const path = backupFile(root);
-  let bytes;
+  const pointer = readBackupPointer(root);
+  if (pointer.ok) {
+    const bytes = readFileSync(pointer.generationPath);
+    const sha256 = sha256OfBytes(bytes);
+    if (sha256 !== pointer.pointer.sha256 || bytes.length !== pointer.pointer.size) {
+      return { ok: false, code: 'hash-mismatch', path: pointer.generationPath, sha256, size: bytes.length, generation: pointer.pointer.generation, message: 'la generación no coincide con su puntero' };
+    }
+    return {
+      ok: true,
+      path: pointer.generationPath,
+      sha256,
+      size: bytes.length,
+      generation: pointer.pointer.generation,
+      createdAt: pointer.pointer.createdAt,
+      source: pointer.pointer.reason,
+      pointerPath: pointer.path,
+    };
+  }
+  if (pointer.code === 'missing') {
+    const legacy = legacyPair(root);
+    if (legacy !== null) {
+      return { ok: false, code: 'legacy-copy', path: legacy.path, sha256: legacy.sha256, size: legacy.size, createdAt: legacy.createdAt, source: legacy.source, message: 'hay una copia antigua válida, pero no es la fuente de verdad: restaurarla exige confirmar su SHA-256' };
+    }
+    return { ok: false, code: 'missing', path: backupPointerFile(root) };
+  }
+  return { ok: false, code: pointer.code ?? 'pointer-invalid', path: pointer.path, message: pointer.message ?? 'el puntero no es válido' };
+}
+
+/** Poda conservadora: nunca la referenciada, nunca la anterior, como mucho `keep` recientes. */
+function pruneGenerations(root, { keep = BACKUP_HISTORY, protectedFiles = [] } = {}) {
+  const dir = backupGenerationsDir(root);
+  let names;
   try {
-    bytes = readFileSync(path);
+    names = readdirSync(dir).filter((name) => name.endsWith('.json') && GENERATION_PATTERN.test(name.slice(0, -5))).sort();
   } catch {
-    return { ok: false, code: 'missing', path };
+    return { ok: true, removed: [] };
   }
-  const sha256 = sha256OfBytes(bytes);
-  const size = bytes.length;
-  const meta = readBackupMeta(root);
-  if (meta === null) return { ok: false, code: 'unverifiable', path, sha256, size, message: 'falta la huella de la copia' };
-  if (meta.sha256 !== sha256 || (meta.size !== 0 && meta.size !== size)) {
-    return { ok: false, code: 'hash-mismatch', path, sha256, size, meta, message: 'la copia no coincide con su huella' };
+  const protectedNames = new Set(protectedFiles.filter((name) => typeof name === 'string' && name !== ''));
+  const recent = names.slice(-keep);
+  const keepSet = new Set([...protectedNames, ...recent]);
+  const removed = [];
+  for (const name of names) {
+    if (keepSet.has(name)) continue;
+    try {
+      rmSync(join(dir, name), { force: true });
+      removed.push(name);
+    } catch {
+      /* la poda nunca puede tumbar una publicación */
+    }
   }
-  return { ok: true, path, sha256, size, createdAt: meta.createdAt, source: meta.source };
+  return { ok: true, removed };
+}
+
+/** Temporales huérfanos antiguos: sólo los nuestros y sólo si son viejos. */
+function cleanupOrphans(root, { now = new Date().toISOString() } = {}) {
+  const removed = [];
+  const pointerDir = dirname(alignPointer(root));
+  const nowMs = Date.parse(now);
+  const candidates = [];
+  try {
+    candidates.push(...readdirSync(pointerDir).map((name) => join(pointerDir, name)));
+  } catch {
+    /* sin directorio no hay nada que limpiar */
+  }
+  try {
+    const dir = backupGenerationsDir(root);
+    candidates.push(...readdirSync(dir).map((name) => join(dir, name)));
+  } catch {
+    /* idem */
+  }
+  for (const candidate of candidates) {
+    const name = basename(candidate);
+    const isOurTmp = name.endsWith('.tmp') && (name.startsWith('center.json.backup.json.') || name.startsWith('center.json.backup.'));
+    if (!isOurTmp) continue;
+    try {
+      const stats = statSync(candidate);
+      if (Number.isFinite(nowMs) && nowMs - stats.mtimeMs < ORPHAN_MIN_AGE_MS) continue;
+      rmSync(candidate, { force: true });
+      removed.push(name);
+    } catch {
+      /* best-effort */
+    }
+  }
+  return removed;
+}
+
+function alignPointer(root) {
+  return backupPointerFile(root);
+}
+
+/** Copia de compatibilidad + su huella. Best-effort: jamás puede tumbar la publicación autoritativa. */
+function publishCompatCopy(root, source, { sha256, now, reason }) {
+  try {
+    const target = backupFile(root);
+    const tmp = `${target}.${process.pid}.${Date.now().toString(36)}.tmp`;
+    writeFileSync(tmp, source, { flag: 'wx' });
+    const written = readFileSync(tmp);
+    if (sha256OfBytes(written) !== sha256 || written.length !== source.length) {
+      rmSync(tmp, { force: true });
+      return { ok: false, reason: 'la copia temporal de compatibilidad no coincide' };
+    }
+    renameWithRetry(tmp, target);
+    const metaTmp = `${backupMetaFile(root)}.${process.pid}.${Date.now().toString(36)}.tmp`;
+    writeFileSync(metaTmp, `${sha256} ${source.length} ${now} ${reason}\n`, 'utf8');
+    renameWithRetry(metaTmp, backupMetaFile(root));
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: String(error?.message ?? error) };
+  }
+}
+
+function writeAll(root, source, { now, reason, sha256, hooks = {}, keep = BACKUP_HISTORY, previousGeneration = null }) {
+  const dir = backupGenerationsDir(root);
+  mkdirSync(dir, { recursive: true });
+  const taken = new Set(readdirSync(dir).map((name) => name.replace(/\.json$/, '')));
+  const generation = generationName(now, sha256, taken);
+  const relative = `backups/generations/${generation}.json`;
+  const absolute = join(root, relative);
+
+  // 1) La generación se escribe una vez y no se sobrescribe nunca.
+  try {
+    writeFileSync(absolute, source, { flag: 'wx' });
+  } catch (error) {
+    return { ok: false, code: 'backup-failed', message: `no se pudo escribir la generación: ${String(error?.message ?? error)}` };
+  }
+  hooks.afterGenerationWrite?.(absolute);
+
+  // 2) fsync de los bytes.
+  try {
+    syncFile(absolute);
+  } catch (error) {
+    return { ok: false, code: 'backup-unsynced', message: `no se pudo sincronizar la generación: ${String(error?.message ?? error)}` };
+  }
+  hooks.afterGenerationSync?.(absolute);
+
+  // 3) Releer y verificar la generación antes de referenciarla.
+  try {
+    const written = readFileSync(absolute);
+    if (sha256OfBytes(written) !== sha256 || written.length !== source.length) {
+      return { ok: false, code: 'backup-mismatch', message: 'la generación escrita no coincide con el original' };
+    }
+  } catch (error) {
+    return { ok: false, code: 'backup-failed', message: String(error?.message ?? error) };
+  }
+
+  // 4) Puntero temporal en el mismo directorio que el definitivo.
+  const pointerPath = backupPointerFile(root);
+  const pointerTmp = `${pointerPath}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  const pointer = {
+    schema: BACKUP_POINTER_SCHEMA,
+    generation,
+    file: relative,
+    sha256,
+    size: source.length,
+    createdAt: now,
+    reason,
+  };
+  try {
+    writeFileSync(pointerTmp, `${JSON.stringify(pointer, null, 2)}\n`, 'utf8');
+  } catch (error) {
+    rmSync(pointerTmp, { force: true });
+    return { ok: false, code: 'backup-failed', message: `no se pudo escribir el puntero temporal: ${String(error?.message ?? error)}` };
+  }
+  hooks.afterPointerWrite?.(pointerTmp);
+
+  try {
+    syncFile(pointerTmp);
+  } catch (error) {
+    rmSync(pointerTmp, { force: true });
+    return { ok: false, code: 'backup-unsynced', message: `no se pudo sincronizar el puntero: ${String(error?.message ?? error)}` };
+  }
+  hooks.afterPointerSync?.(pointerTmp);
+
+  // 5) Releer y validar el temporal y la generación que referencia.
+  try {
+    const parsedTmp = JSON.parse(readFileSync(pointerTmp, 'utf8'));
+    if (parsedTmp.generation !== generation || parsedTmp.sha256 !== sha256) {
+      rmSync(pointerTmp, { force: true });
+      return { ok: false, code: 'backup-mismatch', message: 'el puntero temporal no se lee igual' };
+    }
+    const resolved = resolveGeneration(root, parsedTmp.file);
+    if (!resolved.ok) {
+      rmSync(pointerTmp, { force: true });
+      return { ok: false, code: 'backup-mismatch', message: `el puntero temporal no resuelve su generación: ${resolved.reason}` };
+    }
+  } catch (error) {
+    rmSync(pointerTmp, { force: true });
+    return { ok: false, code: 'backup-failed', message: String(error?.message ?? error) };
+  }
+
+  // 6) El único punto de commit: un rename.
+  hooks.beforePointerRename?.(pointerTmp);
+  try {
+    renameWithRetry(pointerTmp, pointerPath, hooks.renamePointer);
+  } catch (error) {
+    rmSync(pointerTmp, { force: true });
+    return { ok: false, code: 'backup-failed', message: `no se pudo publicar el puntero: ${String(error?.message ?? error)}` };
+  }
+  hooks.afterPointerPublish?.(pointerPath);
+
+  // 7) Reabrir el puntero publicado y verificar su generación.
+  const verified = verifyBackup(root);
+  if (!verified.ok) {
+    return { ok: false, code: 'backup-unverified', message: verified.message ?? 'el puntero publicado no verifica', sha256, generation };
+  }
+
+  hooks.beforeCompat?.(root);
+  const compat = publishCompatCopy(root, source, { sha256, now, reason });
+  hooks.afterCompat?.(compat);
+
+  hooks.beforePrune?.(root);
+  pruneGenerations(root, { keep, protectedFiles: [`${generation}.json`, previousGeneration === null ? '' : `${previousGeneration}.json`] });
+  hooks.afterPrune?.(root);
+
+  return { ok: true, created: true, reason, generation, file: relative, path: absolute, sha256, size: source.length, compat: compat.ok === true, pointerPath };
 }
 
 /**
  * Crea (si toca) una copia verificada del documento actual.
  *
- * `reason`:
- * - `migration`: siempre obligatoria, aunque ya hubiera copia de hoy (una migración cambia el esquema).
- * - `mutation`: sólo la primera del día; el resto de escrituras del día ya están cubiertas.
- *
- * Si no se puede crear o verificar la copia, devuelve `ok:false` y quien llama **aborta la escritura**:
- * seguir sin respaldo es justo lo que este acto prohíbe.
+ * Publicación: generación inmutable verificada y **un** rename del puntero. Nunca se borra el puntero
+ * anterior antes de publicar el nuevo, y nunca se sobrescribe una generación.
  */
-export function ensureBackup(root = defaultRoot(), { now = new Date().toISOString(), reason = 'mutation', keep = BACKUP_HISTORY } = {}) {
+export function ensureBackup(root = defaultRoot(), { now = new Date().toISOString(), reason = 'mutation', keep = BACKUP_HISTORY, hooks = {} } = {}) {
   const loaded = loadState(root);
   if (loaded.integrity === INTEGRITY_MISSING) return { ok: true, created: false, reason, message: 'no hay documento todavía' };
   if (loaded.integrity !== INTEGRITY_OK) {
     return { ok: false, code: 'backup-unavailable', integrity: loaded.integrity, message: 'no se puede copiar un documento que no es válido' };
   }
-  const existing = readBackupMeta(root);
-  if (reason !== 'migration' && existing !== null && dayOf(existing.createdAt) === dayOf(now)) {
-    const verified = verifyBackup(root);
-    if (verified.ok) return { ok: true, created: false, reason, path: verified.path, sha256: verified.sha256, size: verified.size };
+
+  const existing = verifyBackup(root);
+  if (reason !== 'migration' && existing.ok && dayOf(existing.createdAt) === dayOf(now)) {
+    return { ok: true, created: false, reason, path: existing.path, sha256: existing.sha256, size: existing.size, generation: existing.generation };
   }
 
   const file = centerFile(root);
   const source = readFileSync(file);
   const sha256 = sha256OfBytes(source);
   if (sha256 !== loaded.sha256) {
-    // Cambió entre `loadState` y la lectura: no se copia una versión que no es la que se verificó.
+    // Cambió entre loadState y la lectura: no se copia una versión que no es la que se verificó.
     return { ok: false, code: 'backup-race', message: 'el documento cambió mientras se copiaba' };
   }
 
-  const target = backupFile(root);
-  const tmp = `${target}.${process.pid}.${Date.now().toString(36)}.tmp`;
-  try {
-    writeFileSync(tmp, source, { flag: 'wx' });
-    const written = readFileSync(tmp);
-    if (sha256OfBytes(written) !== sha256 || written.length !== source.length) {
-      rmSync(tmp, { force: true });
-      return { ok: false, code: 'backup-mismatch', message: 'la copia temporal no coincide con el original' };
-    }
-    renameWithRetry(tmp, target);
-  } catch (error) {
-    rmSync(tmp, { force: true });
-    return { ok: false, code: 'backup-failed', message: String(error?.message ?? error) };
-  }
+  cleanupOrphans(root, { now });
+  const previousGeneration = existing.ok ? existing.generation : null;
+  return writeAll(root, source, { now, reason, sha256, hooks, keep, previousGeneration });
+}
 
-  const meta = `${sha256} ${source.length} ${now} ${reason}\n`;
-  const metaTmp = `${backupMetaFile(root)}.${process.pid}.${Date.now().toString(36)}.tmp`;
-  try {
-    writeFileSync(metaTmp, meta, 'utf8');
-    renameWithRetry(metaTmp, backupMetaFile(root));
-  } catch (error) {
-    rmSync(metaTmp, { force: true });
-    return { ok: false, code: 'backup-failed', message: String(error?.message ?? error) };
-  }
-
+/**
+ * Restaura la copia autoritativa. Humana y explícita.
+ *
+ * - Con puntero válido: restaura su generación.
+ * - Sin puntero pero con pareja legada válida: sólo si se confirma su SHA-256 (legacySha256).
+ * - Puntero inválido o generación corrupta: no se restaura nada.
+ */
+export function restoreFromBackup(root = defaultRoot(), { now = new Date().toISOString(), archive = archiveCorruptStore, legacySha256 = '' } = {}) {
   const verified = verifyBackup(root);
-  if (!verified.ok) return { ok: false, code: 'backup-unverified', message: verified.message ?? 'la copia no se pudo verificar', sha256 };
-
-  // Historial diario, con retención. Es best-effort a propósito: si falla, la copia principal ya está.
-  try {
-    const historyDir = backupHistoryDir(root);
-    mkdirSync(historyDir, { recursive: true });
-    const dayFile = join(historyDir, `center-${dayOf(now)}.json`);
-    if (!existsFile(dayFile)) writeFileSync(dayFile, source, { flag: 'wx' });
-    const entries = readdirSync(historyDir).filter((name) => name.startsWith('center-') && name.endsWith('.json')).sort();
-    for (const name of entries.slice(0, Math.max(0, entries.length - keep))) rmSync(join(historyDir, name), { force: true });
-  } catch {
-    /* el historial no puede tumbar la copia principal */
+  if (verified.ok) {
+    return restoreStore(root, { sourcePath: verified.path, expectedSha256: verified.sha256, now, archive });
   }
-
-  return { ok: true, created: true, reason, path: target, sha256: verified.sha256, size: verified.size };
+  if (verified.code === 'legacy-copy') {
+    if (typeof legacySha256 !== 'string' || legacySha256 === '' || legacySha256 !== verified.sha256) {
+      return { ok: false, code: 'legacy-confirmation-required', sha256: verified.sha256 ?? null, message: 'hay una copia antigua válida: para restaurarla hay que confirmar su SHA-256 (legacySha256)' };
+    }
+    return restoreStore(root, { sourcePath: verified.path, expectedSha256: legacySha256, now, archive });
+  }
+  return { ok: false, code: verified.code ?? 'backup-unusable', message: verified.message ?? 'la copia no es recuperable' };
 }
 
 function existsFile(path) {
@@ -1131,13 +1440,6 @@ export function migrateStore(root = defaultRoot(), { now = new Date().toISOStrin
   } finally {
     release();
   }
-}
-
-/** Restaura la copia verificada más reciente. Humana y explícita, como toda restauración. */
-export function restoreFromBackup(root = defaultRoot(), { now = new Date().toISOString(), archive = archiveCorruptStore } = {}) {
-  const verified = verifyBackup(root);
-  if (!verified.ok) return { ok: false, code: verified.code ?? 'backup-unusable', message: verified.message ?? 'la copia no es recuperable' };
-  return restoreStore(root, { sourcePath: verified.path, expectedSha256: verified.sha256, now, archive });
 }
 
 /** Añade un evento al diario, recortando por delante lo que ya no cabe. */export function appendEvent(state, event) {

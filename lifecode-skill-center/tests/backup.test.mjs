@@ -7,6 +7,8 @@ import test from 'node:test';
 import {
   backupFile,
   backupMetaFile,
+  backupPointerFile,
+  readBackupPointer,
   checkStoreShape,
   ensureBackup,
   loadState,
@@ -71,8 +73,8 @@ test('si la copia no se puede crear, el original queda intacto y la escritura se
   const root = tempRoot('lsc-bak-fail-');
   const file = realCopy(root);
   const before = readFileSync(file);
-  // Un directorio con el nombre del destino hace fallar el rename de la copia.
-  mkdirSync(backupFile(root), { recursive: true });
+  // Un directorio con el nombre del puntero hace fallar el único rename de la publicación.
+  mkdirSync(backupPointerFile(root), { recursive: true });
   const result = ensureBackup(root, { now: '2026-11-03T09:00:00.000Z', reason: 'manual' });
   equal(result.ok, false);
   equal(result.code, 'backup-failed');
@@ -91,7 +93,8 @@ test('una copia incompleta no es recuperable', () => {
   const root = tempRoot('lsc-bak-broken-');
   realCopy(root);
   ensureBackup(root, { now: '2026-11-03T09:00:00.000Z', reason: 'manual' });
-  truncateSync(backupFile(root), 100);
+  // La autoridad es la generación: truncarla deja el puntero apuntando a algo que no verifica.
+  truncateSync(readBackupPointer(root).generationPath, 100);
   const verified = verifyBackup(root);
   equal(verified.ok, false);
   equal(verified.code, 'hash-mismatch');
@@ -325,10 +328,12 @@ test('la copia de hoy evita copias repetidas, y el historial tiene tope', () => 
   equal(first.created, true);
   const second = ensureBackup(root, { now: '2026-11-03T17:05:00.000Z', reason: 'mutation' });
   equal(second.created, false);
+  // La historia son generaciones inmutables, no ficheros diarios.
   const history = readdirSync(join(root, 'backups'));
   equal(history.length, 1);
-  equal(history[0], 'center-2026-11-03.json');
-  ok(statSync(backupMetaFile(root)).size > 0);
+  equal(history[0], 'generations');
+  equal(readdirSync(join(root, 'backups', 'generations')).length, 1);
+  ok(statSync(backupMetaFile(root)).size > 0, 'la copia de compatibilidad también existe');
 });
 
 test('una migración fuerza copia aunque ya hubiera una del día', () => {

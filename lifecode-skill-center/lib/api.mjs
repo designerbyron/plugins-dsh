@@ -370,14 +370,44 @@ export function ensureProjectView({ root, state, project, now = new Date().toISO
   return { synced: true, directory: result.directory, assignments, result };
 }
 
-/** Resumen de la copia de seguridad, sin exponer rutas internas ni contenidos. */
+/**
+ * Estado de la copia para el panel: tres estados y nunca «sin crear» cuando hay algo que no verifica.
+ *
+ * - `verified`: hay un puntero válido y su generación coincide.
+ * - `missing`: no hay puntero ni copia antigua utilizable.
+ * - `unverified`: hay un fichero o un puntero, pero no se puede verificar (o es una copia antigua).
+ */
 function backupSummary(root) {
   const verified = verifyBackup(root);
   if (verified.ok) {
-    return { exists: true, verified: true, sha256: verified.sha256, size: verified.size, createdAt: verified.createdAt, reason: verified.source, error: null };
+    return {
+      status: 'verified',
+      exists: true,
+      verified: true,
+      sha256: verified.sha256,
+      size: verified.size,
+      createdAt: verified.createdAt,
+      generation: verified.generation,
+      reason: verified.source,
+      legacy: false,
+      error: null,
+    };
   }
-  if (verified.code === 'missing') return { exists: false, verified: false, sha256: null, size: 0, createdAt: '', reason: '', error: null };
-  return { exists: true, verified: false, sha256: verified.sha256 ?? null, size: verified.size ?? 0, createdAt: '', reason: '', error: verified.message ?? verified.code };
+  if (verified.code === 'missing') {
+    return { status: 'missing', exists: false, verified: false, sha256: null, size: 0, createdAt: '', generation: '', reason: '', legacy: false, error: null };
+  }
+  return {
+    status: 'unverified',
+    exists: true,
+    verified: false,
+    sha256: verified.sha256 ?? null,
+    size: verified.size ?? 0,
+    createdAt: verified.createdAt ?? '',
+    generation: verified.generation ?? '',
+    reason: verified.source ?? '',
+    legacy: verified.code === 'legacy-copy',
+    error: verified.message ?? verified.code,
+  };
 }
 
 /**

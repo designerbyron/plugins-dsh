@@ -168,6 +168,12 @@ window.__ModuleLoader__.load({
         'analytics.diag.backup': 'Copia',
         'analytics.diag.backupYes': 'verificada',
         'analytics.diag.backupNo': 'sin crear',
+        'analytics.diag.backupUnverified': 'no verificable',
+        'analytics.diag.backupLegacy': 'copia antigua sin publicar',
+        'analytics.diag.backupGeneration': 'Generación',
+        'analytics.diag.backupReason': 'Motivo',
+        'analytics.diag.backupSize': 'Tamaño',
+        'analytics.diag.backupSha': 'SHA-256',
         'analytics.diag.error': 'Último error del almacén: {message}',
 
         'drawer.close': 'Cerrar',
@@ -387,6 +393,12 @@ window.__ModuleLoader__.load({
         'analytics.diag.backup': 'Backup',
         'analytics.diag.backupYes': 'verified',
         'analytics.diag.backupNo': 'none yet',
+        'analytics.diag.backupUnverified': 'unverifiable',
+        'analytics.diag.backupLegacy': 'old copy, not published',
+        'analytics.diag.backupGeneration': 'Generation',
+        'analytics.diag.backupReason': 'Reason',
+        'analytics.diag.backupSize': 'Size',
+        'analytics.diag.backupSha': 'SHA-256',
         'analytics.diag.error': 'Last store error: {message}',
 
         'drawer.close': 'Close',
@@ -749,7 +761,28 @@ window.__ModuleLoader__.load({
       return parts.filter((part) => typeof part === 'string' && part !== '').join(' ');
     }
 
-    function asArray(value) {
+    function shortSha(value) {
+      const texto = typeof value === 'string' ? value : '';
+      return texto.length >= 12 ? `${texto.slice(0, 12)}…` : texto || '—';
+    }
+
+    function formatBytes(value) {
+      const size = Number(value);
+      if (!Number.isFinite(size) || size <= 0) return '—';
+      if (size < 1024) return `${size} B`;
+      if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+      return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    /** Tres estados y ninguno se disfraza de otro: nunca «sin crear» cuando hay algo que no verifica. */
+    function backupLabel(t, backup) {
+      const status = backup?.status;
+      if (status === 'verified') return t('analytics.diag.backupYes');
+      if (status === 'unverified') return backup?.legacy === true ? t('analytics.diag.backupLegacy') : t('analytics.diag.backupUnverified');
+      return t('analytics.diag.backupNo');
+    }
+
+function asArray(value) {
       return Array.isArray(value) ? value : [];
     }
 
@@ -1432,7 +1465,11 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
               e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.store')), e('div', { className: 'lsc-mono lsc-nowrap' }, text(snapshot?.storePath))),
               e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.version')), e('div', { className: 'lsc-mono' }, String(snapshot?.apiVersion ?? '—'))),
       e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.schema')), e('div', { className: 'lsc-mono' }, `v${snapshot?.schemaVersion ?? '—'}`)),
-      e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.backup')), e('div', { className: 'lsc-mono' }, snapshot?.backup?.verified === true ? t('analytics.diag.backupYes') : t('analytics.diag.backupNo'))),
+      e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.backup')), e('div', { className: 'lsc-mono' }, backupLabel(t, snapshot?.backup))),
+        snapshot?.backup?.status === 'verified' ? e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.backupSha')), e('div', { className: 'lsc-mono lsc-nowrap' }, shortSha(snapshot.backup.sha256))) : null,
+        snapshot?.backup?.status === 'verified' ? e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.backupGeneration')), e('div', { className: 'lsc-mono' }, String(snapshot.backup.generation ?? '—'))) : null,
+        snapshot?.backup?.status === 'verified' ? e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.backupSize')), e('div', { className: 'lsc-mono' }, `${formatBytes(snapshot.backup.size)} · ${String(snapshot.backup.createdAt ?? '').slice(0, 10)}`)) : null,
+        snapshot?.backup?.status === 'unverified' && snapshot.backup.error ? e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.backupReason')), e('div', { className: 'lsc-small lsc-wrap' }, String(snapshot.backup.error))) : null,
               e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.exists')), e('div', { className: 'lsc-mono' }, snapshot?.storeExists === true ? t('analytics.diag.exists') : t('analytics.diag.missing'))),
               snapshot?.storeError ? e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-item-meta' }, t('analytics.diag.error', { message: snapshot.storeError }))) : null,
             ),
