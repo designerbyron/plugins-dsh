@@ -28,6 +28,7 @@ import {
   centerRoot,
   handleApiRequest,
   healthPayload,
+  workspacesPayload,
 } from './lib/api.mjs';
 import { skillProviderFor } from './lib/provider.mjs';
 import { centerTools } from './lib/tools.mjs';
@@ -244,6 +245,23 @@ function resolveHostCwd(ctx) {
   return '';
 }
 
+/**
+ * El registro de workspaces del Host, si existe.
+ *
+ * Se resuelve **en cada petición** y no se guarda el fallo: el servicio puede no estar listo cuando
+ * `apply()` corre (el registro durable espera a `sessionPersistence`), y cachear un `undefined` dejaría el
+ * inventario vacío para siempre. Un servicio con forma rara se devuelve tal cual: `workspacesPayload` lo
+ * valida y contesta `workspace-registry-unavailable`, que es reintentable.
+ */
+function resolveWorkspaceRegistry(ctx) {
+  try {
+    const registry = ctx.get?.('workspaceRegistry');
+    return registry ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function apply(ctx, config = {}) {
   const root = config.root ?? centerRoot();
 
@@ -348,15 +366,25 @@ export function apply(ctx, config = {}) {
 
       let outcome = null;
       try {
-        outcome = handleApiRequest({
-          root,
-          method,
-          pathname: url.pathname,
-          search: url.search,
-          body,
-          hostCwd: resolveHostCwd(ctx),
-          channel: admission.channel,
-        });
+        // El inventario de workspaces necesita el servicio del Host, así que se compone aquí: el despacho
+        // puro no puede tocar `ctx`, y devolverle una foto falsa sería peor que decir «no disponible».
+        if ((method === 'GET' || method === 'HEAD') && route === 'workspaces') {
+          outcome = await workspacesPayload({
+            root,
+            registry: resolveWorkspaceRegistry(ctx),
+            hostCwd: resolveHostCwd(ctx),
+          });
+        } else {
+          outcome = handleApiRequest({
+            root,
+            method,
+            pathname: url.pathname,
+            search: url.search,
+            body,
+            hostCwd: resolveHostCwd(ctx),
+            channel: admission.channel,
+          });
+        }
       } catch (error) {
         outcome = { status: 500, body: { ok: false, code: 'internal', message: String(error?.message ?? error) } };
       }

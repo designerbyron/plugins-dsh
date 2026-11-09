@@ -41,9 +41,28 @@ function realCopy(root) {
 }
 
 function v1Document() {
-  const parsed = JSON.parse(readFileSync(REAL_STORE, 'utf8'));
-  equal(parsed.schemaVersion, 1, 'la copia debe ser v1 para probar la migración');
-  return parsed;
+  // El almacén real ya está en v2 (migrado por el usuario en LSC-014). Para probar la migración se toma
+  // su contenido y se **degrada** a v1: así la prueba no depende de la versión que tenga el almacén vivo,
+  // que es estado productivo y cambia sin avisar.
+  return degradeToV1(JSON.parse(readFileSync(REAL_STORE, 'utf8')));
+}
+
+/** Quita lo que añade v2 y deja un documento v1 auténtico. */
+function degradeToV1(document) {
+  document.schemaVersion = 1;
+  delete document.schemaMeta;
+  for (const row of Object.values(document.assignments ?? {})) {
+    for (const assignment of Object.values(row ?? {})) {
+      if (assignment !== null && typeof assignment === 'object') delete assignment.pinnedAt;
+    }
+  }
+  return document;
+}
+
+/** Copia v1 en un root temporal: la base de todas las pruebas de migración. */
+function v1Copy(root) {
+  writeDocument(root, v1Document());
+  return join(root, 'center.json');
 }
 
 function writeDocument(root, document) {
@@ -105,7 +124,7 @@ test('una copia incompleta no es recuperable', () => {
 
 test('la migración v1 → v2 conserva entidades, versiones, referencias, pins y eventos', () => {
   const root = tempRoot('lsc-mig-');
-  realCopy(root);
+  v1Copy(root);
   const before = loadState(root);
   equal(before.state.schemaVersion, 1);
   const migrated = migrateStore(root, { now: '2026-11-03T10:00:00.000Z' });
@@ -178,7 +197,7 @@ test('un documento que la normalización perdería no se migra ni se escribe', (
 
 test('si falla la escritura temporal, v1 sigue intacto y no queda basura', () => {
   const root = tempRoot('lsc-mig-tmpfail-');
-  realCopy(root);
+  v1Copy(root);
   const before = readFileSync(join(root, 'center.json'));
   const migrated = migrateStore(root, {
     now: '2026-11-03T13:00:00.000Z',
@@ -195,7 +214,7 @@ test('si falla la escritura temporal, v1 sigue intacto y no queda basura', () =>
 
 test('si falla el reemplazo, la copia verificada permite recuperar v1', () => {
   const root = tempRoot('lsc-mig-renamefail-');
-  realCopy(root);
+  v1Copy(root);
   const before = readFileSync(join(root, 'center.json'));
   const migrated = migrateStore(root, {
     now: '2026-11-03T14:00:00.000Z',
@@ -216,7 +235,7 @@ test('si falla el reemplazo, la copia verificada permite recuperar v1', () => {
 
 test('restaurar la copia con su hash funciona; con otro hash no se toca nada', () => {
   const root = tempRoot('lsc-restore-');
-  const file = realCopy(root);
+  const file = v1Copy(root);
   ensureBackup(root, { now: '2026-11-03T15:00:00.000Z', reason: 'manual' });
   const backupBytes = readFileSync(backupFile(root));
   // Se sustituye el documento por otro válido (un v2 mínimo) para notar la restauración.
@@ -379,7 +398,7 @@ test('el documento migrado conserva los checks de evaluación (no se pierden al 
 
 test('el panel recibe schemaVersion y el estado de la copia en la instantánea', () => {
   const root = tempRoot('lsc-snapshot-');
-  realCopy(root);
+  v1Copy(root);
   const before = runAction({ root, action: 'state', payload: { scan: false }, now: '2026-11-03T20:00:00.000Z' });
   equal(before.schemaVersion, 1);
   equal(before.backup.exists, false, 'sin copia todavía');
@@ -395,7 +414,7 @@ test('el panel recibe schemaVersion y el estado de la copia en la instantánea',
 
 test('la IA no migra, no copia ni restaura', () => {
   const root = tempRoot('lsc-actor-');
-  realCopy(root);
+  v1Copy(root);
   for (const action of ['migrate', 'backup', 'restore']) {
     const result = runAction({ root, action, payload: {}, actor: 'ai', now: '2026-11-03T21:00:00.000Z' });
     equal(result.ok, false, action);

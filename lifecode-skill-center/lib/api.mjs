@@ -32,6 +32,14 @@ import {
 import { candidateFromSkillFile } from './skillfile.mjs';
 import { scanExternalSkills } from './sources.mjs';
 import {
+  AVAILABILITY_MISSING_DIR,
+  AVAILABILITY_OK,
+  AVAILABILITY_UNKNOWN,
+  WORKSPACE_UNAVAILABLE,
+  buildWorkspaceInventory,
+  workspaceRegistryShape,
+} from './workspaces.mjs';
+import {
   INTEGRITY_OK,
   SCHEMA_VERSION,
   canWrite,
@@ -169,6 +177,11 @@ export function handleApiRequest({
     const params = new URLSearchParams(typeof search === 'string' ? search.replace(/^\?/, '') : '');
     const cwd = params.get('cwd') ?? '';
     const scan = params.get('scan') !== '0';
+    // El inventario de workspaces necesita el servicio del Host, que sólo el adaptador puede resolver.
+    // Aquí se contesta con la verdad de este despacho (no lo tengo) en vez de devolver el estado como si
+    // fuera el inventario: un panel que recibe la foto equivocada es peor que uno que dice «no disponible».
+    if (route === 'workspaces') return answer(503, unavailableWorkspaces());
+    if (route !== '' && route !== 'state') return notFound();
     return answer(200, buildSnapshot({ root, cwd: cwd !== '' ? cwd : hostCwd, hostCwd, scan, now }));
   }
 
@@ -216,6 +229,72 @@ export function handleApiRequest({
 export function centerRoot(env = process.env) {
   const override = typeof env?.LIFECODE_SKILL_CENTER_ROOT === 'string' ? env.LIFECODE_SKILL_CENTER_ROOT.trim() : '';
   return override !== '' ? override : defaultRoot(env);
+}
+
+/** La respuesta honesta cuando el Host no puede dar el inventario: se puede reintentar. */
+export function unavailableWorkspaces(reason = 'el Host no ofrece el registro de workspaces') {
+  return {
+    ok: false,
+    code: WORKSPACE_UNAVAILABLE,
+    apiVersion: API_VERSION,
+    retryable: true,
+    message: `${reason}: el inventario volverá cuando el Host lo ofrezca. No se ha leído ningún almacén privado.`,
+  };
+}
+
+/**
+ * El inventario de workspaces que el Host reconoce, más el cruce con los proyectos de LifeCode.
+ *
+ * Es async porque `Workspace.status()` lo es: preguntar si la carpeta sigue existiendo es lo único que
+ * necesita esperar. **No escribe nada**: ni `center.json`, ni manifiestos, ni proyectos, ni asignaciones.
+ * El `hostCwd` lo pone el adaptador desde la sesión viva; este módulo no acepta rutas del cliente.
+ */
+export async function workspacesPayload({
+  root = centerRoot(),
+  registry = null,
+  hostCwd = '',
+  now = new Date().toISOString(),
+} = {}) {
+  const shape = workspaceRegistryShape(registry);
+  if (!shape.ok) return answer(503, unavailableWorkspaces(shape.reason));
+
+  let items = [];
+  try {
+    items = registry.list();
+  } catch (error) {
+    return answer(503, unavailableWorkspaces(`workspaceRegistry.list() falló: ${String(error?.message ?? error)}`));
+  }
+  if (!Array.isArray(items)) {
+    return answer(503, unavailableWorkspaces('workspaceRegistry.list() no devolvió una lista'));
+  }
+
+  // El estado del directorio se pregunta por workspace y se tolera el fallo: un `status()` que revienta
+  // no puede hacer desaparecer el workspace del inventario, sólo dejarlo como «desconocido».
+  const statuses = new Map();
+  for (const item of items) {
+    const id = typeof item?.id === 'string' ? item.id : '';
+    if (id === '') continue;
+    let status = AVAILABILITY_UNKNOWN;
+    try {
+      const reported = typeof item.status === 'function' ? await item.status() : AVAILABILITY_UNKNOWN;
+      if (reported === AVAILABILITY_OK) status = AVAILABILITY_OK;
+      else if (reported === AVAILABILITY_MISSING_DIR) status = AVAILABILITY_MISSING_DIR;
+    } catch {
+      status = AVAILABILITY_UNKNOWN;
+    }
+    statuses.set(id, status);
+  }
+
+  const loaded = loadState(root);
+  const state = loaded.state ?? emptyState(now);
+  const inventory = buildWorkspaceInventory({ items, statuses, state, hostCwd });
+  return answer(200, {
+    ok: true,
+    apiVersion: API_VERSION,
+    generatedAt: now,
+    readable: canWrite(loaded.integrity),
+    ...inventory,
+  });
 }
 
 function viewOfVersion(version) {

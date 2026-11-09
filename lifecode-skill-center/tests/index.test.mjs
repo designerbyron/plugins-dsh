@@ -8,7 +8,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -44,7 +44,7 @@ const SKILL_INPUT = {
  * operador, y `{rejection}` cuando no hay credencial o el Host no confía. 'missing' simula un harness sin
  * el servicio; 'no-peer' una admisión que no devuelve peer (contrato roto).
  */
-function fakeContext({ webServer = true, cwd = '', sessions, connection = 'host' } = {}) {
+function fakeContext({ webServer = true, cwd = '', sessions, connection = 'host', workspaces = null } = {}) {
   const sections = [];
   const tools = [];
   const routes = [];
@@ -66,6 +66,11 @@ function fakeContext({ webServer = true, cwd = '', sessions, connection = 'host'
     workingDirectory: { get: (session) => live.find((entry) => entry.session?.id === session?.id)?.cwd ?? '' },
     agents: { list: () => live },
   };
+
+  // El registro de workspaces es opcional en el Host: se inyecta sólo en las pruebas que lo piden.
+  if (Array.isArray(workspaces)) {
+    services.workspaceRegistry = { list: () => workspaces, get: (id) => workspaces.find((item) => item.id === id) };
+  }
 
   if (connection !== 'missing') {
     services.connection = {
@@ -540,5 +545,58 @@ test('las cuatro herramientas conservan sus permisos: la IA crea y propone, no a
     const state = loadState(root).state;
     assert.equal(state.skills[SKILL_INPUT.id].currentVersion, '1.0.0');
     assert.equal(Object.values(state.improvements)[0].status, 'proposed');
+  });
+});
+
+// ── El inventario de workspaces (LSC-016) ──────────────────────────────────────────────────────────
+
+/** Siete workspaces como los del Host, con su función `status()` resuelta. */
+function hostWorkspaces() {
+  const rows = [
+    ['ws-businesssuite', 'C:\\xampp\\htdocs\\businesssuite', 'businesssuite', 1],
+    ['ws-carlosdiaz', 'C:\\xampp\\htdocs\\carlosdiaz', 'carlosdiaz', 1],
+    ['ws-edgar', 'C:\\xampp\\htdocs\\edgartreelawnservices', 'edgartreelawnservices', 1],
+    ['ws-nexus', 'C:\\xampp\\htdocs\\nexusbusinesssuite', 'nexusbusinesssuite', 37],
+    ['ws-duranspainting', 'C:\\xampp\\htdocs\\duranspainting', 'duranspainting', 2],
+    ['ws-plugins', 'C:\\xampp\\htdocs\\plugins-dhs', 'plugins-dhs', 3],
+    ['ws-saas', 'C:\\xampp\\htdocs\\saas-corporative', 'saas-corporative', 22],
+  ];
+  return rows.map(([id, path, title, sessions]) => ({
+    id,
+    path,
+    title,
+    createdAt: '2026-11-01T00:00:00.000Z',
+    updatedAt: '2026-11-09T02:15:06.542Z',
+    sessionIds: Array.from({ length: sessions }, (_, index) => `session-${id}-${index + 1}`),
+    status: async () => 'ok',
+  }));
+}
+
+test('el inventario de workspaces se sirve por su ruta, con la admisión puesta', async () => {
+  await withCenter({ cwd: 'C:/xampp/htdocs/plugins-dhs', workspaces: hostWorkspaces() }, async ({ root, fake }) => {
+    const response = await callRoute(fake.routes[0], { url: '/lifecode-skill-center/api/workspaces' });
+    assert.equal(response.status, 200);
+    const body = response.body;
+    assert.equal(body.ok, true);
+    assert.equal(body.workspaces.length, 7);
+    assert.deepEqual(body.workspaces.map((row) => row.workspaceId), hostWorkspaces().map((row) => row.id));
+    assert.equal(body.workspaces.find((row) => row.workspaceId === 'ws-plugins').linkState, 'discovered');
+    assert.equal(body.managed.length, 0);
+    assert.equal(body.current.workspaceId, 'ws-plugins');
+    for (const row of body.workspaces) assert.equal(row.sessionIds, undefined);
+    // Leer el inventario no crea el almacén ni lo toca.
+    assert.equal(existsSync(join(root, 'center.json')), false);
+  });
+});
+
+test('sin registro de workspaces la ruta dice que no puede, y se puede reintentar', async () => {
+  await withCenter({ cwd: 'C:/xampp/htdocs/plugins-dhs' }, async ({ fake }) => {
+    const response = await callRoute(fake.routes[0], { url: '/lifecode-skill-center/api/workspaces' });
+    assert.equal(response.status, 503);
+    const body = response.body;
+    assert.equal(body.ok, false);
+    assert.equal(body.code, 'workspace-registry-unavailable');
+    assert.equal(body.retryable, true);
+    assert.match(body.message, /workspaceRegistry/);
   });
 });
