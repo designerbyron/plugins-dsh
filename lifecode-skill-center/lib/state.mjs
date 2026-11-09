@@ -570,6 +570,32 @@ function lockFile(root) {
   return `${centerFile(root)}.lock`;
 }
 
+/**
+ * Estado del candado **sin tomarlo**: una precondición necesita saber si hay otro escritor vivo antes de
+ * decidir, y tomarlo para averiguarlo sería justo lo que no se puede hacer en ese momento.
+ *
+ * Un candado más viejo que `LOCK_STALE_MS` se considera abandonado (es lo mismo que hace `acquireLock`
+ * al retirarlo); informarlo como vivo bloquearía el panel para siempre tras un corte.
+ */
+export function inspectLock(root = defaultRoot()) {
+  const file = lockFile(root);
+  let stats;
+  try {
+    stats = statSync(file);
+  } catch {
+    return { present: false, stale: false, ageMs: null, path: file };
+  }
+  // La caducidad se mide contra el reloj real, nunca contra un `now` lógico inyectado: un reloj de pruebas
+  // en el futuro haría parecer abandonado un candado vivo y dejaría migrar con otro escritor dentro.
+  const ageMs = Date.now() - stats.mtimeMs;
+  return {
+    present: true,
+    stale: ageMs > LOCK_STALE_MS,
+    ageMs,
+    path: file,
+  };
+}
+
 /** Espera síncrona sin dependencias: el núcleo es síncrono a propósito y cada acción es corta. */
 function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);

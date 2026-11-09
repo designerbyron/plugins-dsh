@@ -33,10 +33,13 @@ import { candidateFromSkillFile } from './skillfile.mjs';
 import { scanExternalSkills } from './sources.mjs';
 import {
   INTEGRITY_OK,
+  SCHEMA_VERSION,
   canWrite,
+  compareDocuments,
   defaultRoot,
   emptyState,
   ensureBackup,
+  inspectLock,
   loadState,
   materializedRoot,
   migrateStore,
@@ -338,7 +341,18 @@ export function buildSnapshot({ root = centerRoot(), cwd = '', now = new Date().
     // Versión del documento y estado de la copia: el panel necesita ambos para decidir si ofrece migrar
     // o restaurar. Sin esto, un v1 sano parecía «todo bien» aunque no hubiera ninguna copia detrás.
     schemaVersion: loaded.state.schemaVersion,
+    schemaMeta: loaded.state.schemaMeta ?? null,
     backup: backupSummary(root),
+    migration: migrationStatus(loaded, root),
+    // Recuentos para que el panel pueda decir qué se conserva sin recalcular la biblioteca a su manera.
+    counts: {
+      skills: skills.length,
+      versions: skills.reduce((sum, skill) => sum + (Array.isArray(skill.versions) ? skill.versions.length : 0), 0),
+      projects: projects.length,
+      assignments: Object.values(assignments).reduce((sum, row) => sum + Object.keys(row ?? {}).length, 0),
+      improvements: improvements.length,
+      events: events.length,
+    },
     cwd: normalizedCwd,
     hostCwd: normalizeCwd(hostCwd),
     project,
@@ -368,6 +382,27 @@ export function ensureProjectView({ root, state, project, now = new Date().toISO
   if (actual === expected) return { synced: false, directory: `${materializedRoot(root)}/${project.id}`, assignments };
   const result = syncProject({ root, project, assignments, now });
   return { synced: true, directory: result.directory, assignments, result };
+}
+
+/**
+ * ¿Se puede ofrecer la migración? Una sola respuesta, calculada aquí y no en el panel.
+ *
+ * El panel no repite estas reglas: si las copiara, la interfaz y el servidor podrían discrepar y la
+ * persona vería un botón que el servidor rechaza (o al revés). El servidor **vuelve a comprobarlas**
+ * dentro de la acción, porque entre la instantánea y el clic el disco puede cambiar.
+ */
+export function migrationStatus(loaded, root, { now = Date.now() } = {}) {
+  const from = loaded?.state?.schemaVersion ?? null;
+  const lock = inspectLock(root, { now });
+  const base = { from, to: SCHEMA_VERSION, canMigrate: false, blocker: null, lock };
+  if (loaded?.integrity !== INTEGRITY_OK) return { ...base, blocker: 'store-unreadable' };
+  if (from !== null && from > SCHEMA_VERSION) return { ...base, blocker: 'future-version' };
+  if (from === SCHEMA_VERSION) return { ...base, blocker: 'already-migrated' };
+  const copy = backupSummary(root);
+  if (copy.status !== 'verified') return { ...base, blocker: 'backup-required' };
+  if (copy.sha256 !== loaded.sha256 || copy.size !== loaded.size) return { ...base, blocker: 'backup-stale' };
+  if (lock.present && !lock.stale) return { ...base, blocker: 'store-busy' };
+  return { ...base, canMigrate: true, blocker: null };
 }
 
 /**
@@ -470,9 +505,55 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
     if (actor !== 'human') {
       return { ok: false, code: 'approval-required', message: 'migrar el esquema lo decide una persona: la IA no cambia el documento' };
     }
+    // Precondiciones del servidor, en el orden en que importan. No se confía en la instantánea que vio el
+    // panel: entre aquella lectura y este clic el documento, el candado o la copia pueden haber cambiado.
+    const current = loadState(root);
+    // `migrationStatus` no recibe el reloj lógico: el candado se juzga con el reloj real (inspectLock).
+  const status = migrationStatus(current, root);
+    if (!status.canMigrate) {
+      const messages = {
+        'store-unreadable': 'el almacén no se puede leer: no se migra un documento dañado, se conserva y se restaura desde la copia',
+        'future-version': 'el documento es más nuevo que este código: no se degrada una versión futura',
+        'already-migrated': 'el almacén ya está en la versión de esquema de este código',
+        'backup-required': 'no hay una copia autoritativa verificable: sin punto de vuelta no se toca el documento',
+        'backup-stale': 'la copia autoritativa no coincide con los bytes actuales: se niega a migrar sobre una copia vieja',
+        'store-busy': 'hay otro escritor con el candado tomado: no se migra mientras alguien escribe',
+      };
+      return {
+        ok: false,
+        code: status.blocker,
+        message: messages[status.blocker] ?? 'no se cumplen las precondiciones de la migración',
+        migration: status,
+        integrity: { status: current.integrity, sha256: current.sha256, size: current.size },
+      };
+    }
+    const before = current.state;
     const migrated = migrateStore(root, { now });
     if (!migrated.ok) return migrated;
-    return { ...migrated, snapshot: buildSnapshot({ root, cwd, now, hostCwd }) };
+    // La migración ya ocurrió cuando se compara: si algo no cuadra se dice la verdad (`migrated: true`)
+    // en vez de fingir que no pasó nada, y se deja la copia para volver.
+    const after = loadState(root);
+    const comparison = after.integrity === INTEGRITY_OK
+      ? compareDocuments(before, after.state)
+      : { ok: false, problems: [`el documento migrado no se relee: ${after.integrity}`] };
+    if (!comparison.ok) {
+      return {
+        ok: false,
+        code: 'migration-unverified',
+        migrated: true,
+        message: 'la migración se aplicó pero la comprobación de entidades encontró diferencias: revisa el almacén y, si algo falta, restaura la copia',
+        problems: comparison.problems,
+        backup: migrated.backup,
+        integrity: { status: after.integrity, sha256: after.sha256, size: after.size },
+        snapshot: buildSnapshot({ root, cwd, now, hostCwd }),
+      };
+    }
+    return {
+      ...migrated,
+      comparison: { ok: true, problems: [] },
+      integrity: { status: after.integrity, sha256: after.sha256, size: after.size },
+      snapshot: buildSnapshot({ root, cwd, now, hostCwd }),
+    };
   }
 
   if (name === 'detect') {

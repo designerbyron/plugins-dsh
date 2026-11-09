@@ -175,6 +175,40 @@ window.__ModuleLoader__.load({
         'analytics.diag.backupSize': 'Tamaño',
         'analytics.diag.backupSha': 'SHA-256',
         'analytics.diag.error': 'Último error del almacén: {message}',
+        'schema.title': 'Administración del esquema',
+        'schema.current': 'Esquema actual',
+        'schema.target': 'Esquema de destino',
+        'schema.integrity': 'Integridad del almacén',
+        'schema.integrity.ok': 'correcta',
+        'schema.integrity.bad': 'dañado: no se migra',
+        'schema.backup': 'Copia autoritativa',
+        'schema.entities': 'Entidades',
+        'schema.entitiesValue': '{skills} skills · {versions} versiones · {projects} proyectos · {assignments} asignaciones · {improvements} mejoras · {events} eventos',
+        'schema.state': 'Estado de la migración',
+        'schema.state.ready': 'lista para migrar',
+        'schema.state.done': 'migrada a v{schema}{date}',
+        'schema.state.blocked': 'no disponible',
+        'schema.action': 'Migrar esquema v1 → v2',
+        'schema.busy': 'Migrando…',
+        'schema.hint': 'Sólo una persona desde este panel puede migrar el almacén. La interfaz no ejecuta nada hasta que confirmes.',
+        'schema.blocker.store-unreadable': 'el almacén está dañado: consérvalo y restaura una copia antes de migrar',
+        'schema.blocker.future-version': 'el documento es más nuevo que este código: no se degrada',
+        'schema.blocker.already-migrated': 'ya está en la versión de esquema de este código',
+        'schema.blocker.backup-required': 'no hay una copia autoritativa verificable: sin punto de vuelta no se migra',
+        'schema.blocker.backup-stale': 'la copia no coincide con el documento actual: crea una nueva antes de migrar',
+        'schema.blocker.store-busy': 'hay otro escritor trabajando en el almacén: espera y vuelve a consultar',
+        'schema.result.ok': 'Migración completada y verificada: las entidades y los pins se conservan.',
+        'schema.result.kept': 'entidades antes: {before} · después: {after}',
+        'schema.result.failed': 'La migración no se completó ({code}): {message}',
+        'schema.dialog.title': 'Migrar el almacén a v2',
+        'schema.dialog.lead': 'Vas a modificar el almacén productivo de LifeCode Skill Center. Esto no se puede deshacer sin restaurar la copia.',
+        'schema.dialog.writes': 'Se escribirá `center.json` con el esquema v2 (una sola vez).',
+        'schema.dialog.backup': 'Antes se creará una generación de copia nueva con motivo «migration»; la generación v1 actual se conserva para volver atrás.',
+        'schema.dialog.adds': 'Se añadirán `schemaMeta` y `pinnedAt` (derivado de la fecha de cada asignación).',
+        'schema.dialog.keeps': 'Skills, versiones, referencias, proyectos, asignaciones, pins, mejoras y eventos deben conservarse exactamente.',
+        'schema.dialog.rollback': 'Si algo falla, el panel dice el código y no afirma éxito; la copia verificada queda para restaurar.',
+        'schema.dialog.cancel': 'Cancelar',
+        'schema.dialog.confirm': 'Confirmar migración',
 
         'drawer.close': 'Cerrar',
         'drawer.description': 'Para qué sirve',
@@ -223,6 +257,7 @@ window.__ModuleLoader__.load({
         'toast.toggled.on': 'Activada solo en este proyecto.',
         'toast.toggled.off': 'Desactivada en este proyecto; sigue en los demás.',
         'toast.evaluated': 'Evaluación actualizada.',
+        'toast.migrated': 'Esquema migrado y verificado.',
         'toast.published': 'Versión publicada.',
         'toast.forked': 'Skill derivada.',
         'toast.project': 'Proyecto registrado.',
@@ -400,6 +435,40 @@ window.__ModuleLoader__.load({
         'analytics.diag.backupSize': 'Size',
         'analytics.diag.backupSha': 'SHA-256',
         'analytics.diag.error': 'Last store error: {message}',
+        'schema.title': 'Schema administration',
+        'schema.current': 'Current schema',
+        'schema.target': 'Target schema',
+        'schema.integrity': 'Store integrity',
+        'schema.integrity.ok': 'intact',
+        'schema.integrity.bad': 'damaged: not migrating',
+        'schema.backup': 'Authoritative backup',
+        'schema.entities': 'Entities',
+        'schema.entitiesValue': '{skills} skills · {versions} versions · {projects} projects · {assignments} assignments · {improvements} improvements · {events} events',
+        'schema.state': 'Migration state',
+        'schema.state.ready': 'ready to migrate',
+        'schema.state.done': 'migrated to v{schema}{date}',
+        'schema.state.blocked': 'unavailable',
+        'schema.action': 'Migrate schema v1 → v2',
+        'schema.busy': 'Migrating…',
+        'schema.hint': 'Only a person, from this panel, can migrate the store. The interface does nothing until you confirm.',
+        'schema.blocker.store-unreadable': 'the store is damaged: keep it and restore a copy before migrating',
+        'schema.blocker.future-version': 'the document is newer than this code: it is not downgraded',
+        'schema.blocker.already-migrated': 'it is already on this code\'s schema version',
+        'schema.blocker.backup-required': 'no verifiable authoritative backup: without a way back, no migration',
+        'schema.blocker.backup-stale': 'the backup does not match the current document: create a new one first',
+        'schema.blocker.store-busy': 'another writer is working on the store: wait and refresh',
+        'schema.result.ok': 'Migration completed and verified: entities and pins are preserved.',
+        'schema.result.kept': 'entities before: {before} · after: {after}',
+        'schema.result.failed': 'The migration did not complete ({code}): {message}',
+        'schema.dialog.title': 'Migrate the store to v2',
+        'schema.dialog.lead': 'You are about to modify the production store of LifeCode Skill Center. This cannot be undone without restoring the backup.',
+        'schema.dialog.writes': '`center.json` will be written with schema v2 (once).',
+        'schema.dialog.backup': 'A new backup generation is created first with reason "migration"; the current v1 generation is kept for rollback.',
+        'schema.dialog.adds': '`schemaMeta` and `pinnedAt` (derived from each assignment date) will be added.',
+        'schema.dialog.keeps': 'Skills, versions, references, projects, assignments, pins, improvements and events must be preserved exactly.',
+        'schema.dialog.rollback': 'If anything fails the panel reports the code and claims no success; the verified backup remains to restore.',
+        'schema.dialog.cancel': 'Cancel',
+        'schema.dialog.confirm': 'Confirm migration',
 
         'drawer.close': 'Close',
         'drawer.description': 'What it is for',
@@ -448,6 +517,7 @@ window.__ModuleLoader__.load({
         'toast.toggled.on': 'Active in this project only.',
         'toast.toggled.off': 'Off in this project; still on in the others.',
         'toast.evaluated': 'Evaluation updated.',
+        'toast.migrated': 'Schema migrated and verified.',
         'toast.published': 'Version published.',
         'toast.forked': 'Skill forked.',
         'toast.project': 'Project registered.',
@@ -1402,7 +1472,7 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
       );
     }
 
-    function AnalyticsView({ t, lang, snapshot }) {
+    function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationResult }) {
       const skills = skillsOf(snapshot);
       const analytics = snapshot?.analytics ?? {};
       const series = asArray(analytics?.series);
@@ -1475,6 +1545,8 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
             ),
           ),
         ),
+
+        e(MigrationSection, { t, snapshot, onMigrate, busy: migrationBusy, result: migrationResult }),
       );
     }
 
@@ -1625,6 +1697,101 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
       );
     }
 
+    /* --------------------------------------------------------------- migración */
+
+    const MIGRATION_BLOCKERS = ['store-unreadable', 'future-version', 'already-migrated', 'backup-required', 'backup-stale', 'store-busy'];
+
+    /**
+     * Administración del esquema: una persona ve el estado y decide.
+     *
+     * El panel NO decide si se puede migrar: `snapshot.migration` viene calculado del servidor, que
+     * vuelve a comprobarlo al ejecutar. Aquí sólo se pinta y se deshabilita el botón.
+     */
+    function MigrationSection({ t, snapshot, onMigrate, busy, result }) {
+      const status = snapshot?.migration ?? null;
+      const counts = snapshot?.counts ?? {};
+      const from = status?.from ?? snapshot?.schemaVersion ?? null;
+      const to = status?.to ?? null;
+      const blocker = status?.blocker && MIGRATION_BLOCKERS.includes(status.blocker) ? status.blocker : null;
+      const done = from !== null && to !== null && from === to;
+      const migratedAt = String(snapshot?.schemaMeta?.migratedAt ?? '');
+      const canMigrate = status?.canMigrate === true && busy !== true;
+      const entityText = t('schema.entitiesValue', {
+        skills: String(counts.skills ?? 0),
+        versions: String(counts.versions ?? 0),
+        projects: String(counts.projects ?? 0),
+        assignments: String(counts.assignments ?? 0),
+        improvements: String(counts.improvements ?? 0),
+        events: String(counts.events ?? 0),
+      });
+      const row = (key, label, value, mono = true) =>
+        e('div', { key, className: 'lsc-item' },
+          e('div', { className: 'lsc-item-meta' }, label),
+          e('div', { className: mono ? 'lsc-mono lsc-wrap' : 'lsc-small lsc-wrap' }, value),
+        );
+      return e(Section, { title: t('schema.title') },
+        e('div', { className: 'lsc-list' },
+          row('current', t('schema.current'), `v${from ?? '—'}`),
+          row('target', t('schema.target'), `v${to ?? '—'}`),
+          row('integrity', t('schema.integrity'), snapshot?.integrity?.status === 'ok' ? t('schema.integrity.ok') : t('schema.integrity.bad')),
+          row('backup', t('schema.backup'), `${backupLabel(t, snapshot?.backup)}${snapshot?.backup?.generation ? ` · ${snapshot.backup.generation}` : ''}`),
+          snapshot?.backup?.status === 'verified'
+            ? row('backupSha', t('analytics.diag.backupSha'), shortSha(snapshot.backup.sha256))
+            : null,
+          row('entities', t('schema.entities'), entityText, false),
+          row(
+            'state',
+            t('schema.state'),
+            done
+              ? t('schema.state.done', { schema: String(from), date: migratedAt === '' ? '' : ` · ${migratedAt.slice(0, 10)}` })
+              : blocker === null
+                ? t('schema.state.ready')
+                : `${t('schema.state.blocked')}: ${t(`schema.blocker.${blocker}`)}`,
+            false,
+          ),
+        ),
+        done ? null : e('div', { className: 'lsc-row', style: { marginTop: 10, gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+          e('button', {
+            type: 'button',
+            className: 'lsc-btn primary',
+            disabled: !canMigrate,
+            onClick: onMigrate,
+            title: blocker === null ? '' : t(`schema.blocker.${blocker}`),
+          }, busy === true ? t('schema.busy') : t('schema.action')),
+          e('span', { className: 'lsc-small lsc-meta lsc-wrap' }, t('schema.hint')),
+        ),
+        result ? e('div', {
+          className: 'lsc-small lsc-wrap',
+          style: { marginTop: 10, color: result.ok === true ? 'var(--lsc-ok)' : 'var(--lsc-bad)' },
+        }, result.text) : null,
+      );
+    }
+
+    /** Confirmación humana: explica qué se toca y qué se conserva antes de escribir nada. */
+    function MigrateDialog({ t, busy, result, onCancel, onConfirm }) {
+      return e('div', { className: 'lsc-modal-wrap', onClick: busy === true ? undefined : onCancel },
+        e('div', { className: 'lsc-modal', onClick: (event) => event.stopPropagation() },
+          e('div', { className: 'lsc-modal-title' }, t('schema.dialog.title')),
+          e('p', { className: 'lsc-hint' }, t('schema.dialog.lead')),
+          e('div', { className: 'lsc-list' },
+            e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-small lsc-wrap' }, t('schema.dialog.writes'))),
+            e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-small lsc-wrap' }, t('schema.dialog.backup'))),
+            e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-small lsc-wrap' }, t('schema.dialog.adds'))),
+            e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-small lsc-wrap' }, t('schema.dialog.keeps'))),
+            e('div', { className: 'lsc-item' }, e('div', { className: 'lsc-small lsc-wrap' }, t('schema.dialog.rollback'))),
+          ),
+          result ? e('div', {
+            className: 'lsc-small lsc-wrap',
+            style: { marginTop: 10, color: result.ok === true ? 'var(--lsc-ok)' : 'var(--lsc-bad)' },
+          }, result.text) : null,
+          e('div', { className: 'lsc-row', style: { justifyContent: 'flex-end', marginTop: 14 } },
+            e('button', { type: 'button', className: 'lsc-btn ghost', disabled: busy === true, onClick: onCancel }, t('schema.dialog.cancel')),
+            e('button', { type: 'button', className: 'lsc-btn primary', disabled: busy === true, onClick: onConfirm }, busy === true ? t('schema.busy') : t('schema.dialog.confirm')),
+          ),
+        ),
+      );
+    }
+
     /* --------------------------------------------------------------------- panel */
 
     function createPanel(ctx) {
@@ -1668,6 +1835,12 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
         const [actionPending, setActionPending] = useState('');
         const [detectText, setDetectText] = useState('');
         const [detectResult, setDetectResult] = useState(null);
+        // Migración del esquema: el diálogo se abre a mano, la operación se confirma a mano y el estado
+        // de «en curso» no es la barrera contra duplicados (el servidor revalida y la segunda llamada
+        // responde `already-migrated`); sólo evita un doble clic accidental.
+        const [migrateOpen, setMigrateOpen] = useState(false);
+        const [migrateBusy, setMigrateBusy] = useState(false);
+        const [migrateResult, setMigrateResult] = useState(null);
         const toastTimer = useRef(null);
         const cwdRef = useRef('');
         cwdRef.current = cwd;
@@ -1910,6 +2083,70 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
           return result;
         }, [act, notify, t]);
 
+        /**
+         * Abrir el diálogo no escribe nada: sólo explica lo que pasará si se confirma.
+         *
+         * Se revalida la elegibilidad antes de abrirlo para no ofrecer un diálogo que el servidor va a
+         * rechazar; aun así el servidor comprueba todo otra vez al ejecutar.
+         */
+        const onMigrateRequest = useCallback(() => {
+          if (migrateBusy === true) return;
+          if (snapshot?.migration?.canMigrate !== true) {
+            notify(t('schema.state.blocked'), 'bad');
+            return;
+          }
+          setMigrateResult(null);
+          setMigrateOpen(true);
+        }, [migrateBusy, notify, snapshot, t]);
+
+        const countText = (counts) => (counts === null || counts === undefined
+          ? '—'
+          : `${counts.skills}·${counts.versions}·${counts.projects}·${counts.assignments}·${counts.improvements}·${counts.events}`);
+
+        /**
+         * Confirmar la migración: una sola petición, sin reintentos automáticos.
+         *
+         * No se usa `act` porque aquí hace falta el código de fallo tal cual (`backup-stale`,
+         * `store-busy`, `migration-unverified`…) y porque el éxito trae su propia instantánea.
+         */
+        const onMigrateConfirm = useCallback(async () => {
+          if (migrateBusy === true) return;
+          const before = snapshot?.counts ?? null;
+          setMigrateBusy(true);
+          setMigrateResult(null);
+          try {
+            const response = await fetch(`${API}/state`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ action: 'migrate', payload: {}, cwd: cwdRef.current }),
+            });
+            const parsed = await readJson(response);
+            const result = parsed.data ?? null;
+            if (!parsed.ok || result === null) {
+              const message = authMessageFor(response.status) || parsed.message || `HTTP ${response.status}`;
+              setMigrateResult({ ok: false, text: t('schema.result.failed', { code: `HTTP ${response.status}`, message }) });
+              return;
+            }
+            if (result.ok !== true) {
+              setMigrateResult({ ok: false, text: t('schema.result.failed', { code: String(result.code ?? 'error'), message: String(result.message ?? '') }) });
+              await load({ scan: false });
+              return;
+            }
+            const after = result.snapshot?.counts ?? null;
+            setMigrateResult({
+              ok: true,
+              text: `${t('schema.result.ok')} ${t('schema.result.kept', { before: countText(before), after: countText(after) })}`,
+            });
+            notify(t('toast.migrated'));
+            setMigrateOpen(false);
+            await load({ scan: false });
+          } catch (failure) {
+            setMigrateResult({ ok: false, text: t('schema.result.failed', { code: 'network', message: String(failure?.message ?? failure) }) });
+          } finally {
+            setMigrateBusy(false);
+          }
+        }, [authMessageFor, cwdRef, load, migrateBusy, notify, snapshot, t]);
+
         const nav = useMemo(() => {
           const pending = asArray(snapshot?.improvements).filter((entry) => entry.status === 'proposed').length;
           const externalCount = asArray(snapshot?.external?.candidates).length;
@@ -1996,7 +2233,7 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
             e('main', { className: 'lsc-content' },
               snapshot.readable === false ? e(IntegrityBand, { t, integrity: snapshot.integrity ?? {}, onRestore, busy }) : null,
               snapshot.readable === false
-                ? (view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot }) : null)
+                ? (view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot, onMigrate: onMigrateRequest, migrationBusy: migrateBusy, migrationResult: migrateResult }) : null)
                 : view === 'overview' ? e(OverviewView, { t, lang, snapshot, onOpen: setDrawerId, onNavigate: setView, onImport, onDecide, busy, actionPending }) : null,
               snapshot.readable === false ? null : view === 'library' ? e(LibraryView, {
                 t, lang, snapshot, busy,
@@ -2009,12 +2246,23 @@ function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecid
               }) : null,
               snapshot.readable === false ? null : view === 'projects' ? e(ProjectsView, { t, snapshot, cwd, busy, onToggle, onVersion, onSync, onAdd: onAddProject, onSelect: selectProject, onOpen: setDrawerId }) : null,
               snapshot.readable === false ? null : view === 'improvements' ? e(ImprovementsView, { t, lang, snapshot, onDecide, onOpen: setDrawerId, busy, actionPending }) : null,
-              snapshot.readable === false ? null : view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot }) : null,
+              snapshot.readable === false ? null : view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot, onMigrate: onMigrateRequest, migrationBusy: migrateBusy, migrationResult: migrateResult }) : null,
             ),
           ),
 
           drawerId !== null ? e(SkillDrawer, { t, lang, snapshot, skillId: drawerId, onClose: () => setDrawerId(null), onToggle, onVersion, onEvaluate, busy }) : null,
           modalOpen && snapshot.readable !== false ? e(CreateModal, { t, onSubmit: onCreate, onClose: () => setModalOpen(false), busy }) : null,
+          migrateOpen ? e(MigrateDialog, {
+            t,
+            busy: migrateBusy,
+            result: migrateResult,
+            onCancel: () => {
+              if (migrateBusy === true) return;
+              setMigrateOpen(false);
+              setMigrateResult(null);
+            },
+            onConfirm: onMigrateConfirm,
+          }) : null,
           toast !== null ? e('div', { className: 'lsc-toast-wrap' }, e('div', { className: cx('lsc-toast', toast.tone) }, toast.message)) : null,
         );
       };
