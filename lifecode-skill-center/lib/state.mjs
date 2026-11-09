@@ -342,17 +342,65 @@ function acquireLock(root) {
 }
 
 /**
+ * Campos que NO cuentan como cambio funcional.
+ *
+ * `updatedAt` es un sello de escritura, no un dato del producto: si se incluyera en la firma, cualquier
+ * guardado parecería un cambio y la detección de no-ops no serviría de nada. La lista es deliberadamente
+ * corta: todo lo demás (eventos, asignaciones, versiones, referencias, proyectos) es funcional y entra.
+ */
+const NON_FUNCTIONAL_FIELDS = new Set(['updatedAt']);
+
+/** Serializa un valor de forma canónica: claves ordenadas, orden de arrays intacto. */
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value !== null && typeof value === 'object') {
+    const out = {};
+    for (const key of Object.keys(value).sort()) {
+      if (NON_FUNCTIONAL_FIELDS.has(key)) continue;
+      out[key] = canonicalValue(value[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
+/**
+ * Firma canónica del estado **funcional**.
+ *
+ * Sirve para una sola cosa: decidir si una mutación cambió algo de verdad. Ordena claves (para que dos
+ * documentos equivalentes den la misma firma), conserva el orden de los arrays (que sí es semántico:
+ * el diario es una secuencia) y deja fuera sólo los sellos de tiempo.
+ */
+export function functionalSignature(state) {
+  return JSON.stringify(canonicalValue(state ?? {}));
+}
+
+/**
  * Lee, deja mutar y guarda **bajo candado**. Si la mutación lanza, no se guarda nada: media operación
  * escrita es peor que ninguna, y el error viaja a quien llamó.
+ *
+ * Si la mutación no cambia nada funcional, **no se escribe**: se devuelve `saved: false`. Sin esto, una
+ * lectura del catálogo reescribía el documento cada vez que el harness pedía las skills (T13): el
+ * `updatedAt` cambiaba, el vigilante se despertaba y el SHA-256 del almacén se movía sin motivo.
+ * La comparación se hace **dentro del candado**, con el estado que se acaba de leer y después de mutar:
+ * comprobar antes sería una carrera entre dos procesos que leen lo mismo.
  */
 export function withState(root = defaultRoot(), mutate, { now } = {}) {
   const stamp = now ?? new Date().toISOString();
   const release = acquireLock(root);
   try {
     const loaded = loadState(root);
+    const before = functionalSignature(loaded.state);
     const result = mutate(loaded.state, { now: stamp, loaded });
+    const after = functionalSignature(loaded.state);
+    // Un documento ilegible se repara guardando: comparar una firma vacía contra otra vacía no puede
+    // decidir nada, y dejar el fichero corrupto sería peor que reescribirlo.
+    const unchanged = loaded.ok !== false && before === after;
+    if (unchanged) {
+      return { ok: true, saved: false, result, state: loaded.state, storeError: loaded.error };
+    }
     saveState(root, loaded.state, { now: stamp });
-    return { ok: true, result, state: loaded.state, storeError: loaded.error };
+    return { ok: true, saved: true, result, state: loaded.state, storeError: loaded.error };
   } finally {
     release();
   }
@@ -384,6 +432,19 @@ export function appendEvent(state, event) {
 }
 
 /**
+ * ¿Ya hay un evento de este tipo para este día y sujeto? Lo usa el proveedor para no pedir una escritura
+ * cuando la entrega del catálogo no aporta nada nuevo.
+ */
+export function dailyEventExists(state, { type, skillId = '', projectId = '', day }) {
+  const target = day ?? new Date().toISOString().slice(0, 10);
+  if (!Array.isArray(state?.events)) return false;
+  return state.events.some((event) => event.type === type
+    && event.skillId === skillId
+    && event.projectId === projectId
+    && String(event.at).slice(0, 10) === target);
+}
+
+/**
  * Anota un evento **como mucho una vez por día y sujeto**.
  *
  * Una carga de skill no es una acción humana: el catálogo de una sesión se pide muchas veces por
@@ -392,11 +453,7 @@ export function appendEvent(state, event) {
 export function recordDailyEvent(state, { type, skillId = '', projectId = '', version = '', actor = 'human', note = '', day }) {
   const target = day ?? new Date().toISOString().slice(0, 10);
   if (!Array.isArray(state.events)) state.events = [];
-  const repeated = state.events.some((event) => event.type === type
-    && event.skillId === skillId
-    && event.projectId === projectId
-    && String(event.at).slice(0, 10) === target);
-  if (repeated) return null;
+  if (dailyEventExists(state, { type, skillId, projectId, day: target })) return null;
   return appendEvent(state, {
     type,
     skillId,

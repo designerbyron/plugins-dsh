@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { ensureProjectView, centerRoot } from './api.mjs';
 import { findProject, assignedSkills } from './operations.mjs';
 import { renderSkillFile } from './skillfile.mjs';
-import { loadState, recordDailyEvent, withState } from './state.mjs';
+import { dailyEventExists, loadState, recordDailyEvent, withState } from './state.mjs';
 import { projectDirectory } from './materialize.mjs';
 
 export const PROVIDER_NAME = 'lifecode-skill-center';
@@ -35,13 +35,24 @@ function readOr(path) {
   }
 }
 
-/** La telemetría de carga es best-effort: nunca puede impedir que una skill llegue al agente. */
-function noteLoads(root, project, assignments) {
+/**
+ * La telemetría de carga es best-effort: nunca puede impedir que una skill llegue al agente.
+ *
+ * Se mira **antes** de pedir la escritura si falta algún evento del día. Entregar el catálogo es una
+ * lectura de cada turno: si cada entrega abriera el candado y guardara, el documento se reescribiría
+ * decenas de veces al día sin que nadie hubiera hecho nada (T13). Cuando no falta ninguno, no se abre
+ * ni el candado. La deduplicación de dentro del candado sigue siendo la que manda si dos procesos
+ * llegan a la vez: el segundo guarda sin cambios y `withState` devuelve `saved: false`.
+ */
+function noteLoads(root, project, assignments, day) {
   if (assignments.length === 0) return;
   try {
+    const loaded = loadState(root);
+    const missing = assignments.filter(({ skill }) => !dailyEventExists(loaded.state, { type: 'skill.loaded', skillId: skill.id, projectId: project.id, day }));
+    if (missing.length === 0) return;
     withState(root, (state) => {
-      for (const { skill, version } of assignments) {
-        recordDailyEvent(state, { type: 'skill.loaded', skillId: skill.id, projectId: project.id, version: version.version, actor: 'system' });
+      for (const { skill, version } of missing) {
+        recordDailyEvent(state, { type: 'skill.loaded', skillId: skill.id, projectId: project.id, version: version.version, actor: 'system', day });
       }
       return { ok: true };
     });
@@ -56,6 +67,9 @@ function noteLoads(root, project, assignments) {
  * @param {{ root?: string, now?: () => string }} [options]
  */
 export function skillProviderFor({ root = centerRoot(), now = () => new Date().toISOString() } = {}) {
+  // El reloj se acepta como función o como sello fijo: las pruebas pasan una cadena y el plugin pasa
+  // una función. Llamar `now()` sin más reventaba con la cadena.
+  const clock = () => (typeof now === 'function' ? now() : String(now ?? new Date().toISOString()));
   return {
     name: PROVIDER_NAME,
     async list({ cwd = '' } = {}) {
@@ -85,7 +99,7 @@ export function skillProviderFor({ root = centerRoot(), now = () => new Date().t
           path,
         });
       }
-      noteLoads(root, project, assignments);
+      noteLoads(root, project, assignments, clock().slice(0, 10));
       return out;
     },
     async get(candidate) {
@@ -96,7 +110,7 @@ export function skillProviderFor({ root = centerRoot(), now = () => new Date().t
       const loaded = loadState(root);
       const project = findProject(loaded.state, candidate?.cwd ?? '');
       if (project !== null) {
-        ensureProjectView({ root, state: loaded.state, project, now: now() });
+        ensureProjectView({ root, state: loaded.state, project, now: clock() });
         const retried = readOr(path);
         if (retried !== null) return { ...candidate, content: retried };
       }
