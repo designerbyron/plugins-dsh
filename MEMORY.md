@@ -8,9 +8,10 @@ Memoria durable del repositorio. No es el historial de una sesión: es lo que ha
 `lifecode-skill-center/` — el centro visual del conocimiento reutilizable. **No es el compilador con un panel
 encima**: es otro plugin, con su almacén propio (`%USERPROFILE%\.dsh\lifecode-skill-center\center.json`), su
 proveedor de skills (rango 160, por debajo del compilador) y su ruta HTTP
-(`/lifecode-skill-center/api/`). Ciclo: crear → evaluar → publicar → asignar → usar → medir → mejorar.
+(`/lifecode-skill-center/api`, **sin barra final**: una ruta `prefix` con barra sólo casa la base exacta).
+Ciclo: crear → evaluar → publicar → asignar → usar → medir → mejorar.
 
-Auditoría del 8 de noviembre (commit `0505207`, acto LSC-001): **119 pruebas**, puerta hermética con
+Auditoría del 8 de noviembre (commit `819970f`, acto LSC-001): **119 pruebas**, puerta hermética con
 el almacén real idéntico antes y después de la suite, `check` 102/102, y la promesa medida en el harness vivo
 (creada desde el panel, servida en dos proyectos, apagada en uno sin tocar el otro, pin de versión distinto por
 proyecto: A en 1.1.0 y B en 1.0.0). Defectos reales que la auditoría encontró y cerró: `POST` imposible con una
@@ -35,8 +36,50 @@ Lo que hay que saber antes de tocarlo:
 - **119 pruebas + puerta hermética** (`npm run test:hermetic`) y `npm run check` (pureza del núcleo y
   coherencia de instalación). Las trampas ya pagadas están en `lifecode-skill-center/docs/DESARROLLO.md`.
 
-Pendiente declarado: instalación en el perfil verificada visualmente y decisión de push (no ejecutados por
-gobernanza: un commit se decide y el envío se declara).
+Pendiente declarado: decisión de push (no ejecutado por gobernanza: un commit se decide y el envío se
+declara). La instalación en el perfil sí está hecha y verificada en la ventana real del harness.
+
+## LSC-004 (2026-11-08) — el panel no habla HTTP: el shell pone la credencial
+
+Medido sobre el escritorio, no supuesto. `dsh-app://app` no habla con el `webServer` como un navegador:
+`protocol.handle` borra `host`, `origin`, `cookie` y `sec-fetch-site`, e **inyecta la cookie de sesión del
+Host** que el proceso principal obtuvo al arrancar (`authenticateWebHost`: 303 + `set-cookie`, se queda en el
+shell; `set-cookie` está en `WITHHELD_RESPONSE_HEADERS`, la página nunca la ve). Consecuencias que cambian el
+diseño:
+
+- **No hace falta capacidad ni token de sesión.** `connection.requestRejection(req)` devuelve `undefined`
+  para el panel y `401` para un proceso local sin cookie: esa es toda la diferencia que hay que explotar.
+- **La puerta debe ser fail-closed**: sin el servicio `connection` se responde `503 auth-unavailable`, no
+  lectura libre. Hoy la ruta privada contesta 200 a cualquier proceso local.
+- **El borde HTTP no puede distinguir IA de persona**: `PrincipalMap` sólo tiene `owner`. El canal se conoce
+  por el punto de entrada (ruta HTTP = panel; herramienta = agente), nunca por un `actor` del cliente.
+- **`Origin` no llega** en el canal del panel (se borra), así que el guardia actual por `Origin` no protege
+  nada de ese canal y sólo frena peticiones directas.
+- El id de proyecto derivado de la ruta crea proyectos fantasma al mover la carpeta: la identidad va a UUID
+  con manifiesto `.dsh/lifecode-skill-center.json` (sin rutas absolutas, sin asignaciones), con adopción
+  humana y `legacyIds` para no romper lo existente.
+
+Detalle completo, incluida la máquina de estados y el plan por etapas: `_audit/PROPUESTA-LSC-004.md`.
+
+## LSC-005 (2026-11-08) — S1: toda petición del panel se admite o no se atiende
+
+Implementado y medido en el harness real (commit `de8eebf`, sin push). Lo que cambió de forma durable:
+
+- **La ruta de la API admite cada petición** con `connection.admit()`: sin credencial del Host ⇒ `401`; sin
+  el servicio `connection` ⇒ `503 auth-unavailable` (fail-closed, sin interruptor de configuración); el
+  peer se compara con `connection.browserPeer` para saber el canal — **no** se infiere del éxito de la
+  admisión, y el principal `owner` no distingue persona de IA.
+- **`GET /health` va antes de la admisión** y sólo dice `{ok, apiVersion, auth:'host'|'unavailable'}`.
+- **El actor lo pone el canal**: el despacho HTTP firma siempre `human`; `body.actor` y
+  `x-lifecode-actor` se ignoran (probado). La IA sigue entrando por las herramientas, que fijan `ai`.
+- **Credencial de operador**: lee (200) y no escribe (403 `api-peer-restricted`). Sólo probado en unitario:
+  este harness no emite credenciales de operador.
+- Suite **132 pruebas** (119 + 13 de S1), `check` 102/102 y hermética verde. Rollback verificado en un
+  *worktree* desechable: `git revert de8eebf` deja el árbol idéntico a `819970f`.
+- **Sigue abierto T13**: `provider.list()` escribe `center.json` (mueve `updatedAt`) al entregar el
+  catálogo aunque no haya evento nuevo. Es de C1/C2, no de S1.
+
+Informe con la tabla de las doce pruebas y los hashes: `_audit/INFORME-LSC-005.md`.
 
 ## Versión publicada
 
