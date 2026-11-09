@@ -38,6 +38,16 @@ function findingsOf(result) {
     .map((finding) => `${finding.severity ?? 'info'}: ${finding.message ?? finding.code}`);
 }
 
+/** Un almacén ilegible no es «no hay nada»: la herramienta tiene que decirlo con esas palabras. */
+function unreadableSummary(result, action) {
+  const integrity = result?.integrity ?? {};
+  return `the center cannot be read (${integrity.status ?? 'unknown'}${integrity.size === undefined ? '' : `, ${integrity.size} bytes`}${integrity.sha256 === undefined || integrity.sha256 === null ? '' : `, sha256 ${integrity.sha256}`}): ${action} was NOT done and the damaged file was left untouched. A person has to restore it from the panel.`;
+}
+
+function isUnreadable(result) {
+  return result?.code === 'store-unreadable';
+}
+
 function describeMatches(matches, totals) {
   if (matches.length === 0) return `no related skill found (${totals.library} in the library, ${totals.external} installed elsewhere): this is new ground`;
   const inLibrary = matches.filter((match) => match.kind === 'library').length;
@@ -57,6 +67,7 @@ export function lifecodeSkillSearch({ root = centerRoot() } = {}) {
     output: { schema: OUTPUT, render },
     execute(args, exec) {
       const result = runAction({ root, action: 'detect', payload: { text: args.query, id: args.id }, actor: 'ai', cwd: scopeOf(exec) });
+      if (isUnreadable(result)) return { status: 'unreadable', summary: unreadableSummary(result, 'the search'), matches: [], integrity: result.integrity };
       if (!result.ok) return { status: 'failed', summary: result.message ?? 'the search could not run', matches: [] };
       const totals = { library: result.libraryTotal ?? 0, external: result.externalTotal ?? 0 };
       const matches = (result.matches ?? []).slice(0, 8).map((match) => ({
@@ -115,6 +126,7 @@ export function lifecodeSkillCreate({ root = centerRoot() } = {}) {
           references: referencesToMap(args.references),
         },
       });
+      if (isUnreadable(result)) return { status: 'unreadable', summary: unreadableSummary(result, 'the creation'), integrity: result.integrity };
       if (!result.ok) {
         return { status: result.code === 'exists' ? 'exists' : 'failed', summary: result.message ?? 'the skill was not created', findings: findingsOf(result) };
       }
@@ -172,6 +184,7 @@ export function lifecodeSkillImprove({ root = centerRoot() } = {}) {
           references: args.references === undefined ? undefined : referencesToMap(args.references),
         },
       });
+      if (isUnreadable(result)) return { status: 'unreadable', summary: unreadableSummary(result, 'the proposal'), integrity: result.integrity };
       if (!result.ok) {
         return { status: result.code === 'missing' ? 'missing-skill' : 'failed', summary: result.message ?? 'the proposal was not created', findings: findingsOf(result) };
       }
@@ -198,6 +211,14 @@ export function lifecodeSkillStatus({ root = centerRoot() } = {}) {
       const cwd = scopeOf(exec);
       const snapshot = runAction({ root, action: 'state', actor: 'ai', cwd, payload: { scan: false } });
       if (!snapshot.ok) return { status: 'failed', summary: snapshot.message ?? 'the center could not be read' };
+      if (snapshot.readable === false) {
+        const integrity = snapshot.integrity ?? {};
+        return {
+          status: 'unreadable',
+          summary: `the center cannot be read (${integrity.status}${integrity.size === undefined ? '' : `, ${integrity.size} bytes`}${integrity.sha256 === undefined || integrity.sha256 === null ? '' : `, sha256 ${integrity.sha256}`}): nothing is known about this project's skills, and the damaged file was left untouched. A person has to restore it from the panel.`,
+          integrity,
+        };
+      }
       const project = snapshot.project;
       const enabledHere = (snapshot.skills ?? []).filter((skill) => project !== null && (skill.enabledIn ?? []).includes(project.id));
       const pending = (snapshot.improvements ?? []).filter((entry) => entry.status === 'proposed');

@@ -264,7 +264,18 @@ export function apply(ctx, config = {}) {
 
   ctx.skills.registerProvider((control) => {
     if (typeof control?.invalidate === 'function') invalidate = control.invalidate;
-    return skillProviderFor({ root });
+    return skillProviderFor({
+      root,
+      // El proveedor sólo puede devolver una lista; cuando el centro está dañado devuelve vacío **sin**
+      // escribir y avisa por aquí. El log es la única señal que el host puede dar del motivo.
+      onDiagnostic: (diagnostic) => {
+        try {
+          ctx.logger?.warn?.(`lifecode-skill-center: ${diagnostic.message} (${diagnostic.integrity}, ${diagnostic.size} bytes)`);
+        } catch {
+          // un log que falla no puede tumbar el catálogo
+        }
+      },
+    });
   });
 
   ctx.effect(() => {

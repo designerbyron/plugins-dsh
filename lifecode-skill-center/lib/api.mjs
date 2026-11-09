@@ -31,7 +31,16 @@ import {
 } from './operations.mjs';
 import { candidateFromSkillFile } from './skillfile.mjs';
 import { scanExternalSkills } from './sources.mjs';
-import { defaultRoot, emptyState, loadState, materializedRoot, withState } from './state.mjs';
+import {
+  INTEGRITY_OK,
+  canWrite,
+  defaultRoot,
+  emptyState,
+  loadState,
+  materializedRoot,
+  restoreStore,
+  withState,
+} from './state.mjs';
 
 export const API_VERSION = 1;
 export const EXTERNAL_LIMIT = 140;
@@ -87,6 +96,41 @@ export function apiRouteOf(pathname) {
 /** Toda respuesta de la API tiene la misma forma: estado, cuerpo y si hay que invalidar el catálogo. */
 function answer(status, body, invalidate = false) {
   return { status, body, invalidate: invalidate === true };
+}
+
+/** Resultado uniforme cuando el almacén no se puede leer: la operación NO se hizo y se dice por qué. */
+function unreadableResult(loaded, message) {
+  return {
+    ok: false,
+    code: 'store-unreadable',
+    status: 409,
+    message,
+    integrity: {
+      status: loaded.integrity,
+      path: loaded.path,
+      size: loaded.size,
+      sha256: loaded.sha256,
+      error: loaded.error,
+      archivedAs: null,
+    },
+  };
+}
+
+function unreadableResultFromStore(rejection, message) {
+  return {
+    ok: false,
+    code: 'store-unreadable',
+    status: 409,
+    message,
+    integrity: {
+      status: rejection.integrity,
+      path: rejection.path,
+      size: rejection.size,
+      sha256: rejection.sha256,
+      error: rejection.error,
+      archivedAs: null,
+    },
+  };
 }
 
 function notFound() {
@@ -157,7 +201,8 @@ export function handleApiRequest({
     hostCwd,
     now,
   });
-  return answer(200, result, result?.ok === true && CHANGES_CATALOG.has(action));
+  const status = result?.ok === true ? 200 : result?.code === 'store-unreadable' ? 409 : 200;
+  return answer(status, result, result?.ok === true && CHANGES_CATALOG.has(action));
 }
 
 /** La raíz del centro. Se puede redirigir por entorno para poder probarla sin tocar el almacén real. */
@@ -275,6 +320,17 @@ export function buildSnapshot({ root = centerRoot(), cwd = '', now = new Date().
     storePath: loaded.path,
     storeExists: loaded.exists,
     storeError: loaded.ok ? null : loaded.error,
+    // La integridad es un dato de primera clase: el panel decide con esto si puede pintar la biblioteca
+    // o si tiene que decir «centro ilegible». `readable` evita que cada vista tenga que recordar los casos.
+    readable: canWrite(loaded.integrity),
+    integrity: {
+      status: loaded.integrity,
+      path: loaded.path,
+      size: loaded.size,
+      sha256: loaded.sha256,
+      error: loaded.error,
+      archivedAs: null,
+    },
     cwd: normalizedCwd,
     hostCwd: normalizeCwd(hostCwd),
     project,
@@ -323,7 +379,12 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
     // Abrir el panel no debe escribir si el proyecto ya está en el registro: un guardado por cada
     // apertura cambia `updatedAt`, despierta al vigilante y hace creer que hubo un cambio. Sólo la
     // primera vez que se ve un proyecto se anota.
-    const known = normalizeCwd(cwd) === '' ? null : findProject(loadState(root).state, cwd);
+    const current = loadState(root);
+    if (!canWrite(current.integrity)) {
+      const blocked = buildSnapshot({ root, cwd, now, hostCwd });
+      return { ...blocked, opened: true };
+    }
+    const known = normalizeCwd(cwd) === '' ? null : findProject(current.state, cwd);
     if (normalizeCwd(cwd) !== '' && known === null) {
       const opened = withState(root, (state) => {
         const project = ensureProject(state, cwd, { now });
@@ -336,8 +397,20 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
     return { ...snapshot, opened: true };
   }
 
+  if (name === 'restore') {
+    if (actor !== 'human') {
+      return { ok: false, code: 'approval-required', message: 'restaurar el almacén lo hace una persona desde el panel' };
+    }
+    const restored = restoreStore(root, { sourcePath: data.path, expectedSha256: data.sha256, now });
+    if (!restored.ok) return restored;
+    return { ...restored, snapshot: buildSnapshot({ root, cwd, now, hostCwd }) };
+  }
+
   if (name === 'detect') {
     const loaded = loadState(root);
+    if (!canWrite(loaded.integrity)) {
+      return unreadableResult(loaded, 'no puedo buscar en una biblioteca que no se puede leer: el almacén está dañado y se conserva intacto');
+    }
     const queryText = String(data.text ?? '');
     const queryId = String(data.id ?? '');
     const query = { text: queryText, id: queryId, words: candidateWords({ description: queryText, id: queryId, tags: data.tags }) };
@@ -365,6 +438,9 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
 
   if (name === 'sync') {
     const loaded = loadState(root);
+    if (!canWrite(loaded.integrity)) {
+      return unreadableResult(loaded, 'no se puede sincronizar el disco mientras el centro no se pueda leer');
+    }
     const targets = typeof data.projectId === 'string' && data.projectId !== ''
       ? [loaded.state.projects[data.projectId]].filter(Boolean)
       : Object.values(loaded.state.projects ?? {});
@@ -447,6 +523,9 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
     }
   }, { now });
 
+  if (!mutation.ok && mutation.code === 'store-unreadable') {
+    return unreadableResultFromStore(mutation, 'el centro no se puede leer: los datos originales están preservados y no se ha escrito nada');
+  }
   if (!mutation.ok) return { ok: false, code: 'store', message: 'no se pudo guardar el centro', storeError: mutation.storeError };
   const result = mutation.result ?? { ok: false, code: 'empty', message: 'la acción no devolvió nada' };
 

@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import { ensureProjectView, centerRoot } from './api.mjs';
 import { findProject, assignedSkills } from './operations.mjs';
 import { renderSkillFile } from './skillfile.mjs';
-import { dailyEventExists, loadState, recordDailyEvent, withState } from './state.mjs';
+import { canWrite, dailyEventExists, loadState, recordDailyEvent, withState } from './state.mjs';
 import { projectDirectory } from './materialize.mjs';
 
 export const PROVIDER_NAME = 'lifecode-skill-center';
@@ -64,9 +64,14 @@ function noteLoads(root, project, assignments, day) {
 /**
  * El proveedor de skills del centro.
  *
- * @param {{ root?: string, now?: () => string }} [options]
+ * `onDiagnostic` recibe el aviso cuando el almacén está dañado: la interfaz de un proveedor de skills sólo
+ * devuelve una lista, así que un centro ilegible se entrega como lista vacía **sin** materializar, sin
+ * escribir eventos y avisando por aquí. Fingir que la biblioteca está vacía sin decirlo sería mentirle al
+ * catálogo; decirlo es lo único que el contrato permite.
+ *
+ * @param {{ root?: string, now?: () => string, onDiagnostic?: (diagnostic: object) => void }} [options]
  */
-export function skillProviderFor({ root = centerRoot(), now = () => new Date().toISOString() } = {}) {
+export function skillProviderFor({ root = centerRoot(), now = () => new Date().toISOString(), onDiagnostic } = {}) {
   // El reloj se acepta como función o como sello fijo: las pruebas pasan una cadena y el plugin pasa
   // una función. Llamar `now()` sin más reventaba con la cadena.
   const clock = () => (typeof now === 'function' ? now() : String(now ?? new Date().toISOString()));
@@ -74,6 +79,24 @@ export function skillProviderFor({ root = centerRoot(), now = () => new Date().t
     name: PROVIDER_NAME,
     async list({ cwd = '' } = {}) {
       const loaded = loadState(root);
+      // Un almacén ilegible no se entrega como biblioteca vacía: no se materializa, no se registra carga y
+      // se avisa. La lista vuelve vacía porque el contrato no tiene otra forma de decirlo.
+      if (!canWrite(loaded.integrity)) {
+        try {
+          onDiagnostic?.({
+            code: 'store-unreadable',
+            integrity: loaded.integrity,
+            path: loaded.path,
+            sha256: loaded.sha256,
+            size: loaded.size,
+            error: loaded.error,
+            message: 'el catálogo no se entrega: el centro no se puede leer y se conserva intacto',
+          });
+        } catch {
+          // un aviso que falla no puede tumbar el catálogo
+        }
+        return [];
+      }
       const project = findProject(loaded.state, cwd);
       if (project === null) return [];
       const assignments = assignedSkills(loaded.state, project.id);
@@ -108,6 +131,7 @@ export function skillProviderFor({ root = centerRoot(), now = () => new Date().t
       if (content !== null) return { ...candidate, content };
       // La ruta pudo quedarse atrás: se rehace la vista y se vuelve a intentar una vez.
       const loaded = loadState(root);
+      if (!canWrite(loaded.integrity)) return { ...candidate, content: '' };
       const project = findProject(loaded.state, candidate?.cwd ?? '');
       if (project !== null) {
         ensureProjectView({ root, state: loaded.state, project, now: clock() });

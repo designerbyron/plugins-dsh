@@ -218,6 +218,19 @@ window.__ModuleLoader__.load({
         'toast.project': 'Proyecto registrado.',
         'toast.version': 'Versión del proyecto actualizada.',
         'toast.blocked': 'No se puede desde la IA: {message}',
+        'integrity.title': 'Centro ilegible',
+        'integrity.body': 'El archivo del centro no se puede leer, así que no hay biblioteca que mostrar. Los datos originales están preservados: este panel no ha escrito nada encima.',
+        'integrity.future': 'El archivo lo escribió una versión más nueva de este centro. Se deja intacto: esta versión no lo migra ni lo degrada.',
+        'integrity.invalid': 'El archivo es JSON válido pero no tiene la forma de un almacén de este centro.',
+        'integrity.size': 'Tamaño',
+        'integrity.hash': 'SHA-256',
+        'integrity.diag': 'Diagnóstico',
+        'integrity.restore': 'La restauración es humana y explícita: elige un archivo de copia, se comprueba su hash y el original dañado se conserva antes de instalar nada.',
+        'integrity.restorePath': 'Ruta del archivo de copia',
+        'integrity.restoreHash': 'SHA-256 esperado (opcional)',
+        'integrity.restoreGo': 'Restaurar',
+        'integrity.restored': 'Centro restaurado desde {file}',
+        'integrity.preserved': 'El original quedó preservado en {file}',
         'toast.failed': 'No se pudo completar: {message}',
         'auth.missing': 'Esta ventana no trae la credencial del Host. Recarga la página desde DeepSeek Harness; si sigue igual, reabre la aplicación.',
         'auth.forbidden': 'El Host no confía en esta petición: ábrela desde la ventana de DeepSeek Harness.',
@@ -420,6 +433,19 @@ window.__ModuleLoader__.load({
         'toast.project': 'Project registered.',
         'toast.version': 'Project version updated.',
         'toast.blocked': 'The AI cannot do this: {message}',
+        'integrity.title': 'Unreadable center',
+        'integrity.body': 'The center file cannot be read, so there is no library to show. The original data is preserved: this panel has not written over it.',
+        'integrity.future': 'A newer version of this center wrote that file. It is left untouched: this version does not migrate or downgrade it.',
+        'integrity.invalid': 'The file is valid JSON but does not have the shape of this center document.',
+        'integrity.size': 'Size',
+        'integrity.hash': 'SHA-256',
+        'integrity.diag': 'Diagnostic',
+        'integrity.restore': 'Restoring is human and explicit: pick a backup file, its hash is checked and the damaged original is preserved before anything is installed.',
+        'integrity.restorePath': 'Path of the backup file',
+        'integrity.restoreHash': 'Expected SHA-256 (optional)',
+        'integrity.restoreGo': 'Restore',
+        'integrity.restored': 'Center restored from {file}',
+        'integrity.preserved': 'The original was preserved at {file}',
         'toast.failed': 'Could not complete: {message}',
         'auth.missing': 'This window has no Host credential. Reload the page from DeepSeek Harness; if it stays the same, reopen the app.',
         'auth.forbidden': 'The Host does not trust this request: open it from the DeepSeek Harness window.',
@@ -951,7 +977,43 @@ window.__ModuleLoader__.load({
 
     /* ---------------------------------------------------------------------- vistas */
 
-    function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecide, busy, actionPending }) {
+    function IntegrityBand({ t, integrity, onRestore, busy }) {
+  const [path, setPath] = useState('');
+  const [hash, setHash] = useState('');
+  const status = String(integrity?.status ?? 'unknown');
+  const explanation = status === 'future-version' ? t('integrity.future') : status === 'invalid-shape' ? t('integrity.invalid') : t('integrity.body');
+  const submit = async () => {
+    if (path.trim() === '') return;
+    const result = await onRestore({ path: path.trim(), sha256: hash.trim() });
+    if (result !== null) {
+      setPath('');
+      setHash('');
+    }
+  };
+  return e('div', { style: { margin: '0 0 14px', padding: '14px 16px', borderRadius: 12, border: '1px solid var(--lsc-bad)', background: 'rgba(239, 68, 68, 0.10)' } },
+    e('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 } },
+      e('span', { style: { fontSize: 15, fontWeight: 700, color: 'var(--lsc-bad)' } }, t('integrity.title')),
+      e('span', { className: 'lsc-pill bad' }, status),
+    ),
+    e('p', { style: { margin: '0 0 10px', lineHeight: 1.5 } }, explanation),
+    e('dl', { style: { display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 14px', margin: '0 0 12px', fontSize: 12 } },
+      e('dt', { className: 'lsc-hint' }, t('integrity.size')),
+      e('dd', { style: { margin: 0 } }, integrity?.size === null || integrity?.size === undefined ? '—' : String(integrity.size)),
+      e('dt', { className: 'lsc-hint' }, t('integrity.hash')),
+      e('dd', { style: { margin: 0, fontFamily: 'monospace', wordBreak: 'break-all' } }, integrity?.sha256 ?? '—'),
+      e('dt', { className: 'lsc-hint' }, t('integrity.diag')),
+      e('dd', { style: { margin: 0 } }, integrity?.error ?? '—'),
+    ),
+    e('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' } },
+      e('input', { value: path, placeholder: t('integrity.restorePath'), onChange: (event) => setPath(event.target.value), style: { flex: '1 1 320px', minWidth: 220 } }),
+      e('input', { value: hash, placeholder: t('integrity.restoreHash'), onChange: (event) => setHash(event.target.value), style: { flex: '0 1 260px' } }),
+      e('button', { type: 'button', className: 'lsc-btn primary small', disabled: busy === true || path.trim() === '', onClick: submit }, t('integrity.restoreGo')),
+    ),
+    e('p', { className: 'lsc-hint', style: { margin: '8px 0 0' } }, t('integrity.restore')),
+  );
+}
+
+function OverviewView({ t, lang, snapshot, onOpen, onNavigate, onImport, onDecide, busy, actionPending }) {
       const skills = skillsOf(snapshot);
       const analytics = snapshot?.analytics ?? {};
       const published = skills.filter((skill) => skill.status === 'published').length;
@@ -1792,9 +1854,28 @@ window.__ModuleLoader__.load({
           [detectText, detectResult, runDetect],
         );
 
+        const onRestore = useCallback(async (payload) => {
+          const result = await act('restore', payload);
+          if (result !== null) {
+            notify(t('integrity.restored', { file: result.restoredFrom }));
+            if (result.archivedAs) notify(t('integrity.preserved', { file: result.archivedAs }));
+          }
+          return result;
+        }, [act, notify, t]);
+
         const nav = useMemo(() => {
           const pending = asArray(snapshot?.improvements).filter((entry) => entry.status === 'proposed').length;
           const externalCount = asArray(snapshot?.external?.candidates).length;
+          // Con el centro ilegible no se pintan recuentos: un «0» ahí sería una biblioteca vacía falsa.
+          if (snapshot?.readable === false) {
+            return [
+              { id: 'overview', label: t('nav.overview'), icon: 'overview' },
+              { id: 'library', label: t('nav.library'), icon: 'library' },
+              { id: 'projects', label: t('nav.projects'), icon: 'projects' },
+              { id: 'improvements', label: t('nav.improvements'), icon: 'improvements' },
+              { id: 'analytics', label: t('nav.analytics'), icon: 'analytics' },
+            ];
+          }
           return [
             { id: 'overview', label: t('nav.overview'), icon: 'overview' },
             { id: 'library', label: t('nav.library'), icon: 'library', count: skillsOf(snapshot).length },
@@ -1844,7 +1925,7 @@ window.__ModuleLoader__.load({
               ),
             ),
             e('button', { type: 'button', className: 'lsc-btn ghost', title: t('app.refresh'), disabled: busy, onClick: () => load() }, '⟳'),
-            e('button', { type: 'button', className: 'lsc-btn primary', onClick: () => setModalOpen(true) }, `+ ${t('app.new')}`),
+            e('button', { type: 'button', className: 'lsc-btn primary', disabled: snapshot.readable === false, title: snapshot.readable === false ? t('integrity.title') : '', onClick: () => setModalOpen(true) }, `+ ${t('app.new')}`),
           ),
 
           error !== '' ? e('div', { style: { padding: '8px 18px' } }, e('div', { className: 'lsc-banner' }, e('span', null, error), e('span', { className: 'lsc-spacer' }), e('button', { type: 'button', className: 'lsc-btn ghost small', onClick: () => load() }, t('app.retry')))) : null,
@@ -1866,8 +1947,11 @@ window.__ModuleLoader__.load({
             ),
 
             e('main', { className: 'lsc-content' },
-              view === 'overview' ? e(OverviewView, { t, lang, snapshot, onOpen: setDrawerId, onNavigate: setView, onImport, onDecide, busy, actionPending }) : null,
-              view === 'library' ? e(LibraryView, {
+              snapshot.readable === false ? e(IntegrityBand, { t, integrity: snapshot.integrity ?? {}, onRestore, busy }) : null,
+              snapshot.readable === false
+                ? (view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot }) : null)
+                : view === 'overview' ? e(OverviewView, { t, lang, snapshot, onOpen: setDrawerId, onNavigate: setView, onImport, onDecide, busy, actionPending }) : null,
+              snapshot.readable === false ? null : view === 'library' ? e(LibraryView, {
                 t, lang, snapshot, busy,
                 onOpen: setDrawerId,
                 onNew: () => setModalOpen(true),
@@ -1876,14 +1960,14 @@ window.__ModuleLoader__.load({
                 detect: detectState,
                 onDetect: detectState,
               }) : null,
-              view === 'projects' ? e(ProjectsView, { t, snapshot, cwd, busy, onToggle, onVersion, onSync, onAdd: onAddProject, onSelect: selectProject, onOpen: setDrawerId }) : null,
-              view === 'improvements' ? e(ImprovementsView, { t, lang, snapshot, onDecide, onOpen: setDrawerId, busy, actionPending }) : null,
-              view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot }) : null,
+              snapshot.readable === false ? null : view === 'projects' ? e(ProjectsView, { t, snapshot, cwd, busy, onToggle, onVersion, onSync, onAdd: onAddProject, onSelect: selectProject, onOpen: setDrawerId }) : null,
+              snapshot.readable === false ? null : view === 'improvements' ? e(ImprovementsView, { t, lang, snapshot, onDecide, onOpen: setDrawerId, busy, actionPending }) : null,
+              snapshot.readable === false ? null : view === 'analytics' ? e(AnalyticsView, { t, lang, snapshot }) : null,
             ),
           ),
 
           drawerId !== null ? e(SkillDrawer, { t, lang, snapshot, skillId: drawerId, onClose: () => setDrawerId(null), onToggle, onVersion, onEvaluate, busy }) : null,
-          modalOpen ? e(CreateModal, { t, onSubmit: onCreate, onClose: () => setModalOpen(false), busy }) : null,
+          modalOpen && snapshot.readable !== false ? e(CreateModal, { t, onSubmit: onCreate, onClose: () => setModalOpen(false), busy }) : null,
           toast !== null ? e('div', { className: 'lsc-toast-wrap' }, e('div', { className: cx('lsc-toast', toast.tone) }, toast.message)) : null,
         );
       };
