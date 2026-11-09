@@ -36,9 +36,13 @@ import {
   canWrite,
   defaultRoot,
   emptyState,
+  ensureBackup,
   loadState,
   materializedRoot,
+  migrateStore,
+  restoreFromBackup,
   restoreStore,
+  verifyBackup,
   withState,
 } from './state.mjs';
 
@@ -331,6 +335,10 @@ export function buildSnapshot({ root = centerRoot(), cwd = '', now = new Date().
       error: loaded.error,
       archivedAs: null,
     },
+    // Versión del documento y estado de la copia: el panel necesita ambos para decidir si ofrece migrar
+    // o restaurar. Sin esto, un v1 sano parecía «todo bien» aunque no hubiera ninguna copia detrás.
+    schemaVersion: loaded.state.schemaVersion,
+    backup: backupSummary(root),
     cwd: normalizedCwd,
     hostCwd: normalizeCwd(hostCwd),
     project,
@@ -360,6 +368,16 @@ export function ensureProjectView({ root, state, project, now = new Date().toISO
   if (actual === expected) return { synced: false, directory: `${materializedRoot(root)}/${project.id}`, assignments };
   const result = syncProject({ root, project, assignments, now });
   return { synced: true, directory: result.directory, assignments, result };
+}
+
+/** Resumen de la copia de seguridad, sin exponer rutas internas ni contenidos. */
+function backupSummary(root) {
+  const verified = verifyBackup(root);
+  if (verified.ok) {
+    return { exists: true, verified: true, sha256: verified.sha256, size: verified.size, createdAt: verified.createdAt, reason: verified.source, error: null };
+  }
+  if (verified.code === 'missing') return { exists: false, verified: false, sha256: null, size: 0, createdAt: '', reason: '', error: null };
+  return { exists: true, verified: false, sha256: verified.sha256 ?? null, size: verified.size ?? 0, createdAt: '', reason: '', error: verified.message ?? verified.code };
 }
 
 /**
@@ -401,9 +419,30 @@ export function runAction({ root = centerRoot(), action, payload = {}, actor = '
     if (actor !== 'human') {
       return { ok: false, code: 'approval-required', message: 'restaurar el almacén lo hace una persona desde el panel' };
     }
-    const restored = restoreStore(root, { sourcePath: data.path, expectedSha256: data.sha256, now });
+    // Dos orígenes posibles: un archivo elegido a mano (con su hash) o la copia verificada más reciente.
+    const restored = data.source === 'backup'
+      ? restoreFromBackup(root, { now })
+      : restoreStore(root, { sourcePath: data.path, expectedSha256: data.sha256, now });
     if (!restored.ok) return restored;
     return { ...restored, snapshot: buildSnapshot({ root, cwd, now, hostCwd }) };
+  }
+
+  if (name === 'backup') {
+    if (actor !== 'human') {
+      return { ok: false, code: 'approval-required', message: 'la copia de seguridad la pide una persona desde el panel' };
+    }
+    const created = ensureBackup(root, { now, reason: 'manual' });
+    if (!created.ok) return created;
+    return { ...created, snapshot: buildSnapshot({ root, cwd, now, hostCwd }) };
+  }
+
+  if (name === 'migrate') {
+    if (actor !== 'human') {
+      return { ok: false, code: 'approval-required', message: 'migrar el esquema lo decide una persona: la IA no cambia el documento' };
+    }
+    const migrated = migrateStore(root, { now });
+    if (!migrated.ok) return migrated;
+    return { ...migrated, snapshot: buildSnapshot({ root, cwd, now, hostCwd }) };
   }
 
   if (name === 'detect') {

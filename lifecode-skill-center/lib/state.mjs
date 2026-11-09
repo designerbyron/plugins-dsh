@@ -11,13 +11,24 @@
  */
 
 import { createHash } from 'node:crypto';
-import { closeSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { isSafeId, parseVersion, shortHash } from './format.mjs';
 
-export const SCHEMA_VERSION = 1;
+/**
+ * Última versión del documento que este código **sabe leer**.
+ *
+ * v1 es el esquema original. v2 es estrictamente aditivo (ver `migrateStore`): añade
+ * `schemaMeta` en la raíz y `pinnedAt` en cada asignación, y nada más. Escribir una versión
+ * nueva no es cosa de un guardado: sólo la migración explícita sube el número, porque subirlo
+ * por accidente dejaría un documento que una versión anterior del plugin no sabría leer.
+ */
+export const SCHEMA_VERSION = 2;
+
+/** Versión mínima que se acepta leer. v1 se lee; para escribir se migra antes. */
+export const MIN_SCHEMA_VERSION = 1;
 /** Tope del diario de eventos. Más allá de esto lo que sobra no se consulta y engorda cada escritura. */
 export const MAX_EVENTS = 4000;
 
@@ -66,6 +77,18 @@ function normalizeEvaluation(value) {
   return {
     status: ['pass', 'warn', 'fail'].includes(value.status) ? value.status : 'warn',
     score: Number.isFinite(value.score) ? Number(value.score) : 0,
+    // `checks` es la lista completa de comprobaciones de la compuerta, con su resultado individual.
+    // Antes se descartaba al normalizar: el documento se leía bien, pero la primera escritura borraba
+    // el detalle de por qué una versión pasó o no (medido en la auditoría de S4-B: 4 KB de la biblioteca
+    // real). Es dato funcional del historial de calidad y se conserva.
+    checks: list(value.checks)
+      .filter((check) => isObject(check) && typeof check.code === 'string')
+      .map((check) => ({
+        code: check.code,
+        ok: check.ok === true,
+        severity: ['block', 'warn', 'info'].includes(check.severity) ? check.severity : 'warn',
+        message: text(check.message),
+      })),
     findings: list(value.findings)
       .filter((finding) => isObject(finding) && typeof finding.code === 'string')
       .map((finding) => ({
@@ -143,12 +166,16 @@ function normalizeProject(raw) {
 
 function normalizeAssignment(raw) {
   if (!isObject(raw)) return null;
-  return {
+  const assignment = {
     enabled: raw.enabled === true,
     version: text(raw.version),
     updatedAt: text(raw.updatedAt),
     by: raw.by === 'ai' ? 'ai' : 'human',
   };
+  // Campo de v2: el día en que se fijó la versión. Se conserva sólo cuando existe para que una
+  // asignación v1 no gane un campo vacío que luego cambie el hash de su propia representación.
+  if (typeof raw.pinnedAt === 'string') assignment.pinnedAt = raw.pinnedAt;
+  return assignment;
 }
 
 /**
@@ -159,7 +186,10 @@ export function normalizeState(raw) {
   const base = emptyState();
   if (!isObject(raw)) return base;
   const state = {
-    schemaVersion: SCHEMA_VERSION,
+    // La versión del documento se conserva al leer: quien decide subirla es la migración.
+    schemaVersion: Number.isInteger(raw.schemaVersion) && raw.schemaVersion >= MIN_SCHEMA_VERSION
+      ? Math.min(raw.schemaVersion, SCHEMA_VERSION)
+      : MIN_SCHEMA_VERSION,
     createdAt: text(raw.createdAt, base.createdAt),
     updatedAt: text(raw.updatedAt, base.createdAt),
     skills: {},
@@ -234,6 +264,14 @@ export function normalizeState(raw) {
       actor: event.actor === 'ai' || event.actor === 'system' ? event.actor : 'human',
       note: text(event.note),
     }));
+  // Metadatos de la migración (sólo existen en v2). Si no se conservan, la siguiente lectura del
+  // documento los borraría al guardar y el historial de esquema se perdería sin avisar.
+  if (isObject(raw.schemaMeta) && Number.isInteger(raw.schemaMeta.migratedFrom)) {
+    state.schemaMeta = {
+      migratedFrom: raw.schemaMeta.migratedFrom,
+      migratedAt: text(raw.schemaMeta.migratedAt),
+    };
+  }
   return state;
 }
 
@@ -273,12 +311,146 @@ function sha256OfBytes(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
+/** Clon profundo del JSON ya parseado: `normalizeState` escribe en los objetos que recibe. */
+function cloneJson(value) {
+  return structuredClone(value);
+}
+
 /**
- * ¿Es este documento un almacén que sabemos leer?
+ * ¿Qué se perdería al normalizar este documento?
  *
- * Se exige el objeto raíz y las cinco colecciones con su tipo. Son obligatorias a propósito: `{}` o
- * `{"skills":"x"}` no son «un centro vacío», son un documento que no es nuestro, y aceptarlos como
- * vacíos es lo que permitía borrar la biblioteca con la primera mutación.
+ * `normalizeState` tolera basura a propósito —una skill con una versión ilegible no puede tumbar la
+ * sesión—, pero esa tolerancia **no** puede autorizar una escritura: guardar el resultado normalizado
+ * borra lo descartado. La comprobación es de conservación: cada clave que entra tiene que salir.
+ *
+ * Devuelve una lista de motivos; vacía significa que normalizar no pierde nada.
+ */
+function normalizationLosses(parsed) {
+  const before = cloneJson(parsed);
+  const after = normalizeState(cloneJson(parsed));
+  const losses = [];
+
+  const skillsBefore = Object.entries(before.skills ?? {});
+  for (const [id, skill] of skillsBefore) {
+    if (!isPlainObject(skill)) {
+      losses.push(`skills.${id} no es un objeto`);
+      continue;
+    }
+    if (!isSafeId(id)) {
+      losses.push(`skills.${id}: el id no es seguro`);
+      continue;
+    }
+    const kept = after.skills[id];
+    if (kept === undefined) {
+      losses.push(`skills.${id} se descartaría al normalizar (sin versiones legibles)`);
+      continue;
+    }
+    const versionsBefore = Array.isArray(skill.versions) ? skill.versions : [];
+    if (versionsBefore.length !== kept.versions.length) {
+      losses.push(`skills.${id}.versions: ${versionsBefore.length} entradas, sólo ${kept.versions.length} legibles`);
+    }
+    for (const [index, version] of versionsBefore.entries()) {
+      if (!isPlainObject(version)) {
+        losses.push(`skills.${id}.versions[${index}] no es un objeto`);
+        continue;
+      }
+      if (kept.versions[index] === undefined) continue;
+      const evaluationBefore = version.evaluation;
+      const evaluationAfter = kept.versions[index].evaluation ?? null;
+      if (isPlainObject(evaluationBefore)) {
+        const checksBefore = Array.isArray(evaluationBefore.checks) ? evaluationBefore.checks : [];
+        const checksAfter = Array.isArray(evaluationAfter?.checks) ? evaluationAfter.checks : [];
+        if (checksBefore.length !== checksAfter.length) {
+          losses.push(`skills.${id}.versions[${index}].evaluation.checks: ${checksBefore.length} entradas, ${checksAfter.length} conservadas`);
+        }
+        const findingsBefore = Array.isArray(evaluationBefore.findings) ? evaluationBefore.findings : [];
+        const findingsAfter = Array.isArray(evaluationAfter?.findings) ? evaluationAfter.findings : [];
+        if (findingsBefore.length !== findingsAfter.length) {
+          losses.push(`skills.${id}.versions[${index}].evaluation.findings: ${findingsBefore.length} entradas, ${findingsAfter.length} conservadas`);
+        }
+      }
+      if (isPlainObject(version.references)) {
+        const keptReferences = kept.versions[index].references ?? {};
+        for (const [path, content] of Object.entries(version.references)) {
+          if (typeof content !== 'string' || !path.startsWith('references/') || path.includes('..')) {
+            losses.push(`skills.${id}.versions[${index}].references["${path}"] se descartaría`);
+            continue;
+          }
+          if (keptReferences[path] !== content) {
+            losses.push(`skills.${id}.versions[${index}].references["${path}"] no sobrevive igual`);
+          }
+        }
+      }
+    }
+  }
+
+  const projectsBefore = Object.entries(before.projects ?? {});
+  for (const [id, project] of projectsBefore) {
+    const normalized = normalizeProject(isPlainObject(project) ? { ...cloneJson(project), id: project.id ?? id } : null);
+    if (normalized === null) {
+      losses.push(`projects.${id} se descartaría al normalizar`);
+      continue;
+    }
+    if (after.projects[normalized.id] === undefined) losses.push(`projects.${id} no sobrevive`);
+  }
+
+  for (const [projectId, entries] of Object.entries(before.assignments ?? {})) {
+    if (!isPlainObject(entries)) {
+      losses.push(`assignments.${projectId} no es un mapa`);
+      continue;
+    }
+    for (const [skillId, assignment] of Object.entries(entries)) {
+      if (normalizeAssignment(assignment) === null) {
+        losses.push(`assignments.${projectId}.${skillId} se descartaría`);
+        continue;
+      }
+      if (after.assignments[projectId]?.[skillId] === undefined) {
+        losses.push(`assignments.${projectId}.${skillId} no sobrevive`);
+        continue;
+      }
+      // v2 añade `pinnedAt`: si la normalización lo tirara, el documento parecería sano y perdería el
+      // campo en la siguiente escritura (mismo fallo de clase que `improvement.version`).
+      if (typeof assignment?.pinnedAt === 'string' && after.assignments[projectId][skillId].pinnedAt !== assignment.pinnedAt) {
+        losses.push(`assignments.${projectId}.${skillId}.pinnedAt no sobrevive`);
+      }
+    }
+  }
+
+  if (isPlainObject(before.schemaMeta) && !isPlainObject(after.schemaMeta)) {
+    losses.push('schemaMeta no sobrevive a la normalización');
+  }
+
+  for (const [id, improvement] of Object.entries(before.improvements ?? {})) {
+    if (!isPlainObject(improvement) || typeof improvement.skillId !== 'string') {
+      losses.push(`improvements.${id} se descartaría al normalizar`);
+      continue;
+    }
+    if (after.improvements[id] === undefined) losses.push(`improvements.${id} no sobrevive`);
+  }
+
+  const eventsBefore = Array.isArray(before.events) ? before.events : [];
+  const usableEvents = eventsBefore.filter((event) => isPlainObject(event) && typeof event.type === 'string');
+  if (usableEvents.length !== eventsBefore.length) {
+    losses.push(`events: ${eventsBefore.length - usableEvents.length} entradas se descartarían`);
+  }
+  if (usableEvents.length > MAX_EVENTS) {
+    // Recortar el diario al guardar sería perder historia sin decirlo: se trata como documento inválido
+    // para que una persona decida compactar explícitamente (la compactación es S5).
+    losses.push(`events: ${usableEvents.length} supera el tope de ${MAX_EVENTS} y se recortaría`);
+  }
+  if (after.events.length !== Math.min(usableEvents.length, MAX_EVENTS)) {
+    losses.push('events no sobreviven en el mismo número');
+  }
+
+  return losses;
+}
+
+/**
+ * ¿Es este documento un almacén que sabemos leer, y que podemos volver a escribir sin perder nada?
+ *
+ * Se exige el objeto raíz, las cinco colecciones con su tipo y que la normalización sea **conservadora**:
+ * `{}` o `{"skills":"x"}` no son «un centro vacío», son un documento que no es nuestro. Y un documento
+ * con una skill a la que le falta la mitad tampoco: normalizarlo la borraría.
  */
 export function checkStoreShape(parsed) {
   if (!isPlainObject(parsed)) return { ok: false, reason: 'el documento raíz no es un objeto JSON' };
@@ -289,11 +461,18 @@ export function checkStoreShape(parsed) {
     if (kind === 'object' && !isPlainObject(value)) return { ok: false, reason: `"${key}" debería ser un mapa` };
   }
   const version = parsed.schemaVersion;
-  if (version !== undefined && (!Number.isInteger(version) || version < 1)) {
-    return { ok: false, reason: '"schemaVersion" no es un entero positivo' };
+  if (version === undefined) {
+    return { ok: false, reason: 'falta "schemaVersion": es obligatorio para saber qué esquema se está leyendo' };
   }
-  if (Number.isInteger(version) && version > SCHEMA_VERSION) {
+  if (!Number.isInteger(version) || version < MIN_SCHEMA_VERSION) {
+    return { ok: false, reason: `"schemaVersion" no es un entero entre ${MIN_SCHEMA_VERSION} y ${SCHEMA_VERSION}` };
+  }
+  if (version > SCHEMA_VERSION) {
     return { ok: false, future: true, reason: `el documento es de la versión ${version} y este centro escribe la ${SCHEMA_VERSION}` };
+  }
+  const losses = normalizationLosses(parsed);
+  if (losses.length > 0) {
+    return { ok: false, reason: `normalizar el documento perdería información: ${losses.slice(0, 4).join('; ')}${losses.length > 4 ? ` (+${losses.length - 4})` : ''}`, losses };
   }
   return { ok: true };
 }
@@ -372,7 +551,9 @@ export function canWrite(integrity) {
 export function saveState(root, state, { now = new Date().toISOString() } = {}) {
   const file = centerFile(root);
   mkdirSync(dirname(file), { recursive: true });
-  state.schemaVersion = SCHEMA_VERSION;
+  // No se fuerza la versión: un guardado normal de un documento v1 lo deja v1. Subir a v2 es una
+  // migración explícita y verificada, no un efecto secundario de escribir.
+  if (!Number.isInteger(state.schemaVersion)) state.schemaVersion = MIN_SCHEMA_VERSION;
   state.updatedAt = now;
   const tmp = `${file}.${process.pid}.${Date.now().toString(36)}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
@@ -456,16 +637,26 @@ function acquireLock(root) {
  * guardado parecería un cambio y la detección de no-ops no serviría de nada. La lista es deliberadamente
  * corta: todo lo demás (eventos, asignaciones, versiones, referencias, proyectos) es funcional y entra.
  */
-const NON_FUNCTIONAL_FIELDS = new Set(['updatedAt']);
+/**
+ * Sellos **no funcionales**, por ruta explícita.
+ *
+ * Antes se excluía cualquier campo llamado `updatedAt` a cualquier profundidad. Eso funciona hoy, pero
+ * es una regla por nombre: una entidad futura con su propio `updatedAt` funcional habría quedado fuera de
+ * la firma y sus cambios no se habrían guardado nunca. Ahora se excluye sólo la ruta raíz documentada
+ * (`updatedAt`, el sello de escritura del documento). Cualquier otro sello, a cualquier nivel, es
+ * funcional y entra en la firma: `createdAt`, `decidedAt`, `events[].at`, `versions[].createdAt`…
+ */
+const NON_FUNCTIONAL_PATHS = new Set(['updatedAt']);
 
-/** Serializa un valor de forma canónica: claves ordenadas, orden de arrays intacto. */
-function canonicalValue(value) {
-  if (Array.isArray(value)) return value.map(canonicalValue);
+/** Serializa un valor de forma canónica: claves ordenadas, orden de arrays intacto, rutas explícitas. */
+function canonicalValue(value, path = '') {
+  if (Array.isArray(value)) return value.map((entry, index) => canonicalValue(entry, `${path}[${index}]`));
   if (value !== null && typeof value === 'object') {
     const out = {};
     for (const key of Object.keys(value).sort()) {
-      if (NON_FUNCTIONAL_FIELDS.has(key)) continue;
-      out[key] = canonicalValue(value[key]);
+      const childPath = path === '' ? key : `${path}.${key}`;
+      if (NON_FUNCTIONAL_PATHS.has(childPath)) continue;
+      out[key] = canonicalValue(value[key], childPath);
     }
     return out;
   }
@@ -520,20 +711,35 @@ export function withState(root = defaultRoot(), mutate, { now } = {}) {
     if (before === after) {
       return { ok: true, saved: false, result, state: loaded.state, storeError: null, integrity: loaded.integrity };
     }
+    // Antes de reemplazar el documento se asegura una copia verificada del que hay en disco. Si no se
+    // puede copiar, no se escribe: quedarse sin respaldo es peor que no guardar este cambio.
+    const backup = ensureBackup(root, { now: stamp, reason: 'mutation' });
+    if (!backup.ok) {
+      return {
+        ok: false,
+        code: 'backup-failed',
+        saved: false,
+        message: `no se pudo asegurar una copia antes de escribir: ${backup.message ?? backup.code}`,
+        integrity: loaded.integrity,
+        state: loaded.state,
+        storeError: loaded.error,
+      };
+    }
     saveState(root, loaded.state, { now: stamp });
-    return { ok: true, saved: true, result, state: loaded.state, storeError: null, integrity: loaded.integrity };
+    return { ok: true, saved: true, result, state: loaded.state, storeError: null, integrity: loaded.integrity, backup: { created: backup.created === true, sha256: backup.sha256 ?? null } };
   } finally {
     release();
   }
 }
 
 /** Copia binaria del documento actual, sin renombrarlo ni tocarlo: `center.json.corrupt-<marca>`. */
-export function archiveCorruptStore(root = defaultRoot(), { now = new Date().toISOString() } = {}) {
+export function archiveCorruptStore(root = defaultRoot(), { now = new Date().toISOString(), prefix = 'corrupt' } = {}) {
   const loaded = loadState(root);
   if (loaded.exists !== true) return { ok: false, code: 'nothing-to-preserve', message: 'no hay documento que conservar' };
   const source = readFileSync(loaded.path);
   const stamp = String(now).replace(/[^0-9A-Za-z]/g, '').slice(0, 17);
-  let archivedAs = join(dirname(loaded.path), `center.json.corrupt-${stamp}`);
+  const label = prefix === 'corrupt' ? 'corrupt' : 'replaced';
+  let archivedAs = join(dirname(loaded.path), `center.json.${label}-${stamp}`);
   let suffix = 0;
   // `wx` es exclusivo: nunca pisa una preservación anterior. Si el nombre ya existe, se numera.
   for (;;) {
@@ -545,7 +751,7 @@ export function archiveCorruptStore(root = defaultRoot(), { now = new Date().toI
         return { ok: false, code: 'archive-failed', message: String(error?.message ?? error) };
       }
       suffix += 1;
-      archivedAs = join(dirname(loaded.path), `center.json.corrupt-${stamp}-${suffix}`);
+      archivedAs = join(dirname(loaded.path), `center.json.${label}-${stamp}-${suffix}`);
     }
   }
   const written = readFileSync(archivedAs);
@@ -594,8 +800,11 @@ export function restoreStore(root = defaultRoot(), { sourcePath = '', expectedSh
   try {
     const current = loadState(root);
     let archived = null;
-    if (current.exists === true && !canWrite(current.integrity)) {
-      const preserved = archive(root, { now });
+    // Se conserva lo que se va a reemplazar siempre que sus bytes no sean ya los del origen: si el
+    // documento actual es válido pero distinto (por ejemplo, un v2 que quedó a medias), también merece
+    // una copia, no sólo cuando está corrupto.
+    if (current.exists === true && current.sha256 !== sha256) {
+      const preserved = archive(root, { now, prefix: canWrite(current.integrity) ? 'replaced' : 'corrupt' });
       if (!preserved.ok) {
         return { ok: false, code: 'archive-failed', message: `no se pudo preservar el original: ${preserved.message}` };
       }
@@ -623,8 +832,315 @@ export function restoreStore(root = defaultRoot(), { sourcePath = '', expectedSh
   }
 }
 
-/** Añade un evento al diario, recortando por delante lo que ya no cabe. */
-export function appendEvent(state, event) {
+/* ------------------------------------------------------------------------------------------------
+ * Copias de seguridad
+ *
+ * Contrato:
+ * - Sólo se copia un documento con `integrity: ok`: una copia de algo ilegible no es recuperable.
+ * - La copia son los **bytes originales**, no una reserialización.
+ * - `center.json.bak` es la copia buena más reciente; `center.json.bak.sha256` su huella verificable.
+ * - En `backups/` se guarda una copia por día, con retención limitada (`BACKUP_HISTORY = 7`).
+ * - Antes de reemplazar una copia válida se verifica la nueva: si no coincide byte a byte con el
+ *   original, no se publica.
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Copia recuperable más reciente. */
+export function backupFile(root = defaultRoot()) {
+  return `${centerFile(root)}.bak`;
+}
+
+/** Huella de la copia más reciente: `sha256  size  createdAt  origen`. */
+export function backupMetaFile(root = defaultRoot()) {
+  return `${backupFile(root)}.bak.sha256`;
+}
+
+/** Directorio del historial diario. */
+export function backupHistoryDir(root = defaultRoot()) {
+  return join(dirname(centerFile(root)), 'backups');
+}
+
+const BACKUP_HISTORY = 7;
+
+function dayOf(now) {
+  return String(now).slice(0, 10);
+}
+
+/** Lee la huella de la copia más reciente. `null` si no hay o no se puede leer. */
+export function readBackupMeta(root = defaultRoot()) {
+  try {
+    const raw = readFileSync(backupMetaFile(root), 'utf8').trim().split(/\s+/);
+    const [sha256, size, createdAt, source] = raw;
+    if (typeof sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(sha256)) return null;
+    return { sha256, size: Number(size) || 0, createdAt: createdAt ?? '', source: source ?? '' };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ¿Hay una copia utilizable?
+ *
+ * Comprobación completa: existe, su SHA-256 coincide con la huella registrada y, si se indica, el
+ * documento original del que salió también coincide. Verificar en el momento de usar es lo que separa
+ * «hay un fichero .bak» de «hay una copia recuperable».
+ */
+export function verifyBackup(root = defaultRoot()) {
+  const path = backupFile(root);
+  let bytes;
+  try {
+    bytes = readFileSync(path);
+  } catch {
+    return { ok: false, code: 'missing', path };
+  }
+  const sha256 = sha256OfBytes(bytes);
+  const size = bytes.length;
+  const meta = readBackupMeta(root);
+  if (meta === null) return { ok: false, code: 'unverifiable', path, sha256, size, message: 'falta la huella de la copia' };
+  if (meta.sha256 !== sha256 || (meta.size !== 0 && meta.size !== size)) {
+    return { ok: false, code: 'hash-mismatch', path, sha256, size, meta, message: 'la copia no coincide con su huella' };
+  }
+  return { ok: true, path, sha256, size, createdAt: meta.createdAt, source: meta.source };
+}
+
+/**
+ * Crea (si toca) una copia verificada del documento actual.
+ *
+ * `reason`:
+ * - `migration`: siempre obligatoria, aunque ya hubiera copia de hoy (una migración cambia el esquema).
+ * - `mutation`: sólo la primera del día; el resto de escrituras del día ya están cubiertas.
+ *
+ * Si no se puede crear o verificar la copia, devuelve `ok:false` y quien llama **aborta la escritura**:
+ * seguir sin respaldo es justo lo que este acto prohíbe.
+ */
+export function ensureBackup(root = defaultRoot(), { now = new Date().toISOString(), reason = 'mutation', keep = BACKUP_HISTORY } = {}) {
+  const loaded = loadState(root);
+  if (loaded.integrity === INTEGRITY_MISSING) return { ok: true, created: false, reason, message: 'no hay documento todavía' };
+  if (loaded.integrity !== INTEGRITY_OK) {
+    return { ok: false, code: 'backup-unavailable', integrity: loaded.integrity, message: 'no se puede copiar un documento que no es válido' };
+  }
+  const existing = readBackupMeta(root);
+  if (reason !== 'migration' && existing !== null && dayOf(existing.createdAt) === dayOf(now)) {
+    const verified = verifyBackup(root);
+    if (verified.ok) return { ok: true, created: false, reason, path: verified.path, sha256: verified.sha256, size: verified.size };
+  }
+
+  const file = centerFile(root);
+  const source = readFileSync(file);
+  const sha256 = sha256OfBytes(source);
+  if (sha256 !== loaded.sha256) {
+    // Cambió entre `loadState` y la lectura: no se copia una versión que no es la que se verificó.
+    return { ok: false, code: 'backup-race', message: 'el documento cambió mientras se copiaba' };
+  }
+
+  const target = backupFile(root);
+  const tmp = `${target}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  try {
+    writeFileSync(tmp, source, { flag: 'wx' });
+    const written = readFileSync(tmp);
+    if (sha256OfBytes(written) !== sha256 || written.length !== source.length) {
+      rmSync(tmp, { force: true });
+      return { ok: false, code: 'backup-mismatch', message: 'la copia temporal no coincide con el original' };
+    }
+    renameWithRetry(tmp, target);
+  } catch (error) {
+    rmSync(tmp, { force: true });
+    return { ok: false, code: 'backup-failed', message: String(error?.message ?? error) };
+  }
+
+  const meta = `${sha256} ${source.length} ${now} ${reason}\n`;
+  const metaTmp = `${backupMetaFile(root)}.${process.pid}.${Date.now().toString(36)}.tmp`;
+  try {
+    writeFileSync(metaTmp, meta, 'utf8');
+    renameWithRetry(metaTmp, backupMetaFile(root));
+  } catch (error) {
+    rmSync(metaTmp, { force: true });
+    return { ok: false, code: 'backup-failed', message: String(error?.message ?? error) };
+  }
+
+  const verified = verifyBackup(root);
+  if (!verified.ok) return { ok: false, code: 'backup-unverified', message: verified.message ?? 'la copia no se pudo verificar', sha256 };
+
+  // Historial diario, con retención. Es best-effort a propósito: si falla, la copia principal ya está.
+  try {
+    const historyDir = backupHistoryDir(root);
+    mkdirSync(historyDir, { recursive: true });
+    const dayFile = join(historyDir, `center-${dayOf(now)}.json`);
+    if (!existsFile(dayFile)) writeFileSync(dayFile, source, { flag: 'wx' });
+    const entries = readdirSync(historyDir).filter((name) => name.startsWith('center-') && name.endsWith('.json')).sort();
+    for (const name of entries.slice(0, Math.max(0, entries.length - keep))) rmSync(join(historyDir, name), { force: true });
+  } catch {
+    /* el historial no puede tumbar la copia principal */
+  }
+
+  return { ok: true, created: true, reason, path: target, sha256: verified.sha256, size: verified.size };
+}
+
+function existsFile(path) {
+  try {
+    statSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Migración v1 → v2
+ *
+ * v2 es estrictamente aditiva:
+ *   - raíz `schemaMeta: { migratedFrom: number, migratedAt: string }`;
+ *   - cada asignación gana `pinnedAt: string` ('' cuando no se conoce; la migración lo rellena con el
+ *     `updatedAt` de la asignación, que es su mejor aproximación documentada).
+ * Nada de identidades UUID, manifiestos, eventos nuevos ni telemetría: eso es S5/S6.
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Proyecta un estado v1 al documento v2. No escribe nada. */
+export function migrateDocumentV2(state, { now = new Date().toISOString(), from = 1 } = {}) {
+  const document = JSON.parse(JSON.stringify(state));
+  document.schemaVersion = 2;
+  document.schemaMeta = { migratedFrom: from, migratedAt: now };
+  for (const row of Object.values(document.assignments ?? {})) {
+    for (const assignment of Object.values(row)) {
+      if (typeof assignment.pinnedAt !== 'string' || assignment.pinnedAt === '') {
+        assignment.pinnedAt = typeof assignment.updatedAt === 'string' ? assignment.updatedAt : '';
+      }
+    }
+  }
+  return document;
+}
+
+/** Compara dos documentos por entidades: nada puede desaparecer ni cambiar de contenido. */
+export function compareDocuments(before, after) {
+  const problems = [];
+  const ids = (map) => Object.keys(map ?? {}).sort();
+  for (const [collection, kind] of Object.entries(STORE_SHAPE)) {
+    if (kind === 'array') continue;
+    const left = ids(before[collection]);
+    const right = ids(after[collection]);
+    if (left.join('|') !== right.join('|')) problems.push(`${collection}: ${left.length} → ${right.length}`);
+  }
+  if ((before.events ?? []).length !== (after.events ?? []).length) problems.push('events: cambia el número de eventos');
+  for (const [id, skill] of Object.entries(before.skills ?? {})) {
+    const migrated = after.skills?.[id];
+    if (migrated === undefined) {
+      problems.push(`skills.${id}: desaparece`);
+      continue;
+    }
+    if ((skill.versions ?? []).length !== (migrated.versions ?? []).length) problems.push(`skills.${id}: cambia el número de versiones`);
+    for (const version of skill.versions ?? []) {
+      const other = (migrated.versions ?? []).find((entry) => entry.version === version.version);
+      if (other === undefined) {
+        problems.push(`skills.${id}: falta la versión ${version.version}`);
+        continue;
+      }
+      if (other.body !== version.body) problems.push(`skills.${id}@${version.version}: el cuerpo cambia`);
+      const left = Object.keys(version.references ?? {}).sort().join('|');
+      const right = Object.keys(other.references ?? {}).sort().join('|');
+      if (left !== right) problems.push(`skills.${id}@${version.version}: cambian las referencias`);
+    }
+  }
+  for (const [projectId, row] of Object.entries(before.assignments ?? {})) {
+    for (const [skillId, assignment] of Object.entries(row)) {
+      const migrated = after.assignments?.[projectId]?.[skillId];
+      if (migrated === undefined) {
+        problems.push(`assignments.${projectId}.${skillId}: desaparece`);
+        continue;
+      }
+      if (migrated.version !== assignment.version) problems.push(`assignments.${projectId}.${skillId}: cambia la versión fijada`);
+      if (Boolean(migrated.enabled) !== Boolean(assignment.enabled)) problems.push(`assignments.${projectId}.${skillId}: cambia el interruptor`);
+    }
+  }
+  return { ok: problems.length === 0, problems };
+}
+
+/**
+ * Migración explícita y verificable.
+ *
+ * Orden: comprobar integridad → copia verificada → construir v2 en memoria → validar forma y entidades →
+ * escribir temporal → releer y validar → reemplazar con rename → releer y exigir `integrity: ok` y v2.
+ * Si falla antes del reemplazo, el original no se toca. Si falla después, devuelve la ruta de recuperación
+ * (`backup`) con su hash para que una persona restaure con conocimiento.
+ */
+/**
+ * `writeFile`/`rename` se pueden inyectar: las pruebas de «falla la escritura temporal» y «falla el
+ * reemplazo» necesitan provocar esos fallos sin depender de permisos del sistema de ficheros (en Windows
+ * un directorio de solo lectura no impide escribir dentro). En producción se usan los de verdad.
+ */
+export function migrateStore(root = defaultRoot(), { now = new Date().toISOString(), writeFile = writeFileSync, rename = renameWithRetry } = {}) {
+  const release = acquireLock(root);
+  try {
+    const loaded = loadState(root);
+    if (loaded.integrity !== INTEGRITY_OK) {
+      return { ok: false, code: 'store-unreadable', integrity: loaded.integrity, message: 'no se migra un documento que no es válido', sha256: loaded.sha256, size: loaded.size };
+    }
+    const from = loaded.state.schemaVersion;
+    if (from === SCHEMA_VERSION) {
+      return { ok: true, migrated: false, already: true, schemaVersion: from, sha256: loaded.sha256, size: loaded.size };
+    }
+    if (from > SCHEMA_VERSION) return { ok: false, code: 'future-version', message: 'el documento es más nuevo que este código' };
+
+    const backup = ensureBackup(root, { now, reason: 'migration' });
+    if (!backup.ok) return { ok: false, code: 'backup-failed', message: `no hay copia verificada: ${backup.message ?? backup.code}` };
+
+    const document = migrateDocumentV2(loaded.state, { now, from });
+    const shape = checkStoreShape(document);
+    if (!shape.ok) return { ok: false, code: 'migration-invalid', message: `la migración produciría un documento inválido: ${shape.reason}` };
+    const comparison = compareDocuments(loaded.state, document);
+    if (!comparison.ok) return { ok: false, code: 'migration-lossy', message: `la migración perdería datos: ${comparison.problems.slice(0, 4).join('; ')}` };
+
+    const file = centerFile(root);
+    const tmp = `${file}.${process.pid}.${Date.now().toString(36)}.tmp`;
+    const body = `${JSON.stringify(document, null, 2)}\n`;
+    try {
+      writeFile(tmp, body, 'utf8');
+      const reread = JSON.parse(readFileSync(tmp, 'utf8'));
+      const tmpShape = checkStoreShape(reread);
+      if (!tmpShape.ok) {
+        rmSync(tmp, { force: true });
+        return { ok: false, code: 'migration-invalid', message: `el temporal no se valida: ${tmpShape.reason}` };
+      }
+      if (reread.schemaVersion !== 2) {
+        rmSync(tmp, { force: true });
+        return { ok: false, code: 'migration-invalid', message: 'el temporal no quedó en v2' };
+      }
+      rename(tmp, file);
+    } catch (error) {
+      rmSync(tmp, { force: true });
+      return { ok: false, code: 'migration-failed', message: String(error?.message ?? error) };
+    }
+
+    const after = loadState(root);
+    if (after.integrity !== INTEGRITY_OK || after.state.schemaVersion !== 2) {
+      return {
+        ok: false,
+        code: 'migration-unverified',
+        integrity: after.integrity,
+        message: 'el documento migrado no se relee como v2 válido; recupera desde la copia verificada',
+        backup: { path: backup.path, sha256: backup.sha256 },
+      };
+    }
+    return {
+      ok: true,
+      migrated: true,
+      from,
+      to: 2,
+      before: { sha256: loaded.sha256, size: loaded.size },
+      after: { sha256: after.sha256, size: after.size },
+      backup: { path: backup.path, sha256: backup.sha256, size: backup.size },
+    };
+  } finally {
+    release();
+  }
+}
+
+/** Restaura la copia verificada más reciente. Humana y explícita, como toda restauración. */
+export function restoreFromBackup(root = defaultRoot(), { now = new Date().toISOString(), archive = archiveCorruptStore } = {}) {
+  const verified = verifyBackup(root);
+  if (!verified.ok) return { ok: false, code: verified.code ?? 'backup-unusable', message: verified.message ?? 'la copia no es recuperable' };
+  return restoreStore(root, { sourcePath: verified.path, expectedSha256: verified.sha256, now, archive });
+}
+
+/** Añade un evento al diario, recortando por delante lo que ya no cabe. */export function appendEvent(state, event) {
   // `isObject` dice «objeto» y un array no lo es: usarlo aquí vaciaba el diario en cada evento y la
   // telemetría sólo recordaba el último. Se comprueba la forma real del campo, no la del tipo.
   if (!Array.isArray(state.events)) state.events = [];
