@@ -219,6 +219,9 @@ window.__ModuleLoader__.load({
         'toast.version': 'Versión del proyecto actualizada.',
         'toast.blocked': 'No se puede desde la IA: {message}',
         'toast.failed': 'No se pudo completar: {message}',
+        'auth.missing': 'Esta ventana no trae la credencial del Host. Recarga la página desde DeepSeek Harness; si sigue igual, reabre la aplicación.',
+        'auth.forbidden': 'El Host no confía en esta petición: ábrela desde la ventana de DeepSeek Harness.',
+        'auth.unavailable': 'Este harness no ofrece el servicio de conexión, así que el panel no puede autenticarse. Sin él no se lee ni se escribe nada.',
 
         'common.version': 'Versión',
         'common.projects': 'Proyectos',
@@ -418,6 +421,9 @@ window.__ModuleLoader__.load({
         'toast.version': 'Project version updated.',
         'toast.blocked': 'The AI cannot do this: {message}',
         'toast.failed': 'Could not complete: {message}',
+        'auth.missing': 'This window has no Host credential. Reload the page from DeepSeek Harness; if it stays the same, reopen the app.',
+        'auth.forbidden': 'The Host does not trust this request: open it from the DeepSeek Harness window.',
+        'auth.unavailable': 'This harness does not offer the connection service, so the panel cannot authenticate. Without it nothing is read or written.',
 
         'common.version': 'Version',
         'common.projects': 'Projects',
@@ -1525,6 +1531,19 @@ window.__ModuleLoader__.load({
         return lang;
       }
 
+      /**
+       * El texto de una negativa de autenticación, o `''` si el estado no habla de credenciales.
+       *
+       * El servidor ya contesta 401/403/503 con su propio mensaje técnico; en la ventana hace falta algo
+       * que se pueda accionar. Se traduce aquí, y no con el `t` de la vista, porque `load` y `openPanel`
+       * se memoizan una sola vez.
+       */
+      function authMessageFor(status) {
+        const key =
+          Number(status) === 401 ? 'auth.missing' : Number(status) === 403 ? 'auth.forbidden' : Number(status) === 503 ? 'auth.unavailable' : '';
+        return key === '' ? '' : translate(readLanguage(locale), key);
+      }
+
       return function Panel() {
         const lang = useLanguage();
         const t = useCallback((key, vars) => translate(lang, key, vars), [lang]);
@@ -1565,7 +1584,7 @@ window.__ModuleLoader__.load({
             const parsed = await readJson(response);
             const data = parsed.data;
             if (!parsed.ok || !data || data.ok !== true) {
-              setError(data?.message ?? parsed.message);
+              setError(authMessageFor(response.status) || data?.message || parsed.message);
               return null;
             }
             // La recarga rápida (sin barrido) no vuelve a caminar el disco: conservamos lo último
@@ -1605,7 +1624,7 @@ window.__ModuleLoader__.load({
             const parsed = await readJson(response);
             const data = parsed.data;
             if (!parsed.ok || !data || data.ok !== true) {
-              setError(data?.message ?? parsed.message);
+              setError(authMessageFor(response.status) || data?.message || parsed.message);
               return;
             }
             setSnapshot(data);
@@ -1663,7 +1682,7 @@ window.__ModuleLoader__.load({
             const parsed = await readJson(response);
             const result = parsed.data;
             if (!parsed.ok || !result || result.ok === false) {
-              const message = result?.message ?? parsed.message;
+              const message = authMessageFor(response.status) || result?.message || parsed.message;
               notify(t('toast.failed', { message }), 'bad');
               setError(message);
               return null;

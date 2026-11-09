@@ -48,6 +48,26 @@ export const API_PREFIX = '/lifecode-skill-center/api';
 /** Las acciones que cambian el catálogo que ve el agente: hay que invalidarlo después. */
 export const CHANGES_CATALOG = new Set(['create', 'publish', 'improve', 'decide', 'toggle', 'rollback', 'fork', 'import', 'evaluate']);
 
+/**
+ * Los dos canales admitidos por la ruta del panel.
+ *
+ * El canal lo decide el adaptador comparando el peer admitido con `connection.browserPeer`, **nunca** el
+ * cuerpo ni una cabecera: `body.actor` y `x-lifecode-actor` no conceden nada (acto LSC-005).
+ */
+export const CHANNEL_BROWSER = 'browser';
+export const CHANNEL_API = 'api';
+
+/**
+ * La única respuesta que se sirve sin admisión.
+ *
+ * Dice si el Host ofrece `connection` y nada más: ni rutas, ni skills, ni proyectos, ni contadores, ni
+ * credenciales. Existe para que el panel distinga «no hay credencial» de «este harness no puede
+ * autenticar» sin abrir una rendija de lectura.
+ */
+export function healthPayload({ auth = 'unavailable' } = {}) {
+  return { ok: true, apiVersion: API_VERSION, auth: auth === 'host' ? 'host' : 'unavailable' };
+}
+
 /** Un objeto de verdad: ni `null` ni un array. */
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -87,6 +107,7 @@ export function handleApiRequest({
   search = '',
   body = null,
   hostCwd = '',
+  channel = CHANNEL_BROWSER,
   now = new Date().toISOString(),
 } = {}) {
   const verb = String(method ?? 'GET').toUpperCase();
@@ -104,6 +125,16 @@ export function handleApiRequest({
     return answer(405, { ok: false, code: 'method', message: 'usa GET para el estado y POST para las acciones' });
   }
 
+  // Una credencial de operador (canal `api`) puede leer, pero no cambiar el centro: el techo de permisos
+  // lo pone el canal que el adaptador midió, no lo que el cliente afirme. Se deniega antes de tocar disco.
+  if (channel === CHANNEL_API) {
+    return answer(403, {
+      ok: false,
+      code: 'api-peer-restricted',
+      message: 'una credencial de operador puede leer el centro, pero cambiarlo es del panel',
+    });
+  }
+
   if (route !== '' && route !== 'state') return notFound();
 
   // Un POST sin acción es un error del cliente, no una consulta: contestar con el estado escondería el
@@ -119,7 +150,9 @@ export function handleApiRequest({
     root,
     action,
     payload,
-    actor: body.actor === 'ai' ? 'ai' : 'human',
+    // El actor NO se lee del cuerpo ni de una cabecera: este despacho es el canal humano (panel admitido).
+    // La IA no pasa por aquí — usa las herramientas, cuyo punto de entrada fija `actor:'ai'`.
+    actor: 'human',
     cwd: cwd !== '' ? cwd : hostCwd,
     hostCwd,
     now,

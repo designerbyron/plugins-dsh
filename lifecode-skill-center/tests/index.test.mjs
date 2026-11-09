@@ -15,6 +15,9 @@ import { join } from 'node:path';
 import { apply, name, inject, API_PREFIX } from '../index.js';
 import { PROVIDER_NAME, PROVIDER_RANK } from '../lib/provider.mjs';
 import { runAction } from '../lib/api.mjs';
+import { centerFile, loadState } from '../lib/state.mjs';
+import { createHash } from 'node:crypto';
+import { readFileSync as readBytes } from 'node:fs';
 
 const SKILL_BODY = [
   '## Procedimiento',
@@ -33,8 +36,15 @@ const SKILL_INPUT = {
   body: SKILL_BODY,
 };
 
-/** Un `ctx` del harness reducido a lo que el plugin usa, con todo lo registrado a la vista. */
-function fakeContext({ webServer = true, cwd = '', sessions } = {}) {
+/**
+ * Un `ctx` del harness reducido a lo que el plugin usa, con todo lo registrado a la vista.
+ *
+ * `connection` reproduce lo medido en el escritorio: `admit` devuelve el **mismo** objeto de
+ * `browserPeer` cuando la credencial de navegador es válida, un peer distinto cuando la credencial es de
+ * operador, y `{rejection}` cuando no hay credencial o el Host no confía. 'missing' simula un harness sin
+ * el servicio; 'no-peer' una admisión que no devuelve peer (contrato roto).
+ */
+function fakeContext({ webServer = true, cwd = '', sessions, connection = 'host' } = {}) {
   const sections = [];
   const tools = [];
   const routes = [];
@@ -48,11 +58,29 @@ function fakeContext({ webServer = true, cwd = '', sessions } = {}) {
   let disposed = 0;
   let torndown = false;
 
+  const browserPeer = { id: 'peer-navegador', principal: { kind: 'owner' }, interactions: 'answer' };
+  const operatorPeer = { id: 'peer-operador', principal: { kind: 'owner' }, interactions: 'none' };
+
   // El servicio real recibe la sesión y devuelve su directorio; aquí se resuelve por id.
   const services = {
     workingDirectory: { get: (session) => live.find((entry) => entry.session?.id === session?.id)?.cwd ?? '' },
     agents: { list: () => live },
   };
+
+  if (connection !== 'missing') {
+    services.connection = {
+      browserPeer,
+      admit: ({ headers }) => {
+        if (connection === 'untrusted') return { rejection: 403 };
+        if (connection === 'no-peer') return {};
+        if (connection === 'api-peer') return { peer: operatorPeer };
+        if (connection === 'unavailable') throw new Error('la conexión está de baja');
+        const cookie = String(headers?.cookie ?? '');
+        if (cookie === '') return { rejection: 401 };
+        return { peer: browserPeer };
+      },
+    };
+  }
 
   const ctx = {
     get: (key) => services[key],
@@ -127,14 +155,19 @@ function fakeResponse() {
 
 /**
  * Un `IncomingMessage` de mentira. Emite el cuerpo y el fin en cuanto alguien escucha, que es el orden
- * en el que el adaptador los consume.
+ * en el que el adaptador los consume. Por defecto trae la cookie que el shell inyecta en el canal del
+ * panel; `cookie: ''` es el caso del proceso local sin credencial.
  */
-function fakeRequest({ method = 'GET', url = '/', body = null, origin = '' } = {}) {
+function fakeRequest({ method = 'GET', url = '/', body = null, origin = '', cookie = 'dsh-auth-prueba=1', headers = {} } = {}) {
   const listeners = new Map();
+  const sent = {};
+  if (origin !== '') sent.origin = origin;
+  if (cookie !== '') sent.cookie = cookie;
+  for (const [name, value] of Object.entries(headers)) sent[name] = value;
   const req = {
     method,
     url,
-    headers: { origin },
+    headers: sent,
     on(event, callback) {
       if (!listeners.has(event)) listeners.set(event, []);
       listeners.get(event).push(callback);
@@ -260,11 +293,16 @@ test('POST ejecuta la acción y avisa al catálogo cuando cambia lo que el agent
   });
 });
 
-test('POST con actor «ai» no puede encender una skill para un proyecto', async () => {
+test('el cuerpo no elige el actor: un POST del panel con actor «ai» sigue siendo una persona', async () => {
   await withCenter({}, async ({ root, fake }) => {
-    assert.equal(runAction({ root, action: 'create', actor: 'human', payload: SKILL_INPUT }).ok, true);
-    assert.equal(runAction({ root, action: 'register-project', actor: 'human', cwd: 'C:\\proyecto\\actual' }).ok, true);
+    const created = runAction({ root, action: 'create', actor: 'human', payload: SKILL_INPUT });
+    assert.equal(created.ok, true);
+    const registered = runAction({ root, action: 'register-project', actor: 'human', cwd: 'C:\\proyecto\\actual' });
+    assert.equal(registered.ok, true);
+    const projectId = registered.project.id;
 
+    // `actor:'ai'` en el cuerpo antes degradaba la petición a «la IA no puede»; ahora el actor lo pone el
+    // canal, y el panel es el canal humano. Si el cuerpo mandara, este POST habría sido rechazado.
     const response = await callRoute(fake.routes[0], {
       method: 'POST',
       url: `${API_PREFIX}/state`,
@@ -272,12 +310,33 @@ test('POST con actor «ai» no puede encender una skill para un proyecto', async
         action: 'toggle',
         actor: 'ai',
         cwd: 'C:\\proyecto\\actual',
-        payload: { skillId: SKILL_INPUT.id, enabled: true },
+        payload: { projectId, skillId: SKILL_INPUT.id, enabled: true },
       }),
     });
-    assert.equal(response.body.ok, false);
-    assert.equal(response.body.code, 'approval-required');
-    assert.equal(fake.invalidations, 0, 'lo rechazado no puede invalidar el catálogo');
+    assert.equal(response.body.ok, true, JSON.stringify(response.body));
+    const state = loadState(root).state;
+    assert.equal(state.assignments[projectId][SKILL_INPUT.id].by, 'human', 'el cuerpo no puede escribir el actor');
+    const last = state.events[state.events.length - 1];
+    assert.equal(last.actor, 'human', 'el diario registra el canal, no lo que el cliente afirme');
+  });
+});
+
+test('una cabecera de actor no concede autoridad', async () => {
+  await withCenter({}, async ({ root, fake }) => {
+    const created = runAction({ root, action: 'create', actor: 'human', payload: SKILL_INPUT });
+    assert.equal(created.ok, true);
+    const registered = runAction({ root, action: 'register-project', actor: 'human', cwd: 'C:\\proyecto\\actual' });
+    assert.equal(registered.ok, true);
+    const projectId = registered.project.id;
+    const response = await callRoute(fake.routes[0], {
+      method: 'POST',
+      url: `${API_PREFIX}/state`,
+      headers: { 'x-lifecode-actor': 'ai', 'x-lifecode-request': 'prueba-cabecera-actor' },
+      body: JSON.stringify({ action: 'toggle', payload: { projectId, skillId: SKILL_INPUT.id, enabled: true } }),
+    });
+    assert.equal(response.body.ok, true, 'la cabecera se ignora: el canal es el que manda');
+    const state = loadState(root).state;
+    assert.equal(Object.values(Object.values(state.assignments)[0])[0].by, 'human');
   });
 });
 
@@ -347,5 +406,139 @@ test('una petición de otra página se rechaza: el panel sólo atiende a su prop
       body: JSON.stringify({ action: 'state', payload: {}, cwd: process.cwd() }),
     });
     assert.equal(propio.status, 200);
+  });
+});
+
+// ── S1: admisión y seguridad del panel ────────────────────────────────────────────────────────────
+// Lo que estas pruebas fijan no es «hay una condición»: es el contrato del borde. Un panel sin
+// credencial no lee, un proceso local no escribe, un harness sin servicio de conexión no se convierte
+// en lectura libre, y el cuerpo de la petición no elige quién firma el cambio.
+
+function digestOf(path) {
+  return createHash('sha256').update(readBytes(path)).digest('hex');
+}
+
+test('sin la credencial del Host la ruta privada no contesta el estado', async () => {
+  await withCenter({}, async ({ root, fake }) => {
+    for (const method of ['GET', 'POST']) {
+      const response = await callRoute(fake.routes[0], {
+        method,
+        url: method === 'GET' ? `${API_PREFIX}/state?scan=0` : `${API_PREFIX}/state`,
+        body: method === 'POST' ? JSON.stringify({ action: 'state' }) : null,
+        cookie: '',
+      });
+      assert.equal(response.status, 401, `${method} sin credencial tiene que ser 401`);
+      assert.equal(response.body.ok, false);
+      assert.equal(response.body.code, 'unauthorized');
+      assert.ok(!('skills' in response.body), 'una negativa no puede arrastrar datos privados');
+      assert.match(String(response.body.requestId), /^[a-z0-9-]{8,64}$/, 'la negativa deja un identificador de correlación');
+    }
+    assert.equal(loadState(root).exists, false, 'una petición no admitida no puede ni crear el almacén');
+  });
+});
+
+test('un harness sin el servicio de conexión falla cerrado: 503, no lectura libre', async () => {
+  await withCenter({ connection: 'missing' }, async ({ root, fake }) => {
+    const read = await callRoute(fake.routes[0], { url: `${API_PREFIX}/state?scan=0` });
+    assert.equal(read.status, 503);
+    assert.equal(read.body.code, 'auth-unavailable');
+    const write = await callRoute(fake.routes[0], {
+      method: 'POST',
+      url: `${API_PREFIX}/state`,
+      body: JSON.stringify({ action: 'create', payload: SKILL_INPUT }),
+    });
+    assert.equal(write.status, 503);
+    assert.equal(loadState(root).exists, false, 'sin admisión no se escribe nada');
+  });
+});
+
+test('una admisión que no devuelve peer también falla cerrada', async () => {
+  await withCenter({ connection: 'no-peer' }, async ({ fake }) => {
+    const read = await callRoute(fake.routes[0], { url: `${API_PREFIX}/state?scan=0` });
+    assert.equal(read.status, 503);
+    assert.equal(read.body.code, 'auth-unavailable');
+  });
+});
+
+test('un Host que no confía en la petición recibe 403', async () => {
+  await withCenter({ connection: 'untrusted' }, async ({ fake }) => {
+    const read = await callRoute(fake.routes[0], { url: `${API_PREFIX}/state?scan=0` });
+    assert.equal(read.status, 403);
+    assert.equal(read.body.code, 'forbidden');
+  });
+});
+
+test('el navegador admitido manda: lee y escribe el centro', async () => {
+  await withCenter({}, async ({ fake }) => {
+    const created = await callRoute(fake.routes[0], {
+      method: 'POST',
+      url: `${API_PREFIX}/state`,
+      body: JSON.stringify({ action: 'create', payload: SKILL_INPUT }),
+    });
+    assert.equal(created.status, 200, JSON.stringify(created.body).slice(0, 300));
+    assert.equal(created.body.ok, true);
+    const read = await callRoute(fake.routes[0], { url: `${API_PREFIX}/state?scan=0` });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.skills.length, 1);
+  });
+});
+
+test('una credencial de operador lee pero no cambia el centro', async () => {
+  await withCenter({ connection: 'api-peer' }, async ({ fake }) => {
+    const read = await callRoute(fake.routes[0], { url: `${API_PREFIX}/state?scan=0` });
+    assert.equal(read.status, 200, 'la lectura de operador está justificada');
+    const write = await callRoute(fake.routes[0], {
+      method: 'POST',
+      url: `${API_PREFIX}/state`,
+      body: JSON.stringify({ action: 'create', payload: SKILL_INPUT }),
+    });
+    assert.equal(write.status, 403);
+    assert.equal(write.body.code, 'api-peer-restricted');
+  });
+});
+
+test('/health se sirve sin admisión, sin datos privados y con auth host o unavailable', async () => {
+  await withCenter({ connection: 'missing' }, async ({ fake }) => {
+    const response = await callRoute(fake.routes[0], { url: `${API_PREFIX}/health`, cookie: '' });
+    assert.equal(response.status, 200, 'la salud contesta antes del rechazo por falta de connection');
+    assert.deepEqual(Object.keys(response.body).sort(), ['apiVersion', 'auth', 'ok']);
+    assert.equal(response.body.auth, 'unavailable');
+  });
+  await withCenter({}, async ({ fake }) => {
+    const response = await callRoute(fake.routes[0], { url: `${API_PREFIX}/health` });
+    assert.equal(response.body.auth, 'host');
+  });
+});
+
+test('un POST no admitido no cambia un byte del almacén', async () => {
+  await withCenter({}, async ({ root, fake }) => {
+    assert.equal(runAction({ root, action: 'create', actor: 'human', payload: SKILL_INPUT }).ok, true);
+    const before = digestOf(centerFile(root));
+    const response = await callRoute(fake.routes[0], {
+      method: 'POST',
+      url: `${API_PREFIX}/state`,
+      cookie: '',
+      body: JSON.stringify({ action: 'toggle', payload: { skillId: SKILL_INPUT.id, enabled: true } }),
+    });
+    assert.equal(response.status, 401);
+    assert.equal(digestOf(centerFile(root)), before, 'la negativa no puede dejar rastro en disco');
+  });
+});
+
+test('las cuatro herramientas conservan sus permisos: la IA crea y propone, no activa', async () => {
+  await withCenter({}, async ({ root, fake }) => {
+    const create = fake.tools.find((tool) => tool.name === 'lifecode_skill_create');
+    const improve = fake.tools.find((tool) => tool.name === 'lifecode_skill_improve');
+    const exec = { agent: { session: { header: { cwd: '/proyecto/x' } } } };
+    const created = await create.execute(SKILL_INPUT, exec);
+    assert.equal(created.status, 'published');
+    const improved = await improve.execute(
+      { skillId: SKILL_INPUT.id, rationale: 'la ruta del panel quedó documentada' },
+      exec,
+    );
+    assert.equal(improved.status, 'proposed');
+    const state = loadState(root).state;
+    assert.equal(state.skills[SKILL_INPUT.id].currentVersion, '1.0.0');
+    assert.equal(Object.values(state.improvements)[0].status, 'proposed');
   });
 });

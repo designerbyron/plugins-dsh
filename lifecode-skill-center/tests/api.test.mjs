@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { buildSnapshot, runAction, listAssignedFor, centerRoot, API_VERSION, API_PREFIX, handleApiRequest } from '../lib/api.mjs';
+import { buildSnapshot, runAction, listAssignedFor, centerRoot, API_VERSION, API_PREFIX, CHANNEL_API, CHANNEL_BROWSER, handleApiRequest, healthPayload } from '../lib/api.mjs';
 import { skillProviderFor } from '../lib/provider.mjs';
 import { loadState, centerFile, materializedRoot } from '../lib/state.mjs';
 import { parseSkillFile } from '../lib/skillfile.mjs';
@@ -315,4 +315,59 @@ test('el despacho HTTP respeta ruta, método, cuerpo y aviso de invalidación', 
   });
   assert.equal(refused.body.code, 'exists', 'la segunda vez la skill ya existe');
   assert.equal(refused.invalidate, false, 'sin cambio no hay nada que invalidar');
+});
+
+// ── S1: el despacho distingue canal y no acepta un actor del cuerpo ───────────────────────────────
+
+test('/health sólo dice si el Host puede autenticar, sin datos privados', () => {
+  const health = healthPayload({ auth: 'host' });
+  assert.deepEqual(Object.keys(health).sort(), ['apiVersion', 'auth', 'ok']);
+  assert.equal(health.auth, 'host');
+  assert.equal(healthPayload().auth, 'unavailable');
+  assert.equal(healthPayload({ auth: 'otra-cosa' }).auth, 'unavailable', 'sólo host o unavailable: nada intermedio');
+});
+
+test('una credencial de operador lee el centro pero no lo cambia', () => {
+  const store = root();
+  const cwd = projectA();
+  createOne(store, cwd);
+  const read = handleApiRequest({ root: store, method: 'GET', pathname: `${API_PREFIX}/state`, search: '?scan=0', channel: CHANNEL_API });
+  assert.equal(read.status, 200);
+  assert.equal(read.body.skills.length, 1);
+
+  const write = handleApiRequest({
+    root: store,
+    method: 'POST',
+    pathname: `${API_PREFIX}/state`,
+    body: { action: 'create', payload: candidate({ id: 'otra-skill-de-prueba', description: 'Otra skill de prueba del centro con una descripción larga y suficiente' }) },
+    channel: CHANNEL_API,
+  });
+  assert.equal(write.status, 403);
+  assert.equal(write.body.code, 'api-peer-restricted');
+  assert.equal(Object.keys(loadState(store).state.skills).length, 1, 'lo denegado no puede haber escrito');
+});
+
+test('el actor del panel lo pone el canal: el cuerpo no puede escribirlo', () => {
+  const store = root();
+  const cwd = projectA();
+  const created = createOne(store, cwd);
+  const registered = runAction({ root: store, action: 'register-project', actor: 'human', cwd });
+  assert.equal(registered.ok, true);
+  const project = registered.project;
+  const response = handleApiRequest({
+    root: store,
+    method: 'POST',
+    pathname: `${API_PREFIX}/state`,
+    body: {
+      action: 'toggle',
+      actor: 'ai',
+      payload: { projectId: project.id, skillId: created.id, enabled: true },
+    },
+    channel: CHANNEL_BROWSER,
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.body.ok, true, JSON.stringify(response.body));
+  const state = loadState(store).state;
+  assert.equal(state.assignments[project.id][created.id].by, 'human', 'el cuerpo no elige quién firma');
+  assert.equal(state.events[state.events.length - 1].actor, 'human');
 });

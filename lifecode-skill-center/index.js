@@ -20,7 +20,15 @@
 
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
-import { API_PREFIX, centerRoot, handleApiRequest } from './lib/api.mjs';
+import {
+  API_PREFIX,
+  CHANNEL_API,
+  CHANNEL_BROWSER,
+  apiRouteOf,
+  centerRoot,
+  handleApiRequest,
+  healthPayload,
+} from './lib/api.mjs';
 import { skillProviderFor } from './lib/provider.mjs';
 import { centerTools } from './lib/tools.mjs';
 import { createStoreSignal } from './lib/watch.mjs';
@@ -123,6 +131,89 @@ function sameOrigin(left, right) {
   return a !== '' && a === b;
 }
 
+/** Un identificador de correlación válido; si no lo es, se genera uno. Nunca autoriza nada. */
+const REQUEST_ID_PATTERN = /^[a-z0-9][a-z0-9-]{7,63}$/;
+
+function requestIdOf(req) {
+  const raw = String(req.headers?.['x-lifecode-request'] ?? '').trim().toLowerCase();
+  if (REQUEST_ID_PATTERN.test(raw)) return raw;
+  return `req-${Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0')}`;
+}
+
+/**
+ * La admisión del Host, medida y no supuesta.
+ *
+ * Medido en el escritorio (acto LSC-004): el canal `dsh-app://app` **no habla HTTP como un navegador**;
+ * el shell borra `host`, `origin`, `cookie` y `sec-fetch-site` e inyecta la cookie de sesión del Host que
+ * él mismo obtuvo al arrancar. Por eso una petición del panel llega aquí con credencial válida y sin
+ * cabeceras de navegación, y una petición de un proceso local llega sin credencial.
+ *
+ * El canal **no** se deduce de que la admisión haya salido bien: se compara el peer devuelto con
+ * `connection.browserPeer`. El principal es siempre `owner` (`PrincipalMap` sólo tiene `owner`), así que
+ * no sirve para distinguir personas ni canales.
+ *
+ * Sin el servicio, o sin `admit`, la respuesta es `503 auth-unavailable`: fail-closed. No hay modo de
+ * configuración que apague la autenticación, a propósito (acto LSC-005).
+ */
+function admitRequest(ctx, req) {
+  const connection = ctx.get?.('connection');
+  if (connection === undefined || connection === null) {
+    return {
+      ok: false,
+      status: 503,
+      code: 'auth-unavailable',
+      message: 'este harness no ofrece el servicio de conexión: el centro no puede autenticar la petición',
+    };
+  }
+  if (typeof connection.admit !== 'function') {
+    return {
+      ok: false,
+      status: 503,
+      code: 'auth-unavailable',
+      message: 'el servicio de conexión no expone `admit`: no hay forma verificable de saber quién llama',
+    };
+  }
+  let admission = null;
+  try {
+    admission = connection.admit({ headers: req.headers ?? {} });
+  } catch (error) {
+    return {
+      ok: false,
+      status: 503,
+      code: 'auth-unavailable',
+      message: `la admisión del Host falló: ${String(error?.message ?? error)}`,
+    };
+  }
+  if (admission !== null && typeof admission === 'object' && 'rejection' in admission) {
+    const status = admission.rejection === 403 ? 403 : 401;
+    return {
+      ok: false,
+      status,
+      code: status === 403 ? 'forbidden' : 'unauthorized',
+      message:
+        status === 403
+          ? 'el Host no confía en esta petición: host u origen no son los del harness'
+          : 'esta petición no trae la credencial del Host: no es una petición del panel',
+    };
+  }
+  const peer = admission?.peer;
+  if (peer === undefined || peer === null) {
+    return {
+      ok: false,
+      status: 503,
+      code: 'auth-unavailable',
+      message: 'la admisión no devolvió un peer: no se puede saber quién llama',
+    };
+  }
+  const browser = connection.browserPeer;
+  const sameBrowser = browser !== undefined && browser !== null && String(peer.id) === String(browser.id);
+  return {
+    ok: true,
+    channel: sameBrowser ? CHANNEL_BROWSER : CHANNEL_API,
+    peerId: String(peer.id ?? ''),
+  };
+}
+
 /**
  * El directorio que el panel muestra como proyecto actual.
  *
@@ -191,18 +282,47 @@ export function apply(ctx, config = {}) {
     if (registry === undefined || registry === null || typeof registry.register !== 'function') return;
 
     const handler = async (req, res) => {
-      // Un navegador manda `Origin` en cada POST; si viene y no es el del propio harness, la petición
-      // es de otra página y no se atiende. No sustituye a una credencial (la API vive en localhost y no
-      // tiene autenticación: es un riesgo declarado), pero cierra la vía de un sitio ajeno.
+      const method = String(req.method ?? 'GET').toUpperCase();
+      const requestId = requestIdOf(req);
+      let url = null;
+      try {
+        url = new URL(String(req.url ?? '/'), 'http://localhost');
+      } catch {
+        url = new URL('/', 'http://localhost');
+      }
+      const route = apiRouteOf(url.pathname);
+      const fail = (status, code, message) =>
+        sendJson(res, status, { ok: false, code, message, requestId }, { head: method === 'HEAD' });
+
+      // 1. La salud se sirve ANTES de cualquier admisión y antes del 503 por falta de `connection`.
+      //    Dice si el Host puede autenticar y nada más: ni rutas, ni skills, ni proyectos, ni ids.
+      if ((method === 'GET' || method === 'HEAD') && route === 'health') {
+        const auth = ctx.get?.('connection') === undefined ? 'unavailable' : 'host';
+        sendJson(res, 200, healthPayload({ auth }), { head: method === 'HEAD' });
+        return;
+      }
+
+      // 2. Un `Origin` ajeno se rechaza antes de admitir. El proxy del escritorio borra esta cabecera en
+      //    el canal del panel, así que esto sólo alcanza a peticiones directas; se conserva como defensa
+      //    en profundidad y porque un Host/Origin no confiable es un 403 declarado en el contrato.
       const origin = String(req.headers?.origin ?? '');
       if (origin !== '') {
         const own = String(registry.getOrigin?.() ?? '');
         if (own !== '' && !sameOrigin(origin, own)) {
-          sendJson(res, 403, { ok: false, code: 'cross-origin', message: `este panel no atiende peticiones de ${origin}` });
+          fail(403, 'cross-origin', `este panel no atiende peticiones de ${origin}`);
           return;
         }
       }
-      const method = String(req.method ?? 'GET').toUpperCase();
+
+      // 3. La puerta. Sin credencial del Host no se lee ni se escribe nada: el fallo es visible (401/403)
+      //    y, si el harness no ofrece `connection`, es 503 — nunca una lectura libre por omisión.
+      const admission = admitRequest(ctx, req);
+      if (!admission.ok) {
+        fail(admission.status, admission.code, admission.message);
+        return;
+      }
+
+      // 4. Sólo después de admitir se toca el cuerpo y el almacén.
       let body = null;
       if (method === 'POST') {
         const raw = await readRequestBody(req);
@@ -214,12 +334,7 @@ export function apply(ctx, config = {}) {
           }
         }
       }
-      let url = null;
-      try {
-        url = new URL(String(req.url ?? '/'), 'http://localhost');
-      } catch {
-        url = new URL('/', 'http://localhost');
-      }
+
       let outcome = null;
       try {
         outcome = handleApiRequest({
@@ -229,6 +344,7 @@ export function apply(ctx, config = {}) {
           search: url.search,
           body,
           hostCwd: resolveHostCwd(ctx),
+          channel: admission.channel,
         });
       } catch (error) {
         outcome = { status: 500, body: { ok: false, code: 'internal', message: String(error?.message ?? error) } };
