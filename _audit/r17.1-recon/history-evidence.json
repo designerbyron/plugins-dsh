@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-11-10T03:09:23.580Z",
+  "store": {
+    "file": "<home>\\.dsh\\lifecode-skill-center\\center.json",
+    "bytes": 52063,
+    "sha256": "9704ee160de8466a4ab6c99cae63b4279b6b5b49a67c1997019ff81b1aea28cc",
+    "readable": true
+  },
+  "counts": {
+    "events": 29,
+    "feed": 25
+  },
+  "wanted": [
+    {
+      "eventId": "ev-e1d22376f174",
+      "present": true,
+      "type": "skill.created",
+      "origin": "panel",
+      "titleKey": "activity.title.skill-created",
+      "category": "create"
+    },
+    {
+      "eventId": "ev-4b5ef716129b",
+      "present": true,
+      "type": "skill-imported",
+      "origin": "import",
+      "titleKey": "activity.title.skill-imported",
+      "category": "create"
+    }
+  ],
+  "typeToTitleKey": {
+    "skill.created": "activity.title.skill-created",
+    "skill-imported": "activity.title.skill-imported",
+    "skill.request-fulfilled": "activity.title.skill-request-fulfilled",
+    "skill.requested": "activity.title.skill-requested",
+    "skill.advanced": "activity.title.skill-advanced",
+    "improvement.approved": "activity.title.self-improvement-completed",
+    "improvement.proposed": "activity.title.improvement-prepared",
+    "skill.unassigned": "activity.title.skill-unassigned",
+    "skill.assigned": "activity.title.skill-assigned",
+    "skill.version": "activity.title.skill-updated",
+    "skill.rollback": "activity.title.change-reverted"
+  },
+  "persistedTitleKeys": 0
+}

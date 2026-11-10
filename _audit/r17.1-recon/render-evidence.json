@@ -1,0 +1,14 @@
+{
+  "generatedAt": "2026-11-10T03:09:26.565Z",
+  "method": "client.js real evaluado en node:vm con el runtime de pruebas del plugin; eventos históricos con titleKey incorrecto",
+  "rows": [
+    "Skill «prueba-entrega-catalogo-lsc-006» creadaprueba-entrega-catalogo-lsc-006 · Hace 8 hAbrir detalle",
+    "Skill «prueba-entrega-catalogo-lsc-006-copia» importadaprueba-entrega-catalogo-lsc-006-copia · Hace 8 hAbrir detalle"
+  ],
+  "dialogHead": "Actividad de LifeCodeConocimiento creado, mejorado y conservado.×ActualizarCentro disponibleAvisos externos no disponibles: el Host no expone un canal de notificación; la actividad se muestra dentro del panel.TodoCreacionesActualizacionesSelf-improvementReferenciasAlertasHoySkill «prueba-entrega-catalogo-lsc-006» creadaprueba-entrega-catalogo-lsc-006 · Hace 8 hAbrir detalleSkill «prueba-entrega-catalogo-lsc-006-copia» importadaprueba-entrega-catalogo-lsc-006-copia · Hace 8 hAbrir detalleLas marcas de leído se guardan sólo en este navegador.",
+  "connected": true,
+  "disconnected": false,
+  "externalChannelDeclared": true,
+  "requestCount": 1,
+  "writes": 0
+}

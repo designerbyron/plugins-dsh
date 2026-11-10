@@ -1,0 +1,222 @@
+{
+  "meta": {
+    "generatedAt": "2026-11-09T17:35:06.085Z",
+    "generatedBy": "scan.mjs (sólo lectura)",
+    "limits": {
+      "maxDepth": 6,
+      "maxFiles": 5000
+    },
+    "ignored": [
+      "node_modules",
+      ".git",
+      "dist",
+      "build",
+      "coverage",
+      ".cache",
+      "vendor"
+    ],
+    "filesSeen": 866,
+    "dirsSeen": 264,
+    "capHit": false,
+    "dshHome": "%USERPROFILE%/.dsh",
+    "repo": "%REPO%",
+    "totals": {
+      "sources": 9,
+      "records": 141,
+      "files": 866
+    },
+    "pendingUnread": []
+  },
+  "catalog": {
+    "id": "center-catalog",
+    "root": "%USERPROFILE%/.dsh/lifecode-skill-center/center.json",
+    "status": "DISPONIBLE",
+    "bytes": 44522,
+    "schemaVersion": 2,
+    "counts": {
+      "skills": 7,
+      "versions": 10,
+      "projects": 3,
+      "assignments": 2,
+      "improvements": 2,
+      "requests": 1,
+      "events": 26
+    },
+    "skills": [
+      {
+        "id": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+        "name": null,
+        "uuid": null,
+        "versions": 2,
+        "versionNumbers": [
+          "1.0.0",
+          "1.1.0"
+        ],
+        "hasManifestSha": false,
+        "origin": {
+          "kind": "human",
+          "from": null,
+          "fromVersion": null,
+          "note": ""
+        },
+        "scope": null
+      },
+      {
+        "id": "desplegar-en-la-nube",
+        "name": null,
+        "uuid": null,
+        "versions": 1,
+        "versionNumbers": [
+          "1.0.0"
+        ],
+        "hasManifestSha": false,
+        "origin": {
+          "kind": "import",
+          "from": "C:\\xampp\\htdocs\\plugins-dhs\\_audit\\proyecto-b\\.dsh\\skills\\desplegar-en-la-nube\\SKILL.md",
+          "fromVersion": null,
+          "note": ""
+        },
+        "scope": null
+      },
+      {
+        "id": "desplegar-en-la-nube-copia",
+        "name": null,
+        "uuid": null,
+        "versions": 2,
+        "versionNumbers": [
+          "1.0.0",
+          "1.1.0"
+        ],
+        "hasManifestSha": false,
+        "origin": {
+          "kind": "fork",
+          "from": "desplegar-en-la-nube",
+          "fromVersion": "1.0.0",
+          "note": "clon de prueba para medir independencia"
+        },
+        "scope": null
+      },
+      {
+        "id": "auditoria-lsc-002-ciclo-ia",
+        "name": null,
+        "uuid": null,
+        "versions": 2,
+        "versionNumbers": [
+          "1.0.0",
+          "1.1.0"
+        ],
+        "hasManifestSha": false,
+        "origin": {
+          "kind": "ai",
+          "from": null,
+          "fromVersion": null,
+          "note": ""
+        },
+        "scope": null
+      },
+      {
+        "id": "prueba-de-persistencia-lsc-006",
+        "name": null,
+        "uuid": null,
+        "versions": 1,
+        "versionNumbers": [
+          "1.0.0"
+        ],
+        "hasManifestSha": false,
+        "origin": {
+          "kind": "ai",
+          "from": null,
+          "fromVersion": null,
+          "note": ""
+        },
+        "scope": null
+      },
+      {
+        "id": "prueba-entrega-catalogo-lsc-006",
+        "name": null,
+        "uuid": null,
+        "versions": 1,
+        "versionNumbers": [
+          "1.0.0"
+        ],
+        "hasManifestSha": false,
+        "origin": {
+          "kind": "ai",
+          "from": null,
+          "fromVersion": null,
+          "note": ""
+        },
+        "scope": null
+      },
+      {
+        "id": "comprueba-con-evidencia-que-un-plugin-de-dsh-no",
+        "name": null,
+        "uuid": null,
+        "versions": 1,
+        "versionNumbers": [
+          "1.0.0"
+        ],
+        "hasManifestSha": false,
+        "origin": {
+          "kind": "ai",
+          "from": null,
+          "fromVersion": null,
+          "note": ""
+        },
+        "scope": null
+      }
+    ],
+    "projects": [
+      {
+        "id": "plugins-dhs-7e085aaa",
+        "cwd": "%REPO%",
+        "cwdExists": true,
+        "skills": null
+      },
+      {
+        "id": "proyecto-b-47c64e02",
+        "cwd": "%REPO%/_audit/proyecto-b",
+        "cwdExists": true,
+        "skills": null
+      },
+      {
+        "id": "proyecto-b-movido-3fa000d0",
+        "cwd": "%REPO%/_audit/proyecto-b-movido",
+        "cwdExists": false,
+        "skills": null
+      }
+    ],
+    "assignmentRows": [
+      {
+        "key": "plugins-dhs-7e085aaa",
+        "projectId": null,
+        "skillId": null,
+        "enabled": null
+      },
+      {
+        "key": "proyecto-b-47c64e02",
+        "projectId": null,
+        "skillId": null,
+        "enabled": null
+      }
+    ],
+    "siblings": [
+      {
+        "name": "center.json",
+        "bytes": 44522
+      },
+      {
+        "name": "center.json.backup.json",
+        "bytes": 296
+      },
+      {
+        "name": "center.json.bak",
+        "bytes": 33382
+      },
+      {
+        "name": "center.json.bak.bak.sha256",
+        "bytes": 106
+      }
+    ]
+  }
+}

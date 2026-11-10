@@ -1,0 +1,99 @@
+{
+  "measuredAt": "2026-11-10T04:54:17.040Z",
+  "stage": "after-r17",
+  "files": {
+    "clientBytes": 532605,
+    "indexBytes": 31694,
+    "apiBytes": 198448,
+    "libFiles": 29,
+    "libBytes": 702424
+  },
+  "codeCounts": {
+    "clientFetch": 13,
+    "clientSetInterval": 1,
+    "clientSetTimeout": 2,
+    "clientRaf": 0,
+    "indexSetInterval": 0,
+    "apiSetInterval": 0,
+    "clientNotifyCallers": 39,
+    "clientActivityUI": 626
+  },
+  "runtime": {
+    "startupRequests": 0,
+    "idleRequests": 0,
+    "openRequests": 1,
+    "closedRequests": 1,
+    "cyclesRequests": 1,
+    "longTimers": 0
+  },
+  "store": {
+    "events": 29,
+    "skills": 8,
+    "projects": 3,
+    "eventsBytes": 6336,
+    "last80SnapshotBytes": 6336,
+    "readError": null
+  },
+  "checks": [
+    {
+      "name": "arranque sin peticiones de actividad",
+      "pass": true,
+      "detail": "0"
+    },
+    {
+      "name": "inactividad sin peticiones",
+      "pass": true,
+      "detail": "0"
+    },
+    {
+      "name": "abrir el drawer ⇒ exactamente 1 consulta",
+      "pass": true,
+      "detail": "1"
+    },
+    {
+      "name": "cerrado no consulta",
+      "pass": true,
+      "detail": "1"
+    },
+    {
+      "name": "20 aperturas/cierres no multiplican consultas (feed vigente)",
+      "pass": true,
+      "detail": "1"
+    },
+    {
+      "name": "sin temporizadores de 20 s",
+      "pass": true,
+      "detail": "0"
+    },
+    {
+      "name": "un único setInterval (refresco preexistente)",
+      "pass": true,
+      "detail": "1"
+    },
+    {
+      "name": "sin requestAnimationFrame nuevo",
+      "pass": true,
+      "detail": "0"
+    },
+    {
+      "name": "sin setInterval en backend",
+      "pass": true,
+      "detail": "0/0"
+    },
+    {
+      "name": "client.js crece menos de 84 KB (R17 + R17.1 + T42)",
+      "pass": true,
+      "detail": "454594 → 532605"
+    },
+    {
+      "name": "client.js crece menos del 20 %",
+      "pass": true,
+      "detail": "454594 → 532605"
+    }
+  ],
+  "baseline": {
+    "file": "_audit/r17-perf-baseline.json",
+    "clientBytes": 454594,
+    "measuredAt": "2026-11-10T01:04:37.242Z"
+  }
+}

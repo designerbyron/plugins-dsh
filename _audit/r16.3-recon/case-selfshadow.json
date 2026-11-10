@@ -1,0 +1,147 @@
+{
+ "entries": [
+  {
+   "key": "lifecode:lifecode-skill-center:<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/skill.md",
+   "name": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+   "canonicalName": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+   "description": "Revisa estructura, pruebas y manifiesto de un plugin de DSH antes de instalarlo en un perfil de desarrollo",
+   "whenToUse": "Cuando vayas a instalar o actualizar un plugin de DSH y quieras evidencia antes de tocar el perfil",
+   "owner": {
+    "kind": "lifecode",
+    "provider": "lifecode-skill-center",
+    "pluginEntryId": null
+   },
+   "origin": {
+    "kind": "materialized",
+    "label": "lifecode-skill-center"
+   },
+   "location": {
+    "kind": "directory",
+    "path": "<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+    "directory": "<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo",
+    "rootId": "materialized"
+   },
+   "scope": {
+    "kind": "project",
+    "projectRoot": "C:/xampp/htdocs/plugins-dhs",
+    "cwd": "C:/xampp/htdocs/plugins-dhs"
+   },
+   "association": {
+    "loadedByHost": true,
+    "provider": "lifecode-skill-center",
+    "path": "<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+    "shadowedBy": null
+   },
+   "execution": {
+    "modelInvocable": true,
+    "userInvocable": true
+   },
+   "identity": {
+    "uuid": null,
+    "version": "1.1.0",
+    "contentSha256": "b50391f6b325222dabd66c03ed7091a05dff8bb73e88f7b450258d00812604a0",
+    "manifestSha256": null
+   },
+   "confidence": "verified",
+   "reasons": [],
+   "projectId": "plugins-dhs-7e085aaa"
+  },
+  {
+   "key": "lifecode:lifecode-skill-center:<home>/.dsh/lifecode-skill-center/materialized/proyecto-b-47c64e02/revisar-un-plugin-de-dsh-antes-de-instalarlo/skill.md",
+   "name": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+   "canonicalName": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+   "description": "Revisa estructura, pruebas y manifiesto de un plugin de DSH antes de instalarlo en un perfil de desarrollo",
+   "whenToUse": "Cuando vayas a instalar o actualizar un plugin de DSH y quieras evidencia antes de tocar el perfil",
+   "owner": {
+    "kind": "lifecode",
+    "provider": "lifecode-skill-center",
+    "pluginEntryId": null
+   },
+   "origin": {
+    "kind": "materialized",
+    "label": "lifecode-skill-center"
+   },
+   "location": {
+    "kind": "directory",
+    "path": "<home>/.dsh/lifecode-skill-center/materialized/proyecto-b-47c64e02/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+    "directory": "<home>/.dsh/lifecode-skill-center/materialized/proyecto-b-47c64e02/revisar-un-plugin-de-dsh-antes-de-instalarlo",
+    "rootId": "materialized"
+   },
+   "scope": {
+    "kind": "project",
+    "projectRoot": "C:/xampp/htdocs/plugins-dhs/_audit/proyecto-b",
+    "cwd": "C:/xampp/htdocs/plugins-dhs/_audit/proyecto-b"
+   },
+   "association": {
+    "loadedByHost": false,
+    "provider": null,
+    "path": null,
+    "shadowedBy": {
+     "provider": "lifecode-skill-center",
+     "path": "<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+     "source": "lifecode-skill-center"
+    }
+   },
+   "execution": {
+    "modelInvocable": true,
+    "userInvocable": true
+   },
+   "identity": {
+    "uuid": null,
+    "version": "1.1.0",
+    "contentSha256": "b50391f6b325222dabd66c03ed7091a05dff8bb73e88f7b450258d00812604a0",
+    "manifestSha256": null
+   },
+   "confidence": "local-registry",
+   "reasons": [],
+   "projectId": "proyecto-b-47c64e02"
+  }
+ ],
+ "collisions": [
+  {
+   "code": "name-collision",
+   "severity": "block",
+   "key": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+   "rows": [
+    {
+     "key": "lifecode:lifecode-skill-center:<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/skill.md",
+     "name": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+     "owner": "lifecode",
+     "location": "<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+     "projectId": "plugins-dhs-7e085aaa"
+    },
+    {
+     "key": "lifecode:lifecode-skill-center:<home>/.dsh/lifecode-skill-center/materialized/proyecto-b-47c64e02/revisar-un-plugin-de-dsh-antes-de-instalarlo/skill.md",
+     "name": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+     "owner": "lifecode",
+     "location": "<home>/.dsh/lifecode-skill-center/materialized/proyecto-b-47c64e02/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+     "projectId": "proyecto-b-47c64e02"
+    }
+   ],
+   "explanation": "El nombre «revisar-un-plugin-de-dsh-antes-de-instalarlo» lo reclaman 2 entradas de procedencia distinta (lifecode, lifecode).",
+   "evidence": []
+  },
+  {
+   "code": "assignment-shadowed",
+   "severity": "warn",
+   "key": "proyecto-b-47c64e02:revisar-un-plugin-de-dsh-antes-de-instalarlo",
+   "rows": [
+    {
+     "key": "lifecode:lifecode-skill-center:<home>/.dsh/lifecode-skill-center/materialized/proyecto-b-47c64e02/revisar-un-plugin-de-dsh-antes-de-instalarlo/skill.md",
+     "name": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+     "owner": "lifecode",
+     "location": "<home>/.dsh/lifecode-skill-center/materialized/proyecto-b-47c64e02/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+     "projectId": "proyecto-b-47c64e02"
+    }
+   ],
+   "explanation": "La asignación habilitada «revisar-un-plugin-de-dsh-antes-de-instalarlo» del proyecto proyecto-b-47c64e02 no es la que carga el Host: la sombrea lifecode-skill-center en <home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md. Materializar la dejaría invisible.",
+   "evidence": [
+    {
+     "provider": "lifecode-skill-center",
+     "path": "<home>/.dsh/lifecode-skill-center/materialized/plugins-dhs-7e085aaa/revisar-un-plugin-de-dsh-antes-de-instalarlo/SKILL.md",
+     "source": "lifecode-skill-center"
+    }
+   ]
+  }
+ ]
+}

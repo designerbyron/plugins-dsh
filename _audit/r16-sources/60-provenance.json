@@ -1,0 +1,204 @@
+{
+  "generatedAt": "2026-11-09T17:45:16.783Z",
+  "hermesImport": {
+    "declared": 22,
+    "presentOnDisk": 20,
+    "hashMatch": 9,
+    "drifted": 11,
+    "withAdaptations": 11,
+    "absent": [
+      "nuxt-storefront-frontend",
+      "saas-corporative-gate-workflow"
+    ],
+    "notInManifest": [
+      "agent-team-specialized-delivery",
+      "dsh-local-mcp-integration",
+      "git-attributes-effect-probe",
+      "nixie-fx-effect-authoring",
+      "nixie-fx-runtime-integration",
+      "php-pdo-mariadb-local-contracts",
+      "powershell-colon-variable-trap"
+    ]
+  },
+  "native": {
+    "declared": 7,
+    "absent": [
+      "saas-corporative-gate-workflow"
+    ],
+    "entries": {
+      "deepseek-usage-monitor": [
+        "migratedAt",
+        "store",
+        "why",
+        "readWith"
+      ],
+      "session-state-recovery": [
+        "migratedAt",
+        "store",
+        "why",
+        "readWith"
+      ],
+      "handoff-context-recovery": [
+        "migratedAt",
+        "store",
+        "why",
+        "readWith"
+      ],
+      "session-handoff-recovery": [
+        "migratedAt",
+        "store",
+        "why",
+        "readWith"
+      ],
+      "hash-authorized-plan-artifacts": [
+        "migratedAt",
+        "store",
+        "why",
+        "readWith"
+      ],
+      "verifying-external-ai-advice": [
+        "migratedAt",
+        "store",
+        "why",
+        "readWith"
+      ],
+      "saas-corporative-gate-workflow": [
+        "migratedAt",
+        "store",
+        "why",
+        "readWith"
+      ]
+    }
+  },
+  "rehash": [
+    {
+      "id": "revisar-un-plugin-de-dsh-antes-de-instalarlo",
+      "versions": 2,
+      "versionNumbers": [
+        "1.0.0",
+        "1.1.0"
+      ],
+      "hasManifestSha": false,
+      "originKind": "human",
+      "note": "el catálogo NO guarda hash del contenido de la skill"
+    },
+    {
+      "id": "desplegar-en-la-nube",
+      "versions": 1,
+      "versionNumbers": [
+        "1.0.0"
+      ],
+      "hasManifestSha": false,
+      "originKind": "import",
+      "note": "el catálogo NO guarda hash del contenido de la skill"
+    },
+    {
+      "id": "desplegar-en-la-nube-copia",
+      "versions": 2,
+      "versionNumbers": [
+        "1.0.0",
+        "1.1.0"
+      ],
+      "hasManifestSha": false,
+      "originKind": "fork",
+      "note": "el catálogo NO guarda hash del contenido de la skill"
+    },
+    {
+      "id": "auditoria-lsc-002-ciclo-ia",
+      "versions": 2,
+      "versionNumbers": [
+        "1.0.0",
+        "1.1.0"
+      ],
+      "hasManifestSha": false,
+      "originKind": "ai",
+      "note": "el catálogo NO guarda hash del contenido de la skill"
+    },
+    {
+      "id": "prueba-de-persistencia-lsc-006",
+      "versions": 1,
+      "versionNumbers": [
+        "1.0.0"
+      ],
+      "hasManifestSha": false,
+      "originKind": "ai",
+      "note": "el catálogo NO guarda hash del contenido de la skill"
+    },
+    {
+      "id": "prueba-entrega-catalogo-lsc-006",
+      "versions": 1,
+      "versionNumbers": [
+        "1.0.0"
+      ],
+      "hasManifestSha": false,
+      "originKind": "ai",
+      "note": "el catálogo NO guarda hash del contenido de la skill"
+    },
+    {
+      "id": "comprueba-con-evidencia-que-un-plugin-de-dsh-no",
+      "versions": 1,
+      "versionNumbers": [
+        "1.0.0"
+      ],
+      "hasManifestSha": false,
+      "originKind": "ai",
+      "note": "el catálogo NO guarda hash del contenido de la skill"
+    }
+  ],
+  "declaredBy": {
+    "ownership": {
+      "ownership": "machine",
+      "declaredAt": "2026-10-21T18:52:03.596Z",
+      "declaredBy": "humano"
+    }
+  },
+  "catalogSkillFields": [
+    "id",
+    "name",
+    "uuid",
+    "versions",
+    "versionNumbers",
+    "hasManifestSha",
+    "origin",
+    "scope"
+  ],
+  "coverage": {
+    "catalogSkills": 7,
+    "catalogProjectDirs": [
+      {
+        "id": "plugins-dhs-7e085aaa",
+        "cwd": "%REPO%",
+        "cwdExists": true
+      },
+      {
+        "id": "proyecto-b-47c64e02",
+        "cwd": "%REPO%/_audit/proyecto-b",
+        "cwdExists": true
+      },
+      {
+        "id": "proyecto-b-movido-3fa000d0",
+        "cwd": "%REPO%/_audit/proyecto-b-movido",
+        "cwdExists": false
+      }
+    ],
+    "materializedSkillDirs": [
+      "revisar-un-plugin-de-dsh-antes-de-instalarlo"
+    ],
+    "catalogWithoutMaterialized": [
+      "desplegar-en-la-nube",
+      "desplegar-en-la-nube-copia",
+      "auditoria-lsc-002-ciclo-ia",
+      "prueba-de-persistencia-lsc-006",
+      "prueba-entrega-catalogo-lsc-006",
+      "comprueba-con-evidencia-que-un-plugin-de-dsh-no"
+    ],
+    "materializedWithoutCatalog": []
+  },
+  "catalogChecksum": {
+    "versions": 10,
+    "checksumEsSha256DelBodyTruncadoA12": 10,
+    "checksumLongitudes": [
+      12
+    ]
+  }
+}
