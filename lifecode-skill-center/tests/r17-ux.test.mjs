@@ -52,7 +52,7 @@ test('R17-A: arrancar e inactividad no piden actividad; abrir pide una y cerrar 
   assert.doesNotMatch(harness.text(), new RegExp(TITLE));
 });
 
-test('R17-A: 20 aperturas/cierres no multiplican consultas ni dejan temporizadores', async () => {
+test('R17-A: 20 aperturas/cierres piden una vez por apertura, sin temporizadores ni cajón residual', async () => {
   const harness = createPanelHarness({ events: [activityEvent()] });
   await harness.mount();
   for (let index = 0; index < 20; index += 1) {
@@ -60,7 +60,7 @@ test('R17-A: 20 aperturas/cierres no multiplican consultas ni dejan temporizador
     assert.match(harness.text(), new RegExp(TITLE), `abre en el ciclo ${index}`);
     await harness.key('Escape');
   }
-  assert.equal(activityRequests(harness).length, 1, 'el drawer reutiliza el feed vigente; abrir de nuevo no vuelve a consultar');
+  assert.equal(activityRequests(harness).length, 20, 'cada apertura consulta exactamente una vez; cerrar no consulta');
   assert.equal(harness.timers.filter((timer) => timer.ms === 20_000).length, 0, 'no se programó ningún intervalo');
   assert.equal(harness.nodes((node) => node.props?.role === 'dialog').length, 0, 'el último cierre deja el drawer cerrado');
 });

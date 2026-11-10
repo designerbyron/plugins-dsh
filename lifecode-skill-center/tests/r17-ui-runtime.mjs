@@ -21,8 +21,8 @@ function sameDeps(previous, next) {
   return previous.every((value, index) => Object.is(value, next[index]));
 }
 
-export function createRuntime() {
-  const state = { fibers: new Map(), order: [], dirty: true, tree: null, component: null };
+export function createRuntime(options = {}) {
+  const state = { fibers: new Map(), order: [], dirty: true, tree: null, component: null, rendered: new Set() };
   let local = null;
 
   function fiberFor(treePath) {
@@ -112,6 +112,7 @@ export function createRuntime() {
     const props = node.props ?? {};
     if (type === Fragment) return renderNode(`${treePath}.frag`, props.children ?? null);
     if (typeof type === 'function') {
+      state.rendered.add(treePath);
       const restore = begin(treePath);
       let output;
       try {
@@ -122,7 +123,14 @@ export function createRuntime() {
       return renderNode(`${treePath}.out`, output);
     }
     const children = renderNode(`${treePath}.children`, props.children ?? null);
-    return { type, props: { ...props, children } };
+    const host = { type, props: { ...props, children } };
+    if (typeof options.attachHost === 'function') options.attachHost(host);
+    const ref = props.ref;
+    if (ref !== null && ref !== undefined) {
+      if (typeof ref === 'function') ref(host);
+      else ref.current = host;
+    }
+    return host;
   }
 
   function flush() {
@@ -148,14 +156,32 @@ export function createRuntime() {
     }
   }
 
+  // Un componente condicional que desaparece del árbol desmonta: sus efectos corren cleanup.
+  function unmountMissing() {
+    for (const treePath of state.order) {
+      const fiber = state.fibers.get(treePath);
+      if (fiber === undefined || fiber.mounted !== true) continue;
+      if (state.rendered.has(treePath)) continue;
+      for (const item of fiber.slots) {
+        if (typeof item.cleanup === 'function') item.cleanup();
+        item.cleanup = null;
+        item.ran = false;
+        item.savedDeps = undefined;
+      }
+      fiber.mounted = false;
+    }
+  }
+
   function render() {
     const component = state.component;
     if (component === null) throw new Error('no hay componente montado');
     let attempts = 0;
     do {
       state.dirty = false;
+      state.rendered = new Set();
       state.tree = renderNode('root', createElement(component, {}));
       markMounted();
+      unmountMissing();
       flush();
       attempts += 1;
     } while (state.dirty && attempts < 10);
@@ -298,21 +324,11 @@ export function activityPayload(events, overrides = {}) {
 }
 
 export function createPanelHarness(options = {}) {
-  const runtime = createRuntime();
   const calls = [];
   const listeners = new Map();
   const timers = [];
   let sequence = 0;
   const localStorageData = new Map(Object.entries(options.storage ?? {}));
-  const React = {
-    createElement,
-    Fragment,
-    useState: runtime.useState,
-    useRef: runtime.useRef,
-    useMemo: runtime.useMemo,
-    useCallback: runtime.useCallback,
-    useEffect: runtime.useEffect,
-  };
   const document_ = {
     activeElement: null,
     addEventListener(name, handler) {
@@ -328,6 +344,27 @@ export function createPanelHarness(options = {}) {
     createElement: () => ({ setAttribute() {}, appendChild() {}, style: {} }),
     head: { appendChild() {} },
     getElementById: () => null,
+  };
+  const focusLog = [];
+  const runtime = createRuntime({
+    attachHost(host) {
+      host.isConnected = true;
+      host.getAttribute = () => null;
+      host.focus = () => {
+        if (host.isConnected !== true) return;
+        document_.activeElement = host;
+        focusLog.push(host);
+      };
+    },
+  });
+  const React = {
+    createElement,
+    Fragment,
+    useState: runtime.useState,
+    useRef: runtime.useRef,
+    useMemo: runtime.useMemo,
+    useCallback: runtime.useCallback,
+    useEffect: runtime.useEffect,
   };
   const localStorage = {
     getItem: (key) => (localStorageData.has(key) ? localStorageData.get(key) : null),
@@ -492,6 +529,8 @@ export function createPanelHarness(options = {}) {
     locales,
     registrations,
     testProbe,
+    focusLog,
+    activeElement: () => document_.activeElement,
     mount,
     settle: runtime.settle,
     render: runtime.render,
