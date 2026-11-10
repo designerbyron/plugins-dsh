@@ -6612,6 +6612,26 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
       return { v: 1, lastSeenAt: text(lastSeenAt) || text(previous?.lastSeenAt), ids: Array.from(next).slice(-ACTIVITY_SEEN_MAX) };
     }
 
+    /**
+     * ¿Hay actividad posterior a la última lectura? (T45.4-C)
+     *
+     * Compara por instante, no por texto: dos ISO del mismo día ordenan igual como cadenas casi
+     * siempre, pero una fracción de milisegundo con menos dígitos (`.8Z` frente a `.75Z`) rompe el
+     * orden lexicográfico. `lastActivity` vacío nunca enciende el indicador; una marca de lectura
+     * ausente o ilegible sí lo enciende, porque significa «no consta que se haya leído».
+     */
+    function hasUnreadSince(lastAt, seenAt) {
+      const last = text(lastAt);
+      if (last === '') return false;
+      const lastMs = Date.parse(last);
+      if (!Number.isFinite(lastMs)) return false;
+      const seen = text(seenAt);
+      if (seen === '') return true;
+      const seenMs = Date.parse(seen);
+      if (!Number.isFinite(seenMs)) return true;
+      return lastMs > seenMs;
+    }
+
     function toastKindOf(tone) {
       if (tone === 'ok' || tone === 'success') return 'success';
       if (tone === 'warn' || tone === 'warning') return 'warning';
@@ -7123,12 +7143,9 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
           event: activity,
           eventId,
         });
-        if (eventId !== '' && id !== '') {
-          try {
-            const next = activitySeenWith(readActivitySeen(), [eventId], at);
-            writeActivitySeen(next);
-          } catch (failure) { /* la marca de leído nunca puede impedir el aviso */ }
-        }
+        // La llegada de un evento NO lo marca como leído: la lectura se sella al abrir el cajón
+        // (openActivity) o mientras permanece abierto. Sellarla aquí apagaba el indicador de no
+        // leídas justo cuando debía encenderse (T45.4-C, defecto C8).
         return id;
       }
       function noteActivity(at, eventId) {
@@ -7779,6 +7796,15 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
           markActivitySeen([], new Date().toISOString());
         }, [markActivitySeen]);
 
+        // Con el cajón abierto, la actividad que llega ya se está viendo: se sella como leída para
+        // que el punto no quede encendido detrás del propio cajón (R2 de T45.4-C). Con el cajón
+        // cerrado no se sella nada: ahí el punto es justo la señal que debe verse (R1).
+        useEffect(() => {
+          if (activityOpen !== true) return;
+          if (lastActivity === '') return;
+          markActivitySeen([], lastActivity);
+        }, [activityOpen, lastActivity, markActivitySeen]);
+
         const onActivityAction = useCallback((action) => {
           if (!isPlainRecord(action)) return;
           setActivityOpen(false);
@@ -7792,11 +7818,12 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
         const toastFromActivity = useCallback((activity, replayed) => {
           if (!isPlainRecord(activity) || activity.persisted !== true) return '';
           if (replayed === true) return '';
-          const at = text(activity.at) || new Date().toISOString();
           const id = toastStore.pushActivity(activity, false);
-          markActivitySeen([text(activity.eventId)], at);
+          // El aviso de éxito no sella la lectura: la marca la pone abrir el cajón (R2 de T45.4-C).
+          // Antes se marcaba aquí con el `at` del propio evento, así que `lastActivity > lastSeenAt`
+          // nunca se cumplía y el indicador de no leídas no aparecía nunca.
           return id;
-        }, [markActivitySeen]);
+        }, []);
 
         // El aviso global sólo puede ofrecer su acción si hay panel montado que sepa ejecutarla.
         useEffect(() => {
@@ -8338,11 +8365,14 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
         }, [load]);
 
         // La última actividad conocida puede venir ya en el snapshot: es sólo una pista para el
-        // indicador de cabecera, nunca una consulta extra.
+        // indicador de cabecera, nunca una consulta extra. Se escribe en el store a través de su
+        // API (`noteActivity`); antes llamaba a un `setLastActivity` que no existe en el componente
+        // y habría reventado el panel en cuanto el snapshot trajera ese campo (T45.4-C).
         useEffect(() => {
           if (lastActivity !== '') return;
           const seed = text(snapshot?.activity?.last?.at) || text(snapshot?.activity?.at);
-          if (seed !== '') setLastActivity(seed);
+          if (seed === '') return;
+          toastStore.noteActivity(seed, text(snapshot?.activity?.last?.eventId));
         }, [lastActivity, snapshot]);
 
         const act = useCallback(async (action, payload = {}, options = null) => {
@@ -8619,6 +8649,14 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
             await load({ scan: false });
             setDrawerId(result.id ?? null);
             notify(t('toast.created'));
+            // El aviso de la UI no actualiza la «última actividad» por sí mismo: sin esto, crear
+            // desde el panel dejaba `lastActivity` intacto y el indicador de no leídas nunca se
+            // encendía (defecto C8). `noteActivity` sólo anota la marca; no crea un segundo aviso
+            // y no sella la lectura.
+            const createdEntry = isPlainRecord(result.activity) ? result.activity : null;
+            if (createdEntry !== null && createdEntry.persisted === true && text(createdEntry.at) !== '') {
+              toastStore.noteActivity(text(createdEntry.at), text(createdEntry.eventId));
+            }
             const duplicates = asArray(result.duplicates);
             if (duplicates.length > 0) {
               notify(t('toast.duplicates', {
@@ -8799,8 +8837,9 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
               actionPending: actionPending !== '',
               pendingCount,
               lastActivity,
-              unreadCount: 0,
-                  hasUnread: lastActivity !== '' && (activitySeen.lastSeenAt === '' || lastActivity > activitySeen.lastSeenAt),
+              // Sin una fuente de conteo del feed no se inventa un número: el indicador usa el
+              // punto («puede haber novedades sin leer»), que es la señal honesta (R5 de T45.4-C).
+              hasUnread: hasUnreadSince(lastActivity, activitySeen.lastSeenAt),
               onOpen: openActivity,
               triggerRef: activityTriggerRef,
             }),
