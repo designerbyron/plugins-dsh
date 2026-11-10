@@ -6612,6 +6612,26 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
       return { v: 1, lastSeenAt: text(lastSeenAt) || text(previous?.lastSeenAt), ids: Array.from(next).slice(-ACTIVITY_SEEN_MAX) };
     }
 
+    /**
+     * ¿Hay actividad posterior a la última lectura? (T45.4-C)
+     *
+     * Compara por instante, no por texto: dos ISO del mismo día ordenan igual como cadenas casi
+     * siempre, pero una fracción de milisegundo con menos dígitos (`.8Z` frente a `.75Z`) rompe el
+     * orden lexicográfico. `lastActivity` vacío nunca enciende el indicador; una marca de lectura
+     * ausente o ilegible sí lo enciende, porque significa «no consta que se haya leído».
+     */
+    function hasUnreadSince(lastAt, seenAt) {
+      const last = text(lastAt);
+      if (last === '') return false;
+      const lastMs = Date.parse(last);
+      if (!Number.isFinite(lastMs)) return false;
+      const seen = text(seenAt);
+      if (seen === '') return true;
+      const seenMs = Date.parse(seen);
+      if (!Number.isFinite(seenMs)) return true;
+      return lastMs > seenMs;
+    }
+
     function toastKindOf(tone) {
       if (tone === 'ok' || tone === 'success') return 'success';
       if (tone === 'warn' || tone === 'warning') return 'warning';
@@ -6833,6 +6853,56 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
       const active = typeof document !== 'undefined' ? document.activeElement : null;
       if (event.shiftKey && active === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
+    }
+
+    // Devuelve el primer nodo conectado y enfocable de la lista. Comprobar la conexión evita
+    // enfocar nodos desmontados (el invocador puede desaparecer mientras el cajón está abierto)
+    // y permite no depender de `document.activeElement` durante el montaje.
+    function focusTargetOf(candidates) {
+      for (const candidate of asArray(candidates)) {
+        if (candidate === null || candidate === undefined) continue;
+        if (candidate.isConnected !== true) continue;
+        if (typeof candidate.focus !== 'function') continue;
+        return candidate;
+      }
+      return null;
+    }
+
+    // Restaura el foco a un destino válido. Si no hay ninguno no se enfoca nada: nunca se roba
+    // el foco a otro elemento de la página por un cierre (Escape, ×, acción del cajón).
+    function restoreFocus(candidates) {
+      const target = focusTargetOf(candidates);
+      if (target === null) return false;
+      try {
+        target.focus();
+        return true;
+      } catch (failure) {
+        return false;
+      }
+    }
+
+    // Aviso persistente de una mutación fallida. Un único lugar produce título y detalle para que
+    // la ruta genérica (`act`) y la creación directa muestren el mismo mensaje y conserven el
+    // código real del Host (R17: el error no caduca; se cierra a mano).
+    function activityFailureToast(failure, status, labels = {}) {
+      const code = text(failure?.code);
+      const message = text(failure?.message);
+      const codeLabel = text(labels.code) || 'code';
+      const failedLabel = text(labels.failed) || 'failed';
+      const blockedLabel = text(labels.blocked) || 'blocked';
+      const findingText = asArray(failure?.findings).slice(0, 3)
+        .map((item) => (isPlainRecord(item) ? [text(item.code), text(item.message)].filter((part) => part !== '').join(': ') : text(item)))
+        .filter((part) => part !== '').join(' · ');
+      const reasonText = asArray(failure?.reasons).slice(0, 3).map((item) => text(item)).filter((part) => part !== '').join(' · ');
+      const detail = [
+        `${codeLabel}: ${code !== '' ? code : String(status)}`,
+        findingText,
+        reasonText,
+      ].filter((part) => part !== '').join(' · ');
+      return {
+        title: message !== '' ? message : failedLabel,
+        detail: `${blockedLabel} · ${detail}`,
+      };
     }
 
     function ActivityGlyph({ name, size = 16, className = '' }) {
@@ -7073,12 +7143,9 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
           event: activity,
           eventId,
         });
-        if (eventId !== '' && id !== '') {
-          try {
-            const next = activitySeenWith(readActivitySeen(), [eventId], at);
-            writeActivitySeen(next);
-          } catch (failure) { /* la marca de leído nunca puede impedir el aviso */ }
-        }
+        // La llegada de un evento NO lo marca como leído: la lectura se sella al abrir el cajón
+        // (openActivity) o mientras permanece abierto. Sellarla aquí apagaba el indicador de no
+        // leídas justo cuando debía encenderse (T45.4-C, defecto C8).
         return id;
       }
       function noteActivity(at, eventId) {
@@ -7301,7 +7368,7 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
       return null;
     }
 
-    function ActivityIndicator({ t, lang, apiAvailable, busy, actionPending, pendingCount, lastActivity, unreadCount, hasUnread, onOpen }) {
+    function ActivityIndicator({ t, lang, apiAvailable, busy, actionPending, pendingCount, lastActivity, unreadCount, hasUnread, onOpen, triggerRef }) {
       const mode = busy === true ? 'working'
         : actionPending === true ? 'saving'
           : pendingCount > 0 ? 'pending'
@@ -7331,6 +7398,7 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
         ),
         e('button', {
           type: 'button',
+          ref: triggerRef === undefined ? null : triggerRef,
           className: 'lsc-btn ghost lsc-activity-button',
           title: t('activity.button.title'),
           'aria-label': unread > 0 ? t('activity.button.unread', { n: unread }) : (showDot ? t('activity.button.unread.dot') : t('activity.button.title')),
@@ -7390,9 +7458,13 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
       );
     }
 
-    function ActivityDrawer({ t, lang, apiAvailable, onClose, onAction }) {
+    function ActivityDrawer({ t, lang, apiAvailable, onClose, onAction, returnFocusRef, fallbackFocusRef }) {
       const drawerRef = useRef(null);
       const closeRef = useRef(null);
+      // El cierre se lee por referencia: el efecto de foco no depende de la identidad de `onClose`
+      // (el panel la recrea en cada render) y aun así Escape usa siempre la última versión.
+      const onCloseRef = useRef(onClose);
+      onCloseRef.current = onClose;
       const requestRef = useRef(0);
       const [status, setStatus] = useState('loading');
       const [events, setEvents] = useState([]);
@@ -7434,18 +7506,24 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
       }, [events.length, t]);
 
       useEffect(() => {
-        const previous = typeof document !== 'undefined' ? document.activeElement : null;
         if (closeRef.current !== null && typeof closeRef.current.focus === 'function') closeRef.current.focus();
         const onKeyDown = (event) => {
-          if (event.key === 'Escape') { event.preventDefault(); onClose(); return; }
+          if (event.key === 'Escape') { event.preventDefault(); onCloseRef.current(); return; }
           trapDialogFocus(event, drawerRef.current);
         };
         if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('keydown', onKeyDown);
         return () => {
           if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') document.removeEventListener('keydown', onKeyDown);
-          if (previous !== null && previous !== undefined && typeof previous.focus === 'function') previous.focus();
+          // Destinos explícitos: el invocador y, si ya no existe, el contenedor del panel. Sin
+          // destino válido no se toca el foco (nunca `document.activeElement`, que puede ser BODY
+          // o un nodo interno del propio cajón).
+          restoreFocus([
+            returnFocusRef === undefined || returnFocusRef === null ? null : returnFocusRef.current,
+            fallbackFocusRef === undefined || fallbackFocusRef === null ? null : fallbackFocusRef.current,
+          ]);
         };
-      }, [onClose]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
 
       // Una sola consulta al montar (el drawer sólo existe cuando está abierto): sin polling.
       useEffect(() => {
@@ -7664,6 +7742,10 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
         const [activitySeen, setActivitySeen] = useState(() => readActivitySeen());
         const activityOpenRef = useRef(false);
         activityOpenRef.current = activityOpen;
+        // Destinos reales de foco al cerrar el cajón: el botón que lo abrió y la raíz del panel
+        // (respaldo cuando ese botón ya no está montado). No se consulta `document.activeElement`.
+        const activityTriggerRef = useRef(null);
+        const activityRootRef = useRef(null);
         const activitySeenRef = useRef(activitySeen);
         activitySeenRef.current = activitySeen;
         const cwdRef = useRef('');
@@ -7714,6 +7796,15 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
           markActivitySeen([], new Date().toISOString());
         }, [markActivitySeen]);
 
+        // Con el cajón abierto, la actividad que llega ya se está viendo: se sella como leída para
+        // que el punto no quede encendido detrás del propio cajón (R2 de T45.4-C). Con el cajón
+        // cerrado no se sella nada: ahí el punto es justo la señal que debe verse (R1).
+        useEffect(() => {
+          if (activityOpen !== true) return;
+          if (lastActivity === '') return;
+          markActivitySeen([], lastActivity);
+        }, [activityOpen, lastActivity, markActivitySeen]);
+
         const onActivityAction = useCallback((action) => {
           if (!isPlainRecord(action)) return;
           setActivityOpen(false);
@@ -7727,11 +7818,12 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
         const toastFromActivity = useCallback((activity, replayed) => {
           if (!isPlainRecord(activity) || activity.persisted !== true) return '';
           if (replayed === true) return '';
-          const at = text(activity.at) || new Date().toISOString();
           const id = toastStore.pushActivity(activity, false);
-          markActivitySeen([text(activity.eventId)], at);
+          // El aviso de éxito no sella la lectura: la marca la pone abrir el cajón (R2 de T45.4-C).
+          // Antes se marcaba aquí con el `at` del propio evento, así que `lastActivity > lastSeenAt`
+          // nunca se cumplía y el indicador de no leídas no aparecía nunca.
           return id;
-        }, [markActivitySeen]);
+        }, []);
 
         // El aviso global sólo puede ofrecer su acción si hay panel montado que sepa ejecutarla.
         useEffect(() => {
@@ -7747,6 +7839,9 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
           if (isPlainRecord(probe)) {
             probe.notify = notify;
             probe.toastFromActivity = toastFromActivity;
+            probe.focusTargetOf = focusTargetOf;
+            probe.restoreFocus = restoreFocus;
+            probe.activityFailureToast = activityFailureToast;
             probe.setLastActivity = (value) => toastStore.noteActivity(text(value), '');
             probe.seen = () => activitySeenRef.current;
             probe.state = () => {
@@ -8270,11 +8365,14 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
         }, [load]);
 
         // La última actividad conocida puede venir ya en el snapshot: es sólo una pista para el
-        // indicador de cabecera, nunca una consulta extra.
+        // indicador de cabecera, nunca una consulta extra. Se escribe en el store a través de su
+        // API (`noteActivity`); antes llamaba a un `setLastActivity` que no existe en el componente
+        // y habría reventado el panel en cuanto el snapshot trajera ese campo (T45.4-C).
         useEffect(() => {
           if (lastActivity !== '') return;
           const seed = text(snapshot?.activity?.last?.at) || text(snapshot?.activity?.at);
-          if (seed !== '') setLastActivity(seed);
+          if (seed === '') return;
+          toastStore.noteActivity(seed, text(snapshot?.activity?.last?.eventId));
         }, [lastActivity, snapshot]);
 
         const act = useCallback(async (action, payload = {}, options = null) => {
@@ -8305,20 +8403,12 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
               }
               // Aviso de error/bloqueo con el código y lo que el servidor explicó. El error no caduca:
               // se cierra a mano (×, Escape o su acción). No se pide nada más al servidor.
-              const findingText = asArray(failure?.findings).slice(0, 3)
-                .map((item) => (isPlainRecord(item) ? [text(item.code), text(item.message)].filter((part) => part !== '').join(': ') : text(item)))
-                .filter((part) => part !== '').join(' · ');
-              const reasonText = asArray(failure?.reasons).slice(0, 3).map((item) => text(item)).filter((part) => part !== '').join(' · ');
-              const detail = [
-                `${t('activity.row.code')}: ${code !== '' ? code : String(response.status)}`,
-                findingText,
-                reasonText,
-              ].filter((part) => part !== '').join(' · ');
-              notify(t('activity.toast.failed'), 'bad', {
-                kind: 'error',
-                title: message !== '' ? message : t('activity.toast.failed'),
-                detail: `${t('activity.toast.blocked')} · ${detail}`,
+              const toast = activityFailureToast(failure, response.status, {
+                failed: t('activity.toast.failed'),
+                blocked: t('activity.toast.blocked'),
+                code: t('activity.row.code'),
               });
+              notify(toast.title, 'bad', { kind: 'error', title: toast.title, detail: toast.detail });
               setError(message);
               return null;
             }
@@ -8545,14 +8635,28 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
             const parsed = await readJson(response);
             const result = parsed.data;
             if (!parsed.ok || !result || result.ok === false) {
-              const message = result?.message ?? parsed.message;
-              if (typeof setError === 'function') setError(asArray(result?.findings).map((finding) => finding.message).join(' · ') || message);
+              const failure = result !== null && typeof result === 'object' ? result : { message: parsed.message };
+              const toast = activityFailureToast(failure, response.status, {
+                failed: t('activity.toast.failed'),
+                blocked: t('activity.toast.blocked'),
+                code: t('activity.row.code'),
+              });
+              notify(toast.title, 'bad', { kind: 'error', title: toast.title, detail: toast.detail });
+              if (typeof setError === 'function') setError(asArray(result?.findings).map((finding) => text(finding?.message)).join(' · ') || toast.title);
               return;
             }
             setModalOpen(false);
             await load({ scan: false });
             setDrawerId(result.id ?? null);
             notify(t('toast.created'));
+            // El aviso de la UI no actualiza la «última actividad» por sí mismo: sin esto, crear
+            // desde el panel dejaba `lastActivity` intacto y el indicador de no leídas nunca se
+            // encendía (defecto C8). `noteActivity` sólo anota la marca; no crea un segundo aviso
+            // y no sella la lectura.
+            const createdEntry = isPlainRecord(result.activity) ? result.activity : null;
+            if (createdEntry !== null && createdEntry.persisted === true && text(createdEntry.at) !== '') {
+              toastStore.noteActivity(text(createdEntry.at), text(createdEntry.eventId));
+            }
             const duplicates = asArray(result.duplicates);
             if (duplicates.length > 0) {
               notify(t('toast.duplicates', {
@@ -8561,6 +8665,12 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
               }));
             }
           } catch (failure) {
+            const toast = activityFailureToast({ code: 'network', message: String(failure?.message ?? failure) }, 0, {
+              failed: t('activity.toast.failed'),
+              blocked: t('activity.toast.blocked'),
+              code: t('activity.row.code'),
+            });
+            notify(toast.title, 'bad', { kind: 'error', title: toast.title, detail: toast.detail });
             if (typeof setError === 'function') setError(String(failure?.message ?? failure));
           } finally {
             setBusy(false);
@@ -8693,7 +8803,7 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
         // Se pasa al indicador y al cajón para no confundir un backend heredado con un centro caído.
         const activityApiAvailable = error === '' ? true : false;
 
-        return e('div', { className: 'lsc-root' },
+        return e('div', { className: 'lsc-root', ref: activityRootRef, tabIndex: -1 },
           busy ? e('div', { className: 'lsc-busy' }) : null,
 
           e('header', { className: 'lsc-header' },
@@ -8727,9 +8837,11 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
               actionPending: actionPending !== '',
               pendingCount,
               lastActivity,
-              unreadCount: 0,
-                  hasUnread: lastActivity !== '' && (activitySeen.lastSeenAt === '' || lastActivity > activitySeen.lastSeenAt),
+              // Sin una fuente de conteo del feed no se inventa un número: el indicador usa el
+              // punto («puede haber novedades sin leer»), que es la señal honesta (R5 de T45.4-C).
+              hasUnread: hasUnreadSince(lastActivity, activitySeen.lastSeenAt),
               onOpen: openActivity,
+              triggerRef: activityTriggerRef,
             }),
             e('button', { type: 'button', className: 'lsc-btn ghost', title: t('app.refresh'), disabled: busy, onClick: () => load() }, '⟳'),
             e('button', { type: 'button', className: 'lsc-btn primary', disabled: snapshot.readable === false, title: snapshot.readable === false ? t('integrity.title') : '', onClick: () => setModalOpen(true) }, `+ ${t('app.new')}`),
@@ -8876,6 +8988,8 @@ function AnalyticsView({ t, lang, snapshot, onMigrate, migrationBusy, migrationR
               apiAvailable: activityApiAvailable,
               onClose: () => setActivityOpen(false),
               onAction: onActivityAction,
+              returnFocusRef: activityTriggerRef,
+              fallbackFocusRef: activityRootRef,
             })
             : null,
         );

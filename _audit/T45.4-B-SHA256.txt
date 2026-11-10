@@ -1,0 +1,36 @@
+# T45.4-B — SHA-256 de la evidencia
+
+Fecha: 2026-11-10
+Rama: `fix/t45-4-r17-acceptance`
+Base: `60be2f2bb29d91d6a6994089b969b4a2df0dd387` (`origin/main`)
+Commit del candidato: `75babd99783604d4de67b8ce1939f726e65c9235`
+
+## Candidato (commit 75babd9)
+
+```
+f2b0a895a49415ac0d8c646fa5968f266e64d508d3cb4eed2add9c4ae653ae87  lifecode-skill-center/client.js
+99089de5055e2cec35d1a6199dcbb96a44d0182705dfa6e2bcf52211a26077e5  lifecode-skill-center/tests/r17-ui-runtime.mjs
+c5134b37278590433d25a4ddb16a55e56b661bad22b9f796075c1354a96efdb7  lifecode-skill-center/tests/r17-ux.test.mjs
+ecb593f21f86dc21165a84491bf94dd80274e7d1d562e086f874b3be7128ecea  lifecode-skill-center/tests/t45.4b-focus-and-toast.test.mjs
+d0aa02e12d2d566bdfc87bf800a9161a28ce24195a449c4121354aadaed61284  _audit/t45.4b/apply-client-fix.mjs
+```
+
+## Documentos de evidencia
+
+```
+c78b9013cc1c1c3a7a5e6e51e89b50326505caf9fb7e5175f457c7c4869c34ba  _audit/T45.4-B-IMPLEMENTATION-AND-REGRESSION.md
+d0bb9c768728ec902ac2025cc3d2c39154510d12e1514c1b4f52b576c90d2d9c  _audit/T45.4-B-LIVE-ACCEPTANCE.md
+54f8ec5f2da0f2297e3a04c7a308942dcf95d6655b26d2b093e10bc541359593  _audit/R17-NOTIFICATIONS-UX.md
+```
+
+## Medidas de la ejecución
+
+```
+node --test                944 tests, 944 pass, 0 fail (exit 0)
+node tools/check.mjs       421/421 comprobaciones, exit 0
+npm pack --dry-run         54 ficheros, packed 1 153 289 B, unpacked 2 258 151 B, 0 rutas prohibidas
+```
+
+Nota: `tests/concurrency.test.mjs` puede fallar de forma intermitente en Windows con
+`EPERM ... center.json.lock` bajo carga paralela; aislado pasa y la suite completa pasa en la
+siguiente ejecución. Es un fallo de entorno ya conocido, no una regresión de este cambio.

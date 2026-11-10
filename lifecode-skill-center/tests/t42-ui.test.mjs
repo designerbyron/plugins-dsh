@@ -197,7 +197,7 @@ test('el aviso ofrece «Ver Skill» y cierra con su botón', async () => {
   harness.dispose();
 });
 
-test('cada aviso deja su marca de leído en el almacén de este navegador', async () => {
+test('un aviso del stream no sella la lectura: la marca la pone abrir el historial', async () => {
   const harness = await connected();
   harness.emit('s-1', [
     toolCall('call-16', 'lifecode_skill_create'),
@@ -205,10 +205,10 @@ test('cada aviso deja su marca de leído en el almacén de este navegador', asyn
   ]);
   await harness.settle();
 
-  const raw = harness.storage.get('lifecode-skill-center/activity-seen');
-  assert.ok(typeof raw === 'string', 'debe existir la marca de leído');
-  const parsed = JSON.parse(raw);
-  assert.equal(parsed.v, 1);
-  assert.ok(parsed.ids.includes('evt-seen'));
+  // T45.4-C, R2: la llegada de un aviso no es una lectura. Antes se escribía aquí la marca y eso
+  // apagaba el indicador de no leídas justo cuando debía encenderse (defecto C8 de T45.4-B).
+  // La marca la pone abrir el cajón de actividad (cubierto en t45.4c-unread-indicator.test.mjs).
+  assert.equal(harness.storage.get('lifecode-skill-center/activity-seen'), undefined,
+    'recibir un aviso no debe marcar el evento como leído');
   harness.dispose();
 });
