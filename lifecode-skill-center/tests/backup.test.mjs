@@ -23,11 +23,25 @@ import {
   INTEGRITY_FUTURE_VERSION,
   INTEGRITY_INVALID_SHAPE,
   INTEGRITY_OK,
+  emptyState,
 } from '../lib/state.mjs';
 import { runAction } from '../lib/api.mjs';
-import { tempRoot } from './helpers.mjs';
+import { tempRoot, autonomyRoot } from './helpers.mjs';
+import { homedir } from 'node:os';
+import { existsSync } from 'node:fs';
 
-const REAL_STORE = 'C:/Users/BYRON/.dsh/lifecode-skill-center/center.json';
+/**
+ * Almacén real del usuario derivado de su perfil: el paquete no lleva rutas
+ * personales y la prueba tiene que correr en cualquier máquina. Si no existe,
+ * se usa un documento v2 vacío con la misma forma: se mide el mecanismo igual.
+ */
+const REAL_STORE = join(homedir(), '.dsh', 'lifecode-skill-center', 'center.json');
+const HAS_REAL_STORE = existsSync(REAL_STORE);
+
+function baseDocument(now) {
+  if (HAS_REAL_STORE) return JSON.parse(readFileSync(REAL_STORE, 'utf8'));
+  return emptyState(now);
+}
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
@@ -36,7 +50,8 @@ function sha256(bytes) {
 /** Copia el almacén real **sólo si existe**; los tests nunca lo escriben. */
 function realCopy(root) {
   mkdirSync(root, { recursive: true });
-  copyFileSync(REAL_STORE, join(root, 'center.json'));
+  if (HAS_REAL_STORE) copyFileSync(REAL_STORE, join(root, 'center.json'));
+  else writeDocument(root, baseDocument());
   return join(root, 'center.json');
 }
 
@@ -44,7 +59,7 @@ function v1Document() {
   // El almacén real ya está en v2 (migrado por el usuario en LSC-014). Para probar la migración se toma
   // su contenido y se **degrada** a v1: así la prueba no depende de la versión que tenga el almacén vivo,
   // que es estado productivo y cambia sin avisar.
-  return degradeToV1(JSON.parse(readFileSync(REAL_STORE, 'utf8')));
+  return degradeToV1(baseDocument());
 }
 
 /** Quita lo que añade v2 y deja un documento v1 auténtico. */
@@ -71,7 +86,7 @@ function writeDocument(root, document) {
 }
 
 test('la copia de un almacén sano conserva bytes y SHA-256 exactos', () => {
-  const root = tempRoot('lsc-bak-');
+  const root = autonomyRoot('lsc-bak-');
   const file = realCopy(root);
   const original = readFileSync(file);
   const result = ensureBackup(root, { now: '2026-11-03T09:00:00.000Z', reason: 'manual' });
@@ -89,7 +104,7 @@ test('la copia de un almacén sano conserva bytes y SHA-256 exactos', () => {
 });
 
 test('si la copia no se puede crear, el original queda intacto y la escritura se aborta', () => {
-  const root = tempRoot('lsc-bak-fail-');
+  const root = autonomyRoot('lsc-bak-fail-');
   const file = realCopy(root);
   const before = readFileSync(file);
   // Un directorio con el nombre del puntero hace fallar el único rename de la publicación.
@@ -109,7 +124,7 @@ test('si la copia no se puede crear, el original queda intacto y la escritura se
 });
 
 test('una copia incompleta no es recuperable', () => {
-  const root = tempRoot('lsc-bak-broken-');
+  const root = autonomyRoot('lsc-bak-broken-');
   realCopy(root);
   ensureBackup(root, { now: '2026-11-03T09:00:00.000Z', reason: 'manual' });
   // La autoridad es la generación: truncarla deja el puntero apuntando a algo que no verifica.
@@ -123,7 +138,7 @@ test('una copia incompleta no es recuperable', () => {
 });
 
 test('la migración v1 → v2 conserva entidades, versiones, referencias, pins y eventos', () => {
-  const root = tempRoot('lsc-mig-');
+  const root = autonomyRoot('lsc-mig-');
   v1Copy(root);
   const before = loadState(root);
   equal(before.state.schemaVersion, 1);
@@ -163,7 +178,7 @@ test('la migración v1 → v2 conserva entidades, versiones, referencias, pins y
 });
 
 test('la migración es idempotente y no duplica nada', () => {
-  const root = tempRoot('lsc-mig-twice-');
+  const root = autonomyRoot('lsc-mig-twice-');
   realCopy(root);
   const first = migrateStore(root, { now: '2026-11-03T11:00:00.000Z' });
   equal(first.ok, true);
@@ -176,7 +191,7 @@ test('la migración es idempotente y no duplica nada', () => {
 });
 
 test('un documento que la normalización perdería no se migra ni se escribe', () => {
-  const root = tempRoot('lsc-lossy-');
+  const root = autonomyRoot('lsc-lossy-');
   const document = v1Document();
   // Una skill sin versiones legibles: normalizarla la borraría.
   document.skills['rota'] = { id: 'rota', title: 'rota', description: 'x'.repeat(80), whenToUse: 'y'.repeat(40), tags: [], status: 'published', currentVersion: '1.0.0', createdAt: '', updatedAt: '', origin: { kind: 'human' }, versions: [{ version: 'no-es-version', body: '' }] };
@@ -196,7 +211,7 @@ test('un documento que la normalización perdería no se migra ni se escribe', (
 });
 
 test('si falla la escritura temporal, v1 sigue intacto y no queda basura', () => {
-  const root = tempRoot('lsc-mig-tmpfail-');
+  const root = autonomyRoot('lsc-mig-tmpfail-');
   v1Copy(root);
   const before = readFileSync(join(root, 'center.json'));
   const migrated = migrateStore(root, {
@@ -213,7 +228,7 @@ test('si falla la escritura temporal, v1 sigue intacto y no queda basura', () =>
 });
 
 test('si falla el reemplazo, la copia verificada permite recuperar v1', () => {
-  const root = tempRoot('lsc-mig-renamefail-');
+  const root = autonomyRoot('lsc-mig-renamefail-');
   v1Copy(root);
   const before = readFileSync(join(root, 'center.json'));
   const migrated = migrateStore(root, {
@@ -234,7 +249,7 @@ test('si falla el reemplazo, la copia verificada permite recuperar v1', () => {
 });
 
 test('restaurar la copia con su hash funciona; con otro hash no se toca nada', () => {
-  const root = tempRoot('lsc-restore-');
+  const root = autonomyRoot('lsc-restore-');
   const file = v1Copy(root);
   ensureBackup(root, { now: '2026-11-03T15:00:00.000Z', reason: 'manual' });
   const backupBytes = readFileSync(backupFile(root));
@@ -254,9 +269,11 @@ test('restaurar la copia con su hash funciona; con otro hash no se toca nada', (
 });
 
 test('una versión futura no se migra, no se escribe y se conserva intacta', () => {
-  const root = tempRoot('lsc-future-');
+  const root = autonomyRoot('lsc-future-');
   const document = v1Document();
-  document.schemaVersion = 3;
+  // 4 > MAX_SCHEMA_VERSION (3): la versión futura es la que este código no sabe leer. Con 3 el centro
+  // sería legible en sólo lectura por la identidad, y eso es otro caso (probado en identity.test.mjs).
+  document.schemaVersion = 4;
   writeDocument(root, document);
   const bytes = readFileSync(join(root, 'center.json'));
   const loaded = loadState(root);
@@ -267,7 +284,7 @@ test('una versión futura no se migra, no se escribe y se conserva intacta', () 
 });
 
 test('la firma excluye sólo el sello raíz y conserva los funcionales', () => {
-  const root = tempRoot('lsc-signature-');
+  const root = autonomyRoot('lsc-signature-');
   realCopy(root);
   const base = loadState(root).state;
 
@@ -310,7 +327,7 @@ test('la firma excluye sólo el sello raíz y conserva los funcionales', () => {
 });
 
 test('cambiar el pin se guarda; tocar sólo el sello raíz no escribe', () => {
-  const root = tempRoot('lsc-save-');
+  const root = autonomyRoot('lsc-save-');
   realCopy(root);
   const projectId = Object.keys(loadState(root).state.assignments)[0];
   const skillId = Object.keys(loadState(root).state.assignments[projectId])[0];
@@ -330,7 +347,7 @@ test('cambiar el pin se guarda; tocar sólo el sello raíz no escribe', () => {
 });
 
 test('un registro interno malformado no se descarta en silencio: invalid-shape', () => {
-  const root = tempRoot('lsc-internal-');
+  const root = autonomyRoot('lsc-internal-');
   const document = v1Document();
   document.projects['sin-id'] = { name: 'sin id' };
   document.events.push({ sin: 'tipo' });
@@ -341,7 +358,7 @@ test('un registro interno malformado no se descarta en silencio: invalid-shape',
 });
 
 test('la copia de hoy evita copias repetidas, y el historial tiene tope', () => {
-  const root = tempRoot('lsc-backup-daily-');
+  const root = autonomyRoot('lsc-backup-daily-');
   realCopy(root);
   const first = ensureBackup(root, { now: '2026-11-03T17:00:00.000Z', reason: 'mutation' });
   equal(first.created, true);
@@ -356,7 +373,7 @@ test('la copia de hoy evita copias repetidas, y el historial tiene tope', () => 
 });
 
 test('una migración fuerza copia aunque ya hubiera una del día', () => {
-  const root = tempRoot('lsc-backup-forced-');
+  const root = autonomyRoot('lsc-backup-forced-');
   realCopy(root);
   const first = ensureBackup(root, { now: '2026-11-03T18:00:00.000Z', reason: 'mutation' });
   equal(first.created, true);
@@ -366,7 +383,7 @@ test('una migración fuerza copia aunque ya hubiera una del día', () => {
 });
 
 test('un documento sin schemaVersion no se acepta como válido', () => {
-  const root = tempRoot('lsc-noversion-');
+  const root = autonomyRoot('lsc-noversion-');
   const document = v1Document();
   delete document.schemaVersion;
   writeDocument(root, document);
@@ -376,7 +393,7 @@ test('un documento sin schemaVersion no se acepta como válido', () => {
 });
 
 test('el documento migrado conserva los checks de evaluación (no se pierden al normalizar)', () => {
-  const root = tempRoot('lsc-checks-');
+  const root = autonomyRoot('lsc-checks-');
   realCopy(root);
   const before = normalizeState(v1Document());
   const migrated = migrateStore(root, { now: '2026-11-03T19:00:00.000Z' });
@@ -397,7 +414,7 @@ test('el documento migrado conserva los checks de evaluación (no se pierden al 
 });
 
 test('el panel recibe schemaVersion y el estado de la copia en la instantánea', () => {
-  const root = tempRoot('lsc-snapshot-');
+  const root = autonomyRoot('lsc-snapshot-');
   v1Copy(root);
   const before = runAction({ root, action: 'state', payload: { scan: false }, now: '2026-11-03T20:00:00.000Z' });
   equal(before.schemaVersion, 1);
@@ -413,7 +430,7 @@ test('el panel recibe schemaVersion y el estado de la copia en la instantánea',
 });
 
 test('la IA no migra, no copia ni restaura', () => {
-  const root = tempRoot('lsc-actor-');
+  const root = autonomyRoot('lsc-actor-');
   v1Copy(root);
   for (const action of ['migrate', 'backup', 'restore']) {
     const result = runAction({ root, action, payload: {}, actor: 'ai', now: '2026-11-03T21:00:00.000Z' });

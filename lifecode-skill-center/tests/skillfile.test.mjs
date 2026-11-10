@@ -8,7 +8,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { renderSkillFile, parseSkillFile, parseYamlSubset, candidateFromSkillFile, singleLine, quoteYaml } from '../lib/skillfile.mjs';
-import { candidate, tempRoot } from './helpers.mjs';
+import { candidate, tempRoot, autonomyRoot } from './helpers.mjs';
 
 function skillWith(version = {}) {
   const base = candidate();
@@ -88,7 +88,7 @@ test('el render no depende de que exista el disco', () => {
   const two = renderSkillFile(skillWith());
   assert.equal(one, two);
   // Y se puede escribir de verdad en una caja de arena, para comprobar que el texto es un fichero válido.
-  const root = tempRoot();
+  const root = autonomyRoot();
   const directory = join(root, 'proyecto');
   mkdirSync(directory, { recursive: true });
   const file = join(directory, 'SKILL.md');

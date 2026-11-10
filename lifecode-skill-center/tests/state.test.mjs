@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -16,12 +16,12 @@ import {
   saveState,
   withState,
 } from '../lib/state.mjs';
-import { tempRoot } from './helpers.mjs';
+import { tempRoot, autonomyRoot } from './helpers.mjs';
 
 const NOW = '2026-11-08T12:00:00.000Z';
 
 test('un almacén que no existe se lee como vacío, no como error', () => {
-  const root = tempRoot();
+  const root = autonomyRoot();
   const loaded = loadState(root);
   assert.equal(loaded.ok, true);
   assert.equal(loaded.exists, false);
@@ -30,7 +30,7 @@ test('un almacén que no existe se lee como vacío, no como error', () => {
 });
 
 test('saveState escribe y loadState devuelve lo mismo', () => {
-  const root = tempRoot();
+  const root = autonomyRoot();
   const state = emptyState(NOW);
   state.skills['una-skill'] = {
     id: 'una-skill',
@@ -51,7 +51,7 @@ test('saveState escribe y loadState devuelve lo mismo', () => {
 });
 
 test('un JSON corrupto no revienta: se informa y se devuelve un estado usable', () => {
-  const root = tempRoot();
+  const root = autonomyRoot();
   writeFileSync(centerFile(root), '{ esto no es json', 'utf8');
   const loaded = loadState(root);
   assert.equal(loaded.ok, false);
@@ -79,7 +79,7 @@ test('normalizeState aguanta basura sin lanzar y descarta lo que no puede cargar
 });
 
 test('una mutación que lanza no guarda nada', () => {
-  const root = tempRoot();
+  const root = autonomyRoot();
   assert.throws(() => withState(root, () => { throw new Error('boom'); }), /boom/);
   assert.equal(existsSync(centerFile(root)), false, 'una mutación fallida no debe dejar fichero');
 
@@ -89,7 +89,7 @@ test('una mutación que lanza no guarda nada', () => {
 });
 
 test('appendEvent conserva TODOS los eventos (regresión: el guard confundía arrays con objetos)', () => {
-  const root = tempRoot();
+  const root = autonomyRoot();
   withState(root, (state) => { appendEvent(state, { type: 'uno', skillId: 'a' }); });
   withState(root, (state) => { appendEvent(state, { type: 'dos', skillId: 'a' }); });
   withState(root, (state) => { appendEvent(state, { type: 'tres', skillId: 'b' }); });
@@ -142,10 +142,40 @@ test('defaultRoot sale de DSH_HOME y las rutas derivadas cuelgan de la raíz', (
 });
 
 test('la escritura es atómica: el fichero final aparece completo', () => {
-  const root = tempRoot();
+  const root = autonomyRoot();
   const state = emptyState(NOW);
   saveState(root, state, { now: NOW });
   const raw = readFileSync(centerFile(root), 'utf8');
   assert.doesNotThrow(() => JSON.parse(raw));
   assert.equal(JSON.parse(raw).schemaVersion, state.schemaVersion);
+});
+
+test('un candado abandonado no bloquea para siempre y se retira al escribir', () => {
+  const root = autonomyRoot();
+  withState(root, (state) => { state.projects['p-1'] = { id: 'p-1', cwd: 'C:/x' }; });
+  const lock = `${centerFile(root)}.lock`;
+  writeFileSync(lock, JSON.stringify({ pid: 1, at: NOW }), 'utf8');
+  const old = new Date(Date.now() - 60_000);
+  utimesSync(lock, old, old);
+
+  const saved = withState(root, (state) => { state.projects['p-2'] = { id: 'p-2', cwd: 'C:/y' }; });
+  assert.equal(saved.ok, true, 'un candado de hace un minuto está abandonado');
+  assert.equal(saved.saved, true);
+  assert.equal(existsSync(lock), false, 'el candado abandonado se retira');
+  assert.equal(loadState(root).state.projects['p-2'].id, 'p-2');
+});
+
+test('un candado reciente sí bloquea y no se toca el documento', () => {
+  const root = autonomyRoot();
+  withState(root, (state) => { state.projects['p-1'] = { id: 'p-1', cwd: 'C:/x' }; });
+  const lock = `${centerFile(root)}.lock`;
+  writeFileSync(lock, JSON.stringify({ pid: 2, at: NOW }), 'utf8');
+  const before = readFileSync(centerFile(root));
+
+  assert.throws(
+    () => withState(root, (state) => { state.projects['p-3'] = { id: 'p-3', cwd: 'C:/z' }; }),
+    /ocupado|candado/iu,
+  );
+  assert.deepEqual(readFileSync(centerFile(root)), before, 'un candado ajeno no puede provocar escritura');
+  assert.equal(existsSync(lock), true, 'el candado de otro proceso se respeta');
 });

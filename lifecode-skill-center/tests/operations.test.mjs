@@ -14,6 +14,7 @@ import {
   decideImprovement,
   toggleAssignment,
   rollbackAssignment,
+  advanceAssignments,
   forkSkill,
   assignedSkills,
   currentVersionOf,
@@ -163,13 +164,51 @@ test('desactivar conserva la versión: volver a activar restaura exactamente lo 
   assert.equal(assignedSkills(state, project.id)[0].version.version, '1.0.0', 'no salta a la última por su cuenta');
 });
 
-test('la autorización es del borde: estas operaciones registran quién decide, pero no deciden por ti', () => {
-  // Quién puede encender una skill lo resuelve `lib/api.mjs`, que es el único punto por el que entran
-  // la herramienta del agente y el panel; aquí se comprueba que el rastro queda con el actor real.
+test('la operación pura también exige autorización para la IA, y la persona no', () => {
+  // Frontera cerrada tras el hallazgo del QA adversarial: antes la compuerta vivía sólo en `runAction`, así
+  // que `toggleAssignment(..., { actor: 'ai' })` escribía sin evidencia ni registro.
   const { state, project, id } = withSkill();
-  toggleAssignment(state, { projectId: project.id, skillId: id, enabled: true }, { now: NOW, actor: 'ai' });
+  const refused = toggleAssignment(state, { projectId: project.id, skillId: id, enabled: true }, { now: NOW, actor: 'ai' });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.code, 'approval-required');
+  assert.equal(state.assignments[project.id], undefined, 'una negativa no toca el estado');
+
+  const authorized = toggleAssignment(
+    state,
+    { projectId: project.id, skillId: id, enabled: true },
+    { now: NOW, actor: 'ai', authorized: true },
+  );
+  assert.equal(authorized.ok, true);
   assert.equal(state.assignments[project.id][id].by, 'ai');
   assert.equal(state.events.at(-1).actor, 'ai');
+
+  // La persona no necesita autorización: es quien la concede.
+  const humanState = withSkill();
+  const byHuman = toggleAssignment(
+    humanState.state,
+    { projectId: humanState.project.id, skillId: humanState.id, enabled: true },
+    { now: NOW, actor: 'human' },
+  );
+  assert.equal(byHuman.ok, true);
+});
+
+test('revertir y avanzar el pin también exigen autorización cuando firma la IA', () => {
+  const state = freshState();
+  const project = ensureProject(state, tempProject('p'), { now: NOW });
+  const { id } = withSkillIn(state);
+  const candidateBody = candidate();
+  publishVersion(state, id, { ...candidateBody, description: `${candidateBody.description} Dos.` }, { now: NOW, actor: 'human' });
+  toggleAssignment(state, { projectId: project.id, skillId: id, enabled: true, version: '1.1.0' }, { now: NOW, actor: 'human' });
+
+  const refunded = rollbackAssignment(state, { projectId: project.id, skillId: id, version: '1.0.0' }, { now: NOW, actor: 'ai' });
+  assert.equal(refunded.code, 'approval-required');
+  const rolled = rollbackAssignment(state, { projectId: project.id, skillId: id, version: '1.0.0' }, { now: NOW, actor: 'ai', authorized: true });
+  assert.equal(rolled.ok, true);
+
+  const advancedRefused = advanceAssignments(state, { projectId: project.id }, { now: NOW, actor: 'ai' });
+  assert.equal(advancedRefused.code, 'approval-required');
+  const advanced = advanceAssignments(state, { projectId: project.id }, { now: NOW, actor: 'ai', authorized: true });
+  assert.equal(advanced.ok, true);
 });
 
 test('el pin de versión se puede mover sin borrar historial (rollback real)', () => {
@@ -232,6 +271,71 @@ function stateWithTwoVersions() {
   assert.equal(versionOf(skill, '1.0.0').version, '1.0.0');
   return skill;
 }
+
+
+test('las referencias se aceptan como mapa o como lista, y una ruta inválida se rechaza en voz alta', () => {
+  const state = freshState();
+  const lista = createSkill(state, {
+    ...candidate(),
+    id: 'con-referencias-en-lista',
+    references: [{ path: 'references/checklist.md', content: '# Checklist\n' }],
+  }, { now: NOW, actor: 'ai' });
+  assert.equal(lista.ok, true);
+  assert.deepEqual(Object.keys(lista.version.references), ['references/checklist.md']);
+
+  const mapa = createSkill(state, {
+    ...candidate(),
+    id: 'con-referencias-en-mapa',
+    references: { 'references/otra.md': '# Otra\n' },
+  }, { now: NOW, actor: 'ai' });
+  assert.equal(mapa.ok, true);
+  assert.deepEqual(Object.keys(mapa.version.references), ['references/otra.md']);
+
+  const mala = createSkill(state, {
+    ...candidate(),
+    id: 'con-referencia-que-escapa',
+    references: [{ path: '../../escapa.txt', content: 'x' }],
+  }, { now: NOW, actor: 'ai' });
+  assert.equal(mala.ok, false);
+  assert.equal(mala.code, 'invalid-references');
+});
+
+test('publicar lo mismo que ya está publicado no gasta un número de versión', () => {
+  const state = freshState();
+  const created = createSkill(state, candidate({ id: 'sin-cambios' }), { now: NOW, actor: 'human' });
+  assert.equal(created.ok, true);
+  const before = state.skills['sin-cambios'];
+  const versions = before.versions.length;
+  const events = state.events.length;
+
+  const same = publishVersion(state, 'sin-cambios', { notes: 'sin tocar nada' }, { now: NOW, actor: 'human' });
+  assert.equal(same.ok, false);
+  assert.equal(same.code, 'unchanged');
+  assert.equal(state.skills['sin-cambios'].versions.length, versions, 'no se añade versión');
+  assert.equal(state.skills['sin-cambios'].currentVersion, before.currentVersion);
+  assert.equal(state.events.length, events, 'tampoco se escribe un evento');
+
+  const changed = publishVersion(state, 'sin-cambios', { body: `${candidate().body}\n\n## Límite\n\nPublicar lo mismo no crea versión.` }, { now: NOW, actor: 'human' });
+  assert.equal(changed.ok, true, JSON.stringify(changed));
+  assert.equal(state.skills['sin-cambios'].versions.length, versions + 1);
+});
+
+test('pedir dos veces el mismo estado no duplica el evento de asignación', () => {
+  const state = freshState();
+  createSkill(state, candidate({ id: 'toggle-idempotente' }), { now: NOW, actor: 'human' });
+  const project = ensureProject(state, tempProject('idempotente'), { now: NOW });
+
+  const first = toggleAssignment(state, { projectId: project.id, skillId: 'toggle-idempotente', enabled: true }, { now: NOW, actor: 'human' });
+  assert.equal(first.ok, true);
+  const events = state.events.filter((event) => event.type === 'skill.assigned' && event.skillId === 'toggle-idempotente').length;
+  assert.equal(events, 1);
+
+  const second = toggleAssignment(state, { projectId: project.id, skillId: 'toggle-idempotente', enabled: true }, { now: NOW, actor: 'human' });
+  assert.equal(second.ok, true);
+  assert.equal(second.unchanged, true, 'no es un cambio nuevo');
+  const after = state.events.filter((event) => event.type === 'skill.assigned' && event.skillId === 'toggle-idempotente').length;
+  assert.equal(after, 1, 'el diario no se duplica');
+});
 
 
 test('las referencias se aceptan como mapa o como lista, y una ruta inválida se rechaza en voz alta', () => {

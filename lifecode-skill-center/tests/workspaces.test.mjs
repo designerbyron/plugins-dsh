@@ -28,7 +28,7 @@ import {
   workspaceRegistryShape,
 } from '../lib/workspaces.mjs';
 import { handleApiRequest, workspacesPayload, API_PREFIX } from '../lib/api.mjs';
-import { tempRoot } from './helpers.mjs';
+import { tempRoot, autonomyRoot } from './helpers.mjs';
 
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
@@ -104,7 +104,8 @@ test('el DTO no expone sesiones ni métodos, sólo un recuento', () => {
   const dto = workspaceOf(hostWorkspace('ws-x', 'C:\\x\\proyecto', 'proyecto', { sessions: 4 }), AVAILABILITY_OK);
   assert.deepEqual(Object.keys(dto).sort(), ['createdAt', 'path', 'sessionCount', 'status', 'title', 'updatedAt', 'workspaceId']);
   assert.equal(dto.sessionCount, 4);
-  assert.equal(dto.path, 'C:/x/Proyecto'.toLowerCase().replace('proyecto', 'proyecto') === dto.path ? dto.path : dto.path);
+  // Una ruta absoluta, canónica y sin sesiones: es lo único que la vista necesita para comparar.
+  assert.equal(dto.path, 'C:/x/proyecto');
   assert.equal(dto.sessionIds, undefined);
   assert.equal(dto.status, AVAILABILITY_OK);
 });
@@ -195,7 +196,7 @@ test('el proyecto actual sale del cwd de la sesión, no de una ruta del cliente'
 });
 
 test('el despacho puro no puede servir el inventario: dice que no lo tiene', () => {
-  const root = tempRoot('lsc-ws-dispatch-');
+  const root = autonomyRoot('lsc-ws-dispatch-');
   const response = handleApiRequest({ root, method: 'GET', pathname: `${API_PREFIX}/workspaces` });
   assert.equal(response.status, 503);
   assert.equal(response.body.code, WORKSPACE_UNAVAILABLE);
@@ -204,7 +205,7 @@ test('el despacho puro no puede servir el inventario: dice que no lo tiene', () 
 });
 
 test('sin servicio, la respuesta es explícita y reintentable', async () => {
-  const root = tempRoot('lsc-ws-none-');
+  const root = autonomyRoot('lsc-ws-none-');
   for (const registry of [null, {}, { list: 42 }]) {
     const outcome = await workspacesPayload({ root, registry, hostCwd: 'C:/x' });
     assert.equal(outcome.status, 503);
@@ -214,7 +215,7 @@ test('sin servicio, la respuesta es explícita y reintentable', async () => {
 });
 
 test('un list() que revienta no se convierte en lista vacía', async () => {
-  const root = tempRoot('lsc-ws-throw-');
+  const root = autonomyRoot('lsc-ws-throw-');
   const registry = {
     list() {
       throw new Error('registro no listo');
@@ -226,7 +227,7 @@ test('un list() que revienta no se convierte en lista vacía', async () => {
 });
 
 test('con servicio real, el inventario cruza los siete workspaces con los tres proyectos sin escribir', async () => {
-  const root = tempRoot('lsc-ws-real-');
+  const root = autonomyRoot('lsc-ws-real-');
   mkdirSync(root, { recursive: true });
   writeFileSync(join(root, 'center.json'), `${JSON.stringify(stateWithProjects(), null, 2)}\n`, 'utf8');
   const before = readFileSync(join(root, 'center.json'));
@@ -258,7 +259,7 @@ test('con servicio real, el inventario cruza los siete workspaces con los tres p
 });
 
 test('un almacén dañado no impide el inventario y se declara no legible', async () => {
-  const root = tempRoot('lsc-ws-broken-');
+  const root = autonomyRoot('lsc-ws-broken-');
   mkdirSync(root, { recursive: true });
   writeFileSync(join(root, 'center.json'), '{"schemaVersion":2,', 'utf8');
   const before = readFileSync(join(root, 'center.json'));

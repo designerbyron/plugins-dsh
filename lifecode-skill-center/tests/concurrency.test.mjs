@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { centerFile, loadState } from '../lib/state.mjs';
-import { tempRoot } from './helpers.mjs';
+import { tempRoot, autonomyRoot } from './helpers.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const WRITER = join(HERE, 'fixtures', 'writer.mjs');
@@ -24,8 +24,8 @@ function runWriter(root, base, tag, rounds) {
 }
 
 test('dos procesos escribiendo a la vez no se pisan: no se pierde ninguna escritura', async () => {
-  const root = tempRoot('lsc-concurrente');
-  const base = tempRoot('lsc-concurrente-cwd');
+  const root = autonomyRoot('lsc-concurrente');
+  const base = autonomyRoot('lsc-concurrente-cwd');
   const rounds = 8;
 
   const [left, right] = await Promise.all([

@@ -27,7 +27,7 @@ import {
 } from '../lib/state.mjs';
 import { createHash } from 'node:crypto';
 import { buildSnapshot, runAction } from '../lib/api.mjs';
-import { tempRoot } from './helpers.mjs';
+import { tempRoot, autonomyRoot } from './helpers.mjs';
 
 const DOC = {
   schemaVersion: 1,
@@ -68,7 +68,7 @@ const DOC = {
 };
 
 function seededRoot(label) {
-  const root = tempRoot(label);
+  const root = autonomyRoot(label);
   const file = join(root, 'center.json');
   const payload = JSON.stringify(DOC, null, 2);
   writeFileSync(file, payload, 'utf8');

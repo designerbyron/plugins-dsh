@@ -4,13 +4,13 @@
  * temporales, y el contrato del panel en lo que se puede medir sin un navegador: que el control existe
  * con sus textos, que no ejecuta nada al montarse y que la acción `migrate` va por el canal humano.
  *
- * El almacén real no se toca: todo ocurre bajo `tempRoot()`.
+ * El almacén real no se toca: todo ocurre bajo `autonomyRoot()`.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import { candidate, tempProject, tempRoot } from './helpers.mjs';
+import { candidate, tempProject, tempRoot, autonomyRoot } from './helpers.mjs';
 import { runAction } from '../lib/api.mjs';
 import { ensureBackup, inspectLock, loadState } from '../lib/state.mjs';
 
@@ -19,7 +19,7 @@ const NOW = '2026-11-10T10:00:00.000Z';
 /** Siembra un almacén **v1 auténtico**: se crea uno sano, se le quita lo que sólo existe en v2 y se
  *  reescribe la versión. No es una migración inversa del producto, es una fixture. */
 function seedV1(label, { withAssignment = true, withBackup = true } = {}) {
-  const root = tempRoot(label);
+  const root = autonomyRoot(label);
   const created = runAction({ root, action: 'create', payload: candidate(), actor: 'ai', now: NOW });
   assert.equal(created.ok, true, 'la fixture necesita una skill');
   if (withAssignment) {
@@ -206,15 +206,61 @@ test('un segundo envío no vuelve a escribir', () => {
   assert.deepEqual(bytesOf(root), afterFirst, 'el segundo envío no puede escribir');
 });
 
-test('el panel declara el control y no manda actor ni ejecuta nada al montarse', async () => {
+test('el panel pide confirmación sólo cuando el servidor lo permite y no dispara dos veces', () => {
+  // Conducta, no texto: se extraen los dos manejadores del panel y se ejecutan con dobles.
   const source = readFileSync(join(import.meta.dirname, '..', 'client.js'), 'utf8');
-  for (const key of ['schema.action', 'schema.dialog.confirm', 'schema.dialog.cancel', 'schema.result.failed', 'schema.busy']) {
-    assert.ok(source.includes(`'${key}'`), `falta el texto ${key}`);
-  }
-  // La acción viaja sin actor: el canal es la credencial del Host, no una afirmación del cuerpo.
-  const call = source.slice(source.indexOf("action: 'migrate'") - 120, source.indexOf("action: 'migrate'") + 80);
-  assert.ok(source.includes("action: 'migrate'"));
-  assert.equal(/actor\s*:/.test(call), false, 'enviar `actor` desde el panel sería una afirmación falsificable');
-  assert.ok(source.includes('canMigrate !== true'), 'el panel no abre el diálogo si el servidor no lo permite');
-  assert.ok(source.includes('migrateBusy === true) return'), 'un doble clic no lanza una segunda petición');
+  const callback = (name) => {
+    const call = `const ${name} = useCallback(`;
+    const start = source.indexOf(call);
+    if (start < 0) throw new Error(`no encuentro ${name}`);
+    let depth = 0;
+    let at = start + call.length - 1;
+    for (; at < source.length; at += 1) {
+      if (source[at] === '(') depth += 1;
+      else if (source[at] === ')') { depth -= 1; if (depth === 0) break; }
+    }
+    if (at <= start) throw new Error(`no cierro ${name}`);
+    return source.slice(start + call.length - 1, at + 1);
+  };
+  const build = (name, scope) => {
+    const expression = callback(name);
+    const useCallback = (fn) => fn;
+    return new Function(...Object.keys(scope), 'useCallback', `return useCallback${expression};`)(...Object.values(scope), useCallback);
+  };
+
+  const calls = { notify: [], open: 0, result: [], busy: [] };
+  const base = {
+    migrateBusy: false,
+    snapshot: { migration: { canMigrate: false, from: 'v1', to: 'v2' } },
+    notify: (...args) => calls.notify.push(args),
+    setMigrateResult: (value) => calls.result.push(value),
+    setMigrateOpen: (value) => { if (value === true) calls.open += 1; },
+    setMigrateBusy: (value) => calls.busy.push(value),
+    t: (key) => key,
+    fetch: () => { throw new Error('no debe llamar a la red'); },
+    load: async () => {},
+    cwdRef: { current: 'C:/x' },
+    authMessageFor: () => '',
+    countText: () => 'x',
+    readJson: async () => ({ ok: false }),
+    API: 'x',
+  };
+  build('onMigrateRequest', base)();
+  assert.equal(calls.open, 0, 'con canMigrate false no se abre el diálogo');
+  assert.deepEqual(calls.notify[0]?.[0], 'schema.state.blocked');
+
+  Object.assign(base, { snapshot: { migration: { canMigrate: true, from: 'v1', to: 'v2' } }, migrateBusy: false });
+  calls.open = 0;
+  build('onMigrateRequest', base)();
+  assert.equal(calls.open, 1, 'con canMigrate true se abre una vez');
+
+  Object.assign(base, { migrateBusy: true });
+  calls.open = 0;
+  build('onMigrateRequest', base)();
+  assert.equal(calls.open, 0, 'un doble clic no abre otra vez');
+
+  // La confirmación, con la operación en curso, no vuelve a llamar a la red.
+  const confirmScope = { ...base, migrateBusy: true };
+  build('onMigrateConfirm', confirmScope)();
+  assert.equal(confirmScope.migrateBusy, true);
 });

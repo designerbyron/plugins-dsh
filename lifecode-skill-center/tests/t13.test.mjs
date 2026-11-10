@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { runAction } from '../lib/api.mjs';
 import { skillProviderFor } from '../lib/provider.mjs';
 import { appendEvent, centerFile, functionalSignature, loadState, withState } from '../lib/state.mjs';
-import { candidate, tempProject, tempRoot } from './helpers.mjs';
+import { candidate, tempProject, tempRoot, autonomyRoot } from './helpers.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const LOADER = join(HERE, 'fixtures', 'loader.mjs');
@@ -57,7 +57,7 @@ function snapshot(root) {
 }
 
 test('la primera entrega del catálogo registra un skill.loaded por skill y proyecto', async () => {
-  const root = tempRoot('lsc-t13-primera');
+  const root = autonomyRoot('lsc-t13-primera');
   const cwd = tempProject('proyecto', root);
   seed(root, cwd);
 
@@ -72,7 +72,7 @@ test('la primera entrega del catálogo registra un skill.loaded por skill y proy
 });
 
 test('tres entregas sin novedades dejan mtime, updatedAt y diario idénticos', async () => {
-  const root = tempRoot('lsc-t13-tres');
+  const root = autonomyRoot('lsc-t13-tres');
   const cwd = tempProject('proyecto', root);
   seed(root, cwd);
   const provider = skillProviderFor({ root });
@@ -92,7 +92,7 @@ test('tres entregas sin novedades dejan mtime, updatedAt y diario idénticos', a
 });
 
 test('el diario no recibe eventos duplicados aunque se entrecruce la entrega', async () => {
-  const root = tempRoot('lsc-t13-duplicados');
+  const root = autonomyRoot('lsc-t13-duplicados');
   const cwd = tempProject('proyecto', root);
   seed(root, cwd);
   const provider = skillProviderFor({ root });
@@ -105,7 +105,7 @@ test('el diario no recibe eventos duplicados aunque se entrecruce la entrega', a
 });
 
 test('dos procesos entregando la misma skill a la vez dejan un solo evento', async () => {
-  const root = tempRoot('lsc-t13-procesos');
+  const root = autonomyRoot('lsc-t13-procesos');
   const cwd = tempProject('proyecto', root);
   seed(root, cwd);
 
@@ -122,7 +122,7 @@ test('dos procesos entregando la misma skill a la vez dejan un solo evento', asy
 });
 
 test('dos operaciones distintas a la vez persisten las dos', async () => {
-  const root = tempRoot('lsc-t13-distintas');
+  const root = autonomyRoot('lsc-t13-distintas');
   const base = tempProject('base', root);
   const cwd = tempProject('proyecto', root);
 
@@ -141,7 +141,7 @@ test('dos operaciones distintas a la vez persisten las dos', async () => {
 });
 
 test('panel y agente escribiendo a la vez no pierden cambios', async () => {
-  const root = tempRoot('lsc-t13-panel-agente');
+  const root = autonomyRoot('lsc-t13-panel-agente');
   const base = tempProject('base', root);
   const cwd = tempProject('proyecto', root);
 
@@ -159,7 +159,7 @@ test('panel y agente escribiendo a la vez no pierden cambios', async () => {
 });
 
 test('una mutación real devuelve saved:true y persiste', () => {
-  const root = tempRoot('lsc-t13-saved');
+  const root = autonomyRoot('lsc-t13-saved');
   const cwd = tempProject('proyecto', root);
   seed(root, cwd);
 
@@ -173,7 +173,7 @@ test('una mutación real devuelve saved:true y persiste', () => {
 });
 
 test('una mutación que no cambia nada devuelve saved:false y no escribe', () => {
-  const root = tempRoot('lsc-t13-noop');
+  const root = autonomyRoot('lsc-t13-noop');
   const cwd = tempProject('proyecto', root);
   seed(root, cwd);
   const before = snapshot(root);
@@ -187,7 +187,7 @@ test('una mutación que no cambia nada devuelve saved:false y no escribe', () =>
 });
 
 test('una mutación que lanza no guarda nada y libera el candado', () => {
-  const root = tempRoot('lsc-t13-lanza');
+  const root = autonomyRoot('lsc-t13-lanza');
   const cwd = tempProject('proyecto', root);
   seed(root, cwd);
   const before = snapshot(root);

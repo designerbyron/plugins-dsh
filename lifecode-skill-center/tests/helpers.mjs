@@ -3,6 +3,8 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { setPolicy, withKnowledge } from '../lib/knowledge.mjs';
+
 /** Raíz de almacén en una caja de arena: el almacén real no se toca nunca. */
 export function tempRoot(label = 'lsc-test') {
   return mkdtempSync(join(tmpdir(), `${label}-`));
@@ -13,6 +15,26 @@ export function tempProject(name = 'proyecto', root = tempRoot('lsc-project')) {
   const directory = join(root, name);
   mkdirSync(directory, { recursive: true });
   return directory;
+}
+
+/**
+ * Concede autonomía en una caja de arena, como lo haría una persona desde el panel.
+ * Regla §6 de la directiva: sin concesión explícita de una persona el producto no decide solo,
+ * así que toda prueba que espere conducta autónoma tiene que concederla primero.
+ */
+export function grantAutonomy(root, { projectId = '', mode = 'guarded-autonomous', by = 'prueba' } = {}) {
+  const saved = withKnowledge(root, (document) =>
+    setPolicy(document, { projectId, mode, actor: 'human', by }, new Date('2026-11-09T00:00:00.000Z')),
+  );
+  if (saved?.ok !== true) throw new Error(`no se pudo conceder autonomía: ${saved?.code ?? 'desconocido'}`);
+  return saved;
+}
+
+/** Raíz de caja de arena con autonomía global concedida: atajo del motor de decisiones. */
+export function autonomyRoot(label = 'lsc-auto') {
+  const root = tempRoot(label);
+  grantAutonomy(root);
+  return root;
 }
 
 /** Una skill que pasa la puerta de calidad sin avisos: la base de casi todas las pruebas. */

@@ -16,6 +16,7 @@ import { apply, name, inject, API_PREFIX } from '../index.js';
 import { PROVIDER_NAME, PROVIDER_RANK } from '../lib/provider.mjs';
 import { runAction } from '../lib/api.mjs';
 import { centerFile, loadState } from '../lib/state.mjs';
+import { loadKnowledge, receiveInsight, withKnowledge } from '../lib/knowledge.mjs';
 import { createHash } from 'node:crypto';
 import { readFileSync as readBytes } from 'node:fs';
 
@@ -218,10 +219,10 @@ test('deja una sección de prompt corta que dice la asimetría del producto', as
   });
 });
 
-test('registra las cuatro herramientas del agente y ninguna que apruebe', async () => {
+test('registra las cinco herramientas del agente y ninguna que apruebe', async () => {
   await withCenter({}, ({ fake }) => {
     const names = fake.tools.map((tool) => tool.name);
-    assert.deepEqual(names, ['lifecode_skill_search', 'lifecode_skill_create', 'lifecode_skill_improve', 'lifecode_skill_status']);
+    assert.deepEqual(names, ['lifecode_skill_search', 'lifecode_skill_create', 'lifecode_skill_improve', 'lifecode_skill_status', 'lifecode_skill_insight']);
     for (const tool of fake.tools) {
       assert.equal(typeof tool.execute, 'function');
       assert.ok(tool.output?.schema, `${tool.name} necesita declarar su salida`);
@@ -286,7 +287,7 @@ test('HEAD responde cabeceras sin cuerpo', async () => {
 });
 
 test('POST ejecuta la acción y avisa al catálogo cuando cambia lo que el agente ve', async () => {
-  await withCenter({}, async ({ fake }) => {
+  await withCenter({}, async ({ root, fake }) => {
     const response = await callRoute(fake.routes[0], {
       method: 'POST',
       url: `${API_PREFIX}/state`,
@@ -295,6 +296,10 @@ test('POST ejecuta la acción y avisa al catálogo cuando cambia lo que el agent
     assert.equal(response.status, 200);
     assert.equal(response.body.ok, true, JSON.stringify(response.body.findings ?? response.body.message ?? ''));
     assert.equal(fake.invalidations, 1, 'crear cambia el catálogo: hay que invalidarlo');
+    // Que la respuesta diga «ok» no prueba que se haya escrito: se lee el almacén de vuelta.
+    const stored = loadState(root).state;
+    assert.equal(stored.skills[SKILL_INPUT.id] !== undefined, true, 'la skill creada está en disco');
+    assert.equal(stored.skills[SKILL_INPUT.id].currentVersion, '1.0.0');
   });
 });
 
@@ -363,7 +368,7 @@ test('un método que no es GET ni POST responde 405 y un cuerpo roto responde 40
 test('sin servidor web el plugin conserva herramientas y catálogo', async () => {
   await withCenter({ webServer: false }, ({ fake }) => {
     assert.equal(fake.routes.length, 0);
-    assert.equal(fake.tools.length, 4);
+    assert.equal(fake.tools.length, 5);
     assert.equal(fake.providers.length, 1);
   });
 });
@@ -392,8 +397,7 @@ test('una ruta que no es de la API responde 404 en vez de caer en el estado', as
   });
 });
 
-test('una petición de otra página se rechaza: el panel sólo atiende a su propio origen', async () => {
-  await withCenter({}, async ({ fake }) => {
+test('una petición de otra página se rechaza: el panel sólo atiende a su propio origen', async () => {  await withCenter({}, async ({ fake }) => {
     const route = fake.routes[0];
     const ajeno = await callRoute(route, {
       method: 'POST',
@@ -411,6 +415,72 @@ test('una petición de otra página se rechaza: el panel sólo atiende a su prop
       body: JSON.stringify({ action: 'state', payload: {}, cwd: process.cwd() }),
     });
     assert.equal(propio.status, 200);
+  });
+});
+
+// El panel hace `fetch` al mismo origen, pero el proxy del shell lo entrega como peer de API. Exigir el
+// canal de navegador hacía que «Verificar origen» contestara 403 la primera vez que se pulsó el botón.
+test('verificar el origen es alcanzable desde el panel aunque el proxy lo entregue como peer de API', async () => {
+  await withCenter({ connection: 'api-peer' }, async ({ fake }) => {
+    const route = fake.routes[0];
+    const response = await callRoute(route, {
+      method: 'POST',
+      url: API_PREFIX + '/origin-verify',
+      body: JSON.stringify({ insightId: 'handoff-de-prueba' }),
+    });
+    assert.notEqual(response.status, 403);
+    assert.notEqual(response.body?.code, 'human-channel-required');
+    // Sin servicio de subagentes el Host no puede probar nada: el hallazgo sigue declarado.
+    assert.equal(response.status, 503);
+    assert.equal(response.body.code, 'host-unavailable');
+  });
+});
+
+// En un handler HTTP no hay ejecución de agente: `agents.currentInitiator()` devuelve `null` y la ruta
+// contestaba 503 en vivo. La prueba real es «alguna sesión del Host lista al hijo declarado», y esa sesión
+// es la que se escribe como `parentId`. Este caso fija eso con un catálogo de mentira.
+test('el origen se verifica contra las sesiones que el Host conoce, no contra un iniciador ausente', async () => {
+  await withCenter({}, async ({ root, fake }) => {
+    const seeded = withKnowledge(root, (document) => receiveInsight(document, {
+      insightId: 'handoff-hija-1',
+      title: 'El handoff declara la sesión que lo produjo',
+      category: 'contract',
+      confidence: 'moderate',
+      origin: { declared: { sourceAgent: 'lifecode_skill_insight', sessionId: 'sess-hija-1' } },
+    }, new Date().toISOString()));
+    assert.equal(seeded.ok, true);
+
+    const asked = [];
+    const realGet = fake.ctx.get;
+    fake.ctx.get = (key) => {
+      if (key === 'subagents') {
+        return {
+          listChildren: async (parentId) => {
+            asked.push(parentId);
+            return parentId === 'sess-activa' ? [{ id: 'sess-hija-1', mode: 'one-shot' }] : [];
+          },
+        };
+      }
+      if (key === 'agents') return { list: () => [{ session: { id: 'sess-antigua' } }, { session: { id: 'sess-activa' } }] };
+      return realGet(key);
+    };
+
+    const response = await callRoute(fake.routes[0], {
+      method: 'POST',
+      url: API_PREFIX + '/origin-verify',
+      body: JSON.stringify({ insightId: 'handoff-hija-1' }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.origin.verified, true);
+    assert.equal(response.body.origin.verifiedBy, 'subagents.listChildren');
+    assert.equal(response.body.origin.parentId, 'sess-activa');
+    assert.deepEqual(asked, ['sess-antigua', 'sess-activa'], 'se pregunta por las sesiones que el Host conoce, en orden');
+
+    const after = loadKnowledge(root);
+    const stored = after.document.insights.find((item) => item.insightId === 'handoff-hija-1');
+    assert.equal(stored.origin.verified, true);
+    assert.ok(after.document.events.some((event) => event.type === 'insight-origin-verified' && event.insightId === 'handoff-hija-1'));
   });
 });
 

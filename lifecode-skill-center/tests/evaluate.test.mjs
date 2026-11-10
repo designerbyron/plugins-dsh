@@ -70,7 +70,7 @@ test('los secretos no salen del proyecto: clave privada, token y asignación de 
 });
 
 test('las trampas de portabilidad avisan pero no bloquean', () => {
-  const evaluation = evaluateSkill({ ...candidate(), body: `${candidate().body}\n\nEn C:\\Users\\BYRON\\proyecto queda el TODO pendiente.\n` });
+  const evaluation = evaluateSkill({ ...candidate(), body: `${candidate().body}\n\nEn C:\\Users\\example\\proyecto queda el TODO pendiente.\n` });
   assert.equal(evaluation.blocksPublish, false);
   const codes = evaluation.findings.map((finding) => finding.code);
   assert.ok(codes.includes('portability.windows-path'));

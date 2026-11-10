@@ -210,3 +210,88 @@ test('el cuadro de detección se comparte entre «detect» y «onDetect» sin se
   assert.ok(source.includes('detect: detectState,'), 'la vista lee el cuadro por `detect`');
   assert.ok(source.includes('onDetect: detectState,'), 'la vista recibe los manejadores por `onDetect`');
 });
+
+test('las acciones de identidad del panel están cableadas y bloqueadas hasta v3', () => {
+  for (const action of ['identity-adopt', 'repair', 'identity-relink', 'identity-unlink']) {
+    assert.ok(source.includes("'" + action + "'"), 'falta la acción ' + action);
+  }
+  for (const key of ['projects.identity.action.adopt', 'projects.identity.action.locked', 'projects.identity.action.done', 'analytics.doctor.resync']) {
+    assert.ok(source.includes(key), 'falta la clave ' + key);
+  }
+  assert.ok(source.includes("available !== true"), 'la vista sabe si las acciones están disponibles');
+  assert.ok(source.includes("identity.available !== true"), 'el panel explica el bloqueo en vez de un botón muerto');
+  assert.ok(source.includes('runIdentityAction'), 'la acción confirmada se ejecuta una sola vez');
+  assert.ok(source.includes('IdentityDialog'), 'hay diálogo de confirmación antes de escribir');
+});
+
+test('el cajón compara contra la vigente y mantiene el orden de hooks', () => {
+  assert.ok(source.includes("compareWithCurrent"), 'hay un manejador de comparación');
+  assert.ok(source.includes("/diff?"), 'la comparación pide el diff al servidor');
+  assert.ok(source.includes("URLSearchParams({ id: skillId, from: version, to: currentVersion })"), 'la comparación fija el sentido from→to');
+  // El orden importa: si la salida temprana queda antes de un hook, React ve menos hooks y el
+  // slot `main` se cae. Se comprueba sobre el cuerpo del cajón, no sobre todo el fichero.
+  const drawerStart = source.indexOf('function SkillDrawer');
+  const drawerRest = source.slice(drawerStart);
+  const drawerEnd = drawerRest.indexOf('\n    function ', 10);
+  const drawerBody = drawerEnd < 0 ? drawerRest : drawerRest.slice(0, drawerEnd);
+  const atEarlyReturn = drawerBody.indexOf('if (skill === null)');
+  assert.ok(atEarlyReturn > 0, 'el cajón tiene salida vacía cuando la skill no está');
+  const afterEarlyReturn = drawerBody.slice(atEarlyReturn).split('\n');
+  const lateHooks = afterEarlyReturn.filter((line) => /use(State|Effect|Callback|Memo|Ref)\(/.test(line)).length;
+  assert.equal(lateHooks, 0, 'ningún hook puede quedar después de la salida temprana del cajón');
+  assert.ok(source.includes("diff.preview"), 'la vista pinta el preview que devuelve el servidor');
+  for (const key of ['drawer.diff', 'drawer.diff.title', 'drawer.diff.none', 'drawer.diff.truncated', 'drawer.diff.error']) {
+    assert.ok(source.includes(key), 'falta la clave ' + key);
+  }
+});
+
+test('el informe del centro se pide al servidor y no se fabrica en la interfaz', () => {
+  assert.ok(source.includes("act('export', {})"), 'el panel dispara la acción de exportar');
+  for (const key of ['analytics.export', 'analytics.export.done']) {
+    assert.ok(source.includes(key), 'falta la clave ' + key);
+  }
+  assert.ok(source.includes("t('analytics.export.done', { file: String(result.file"), 'el aviso dice la ruta real que devolvió el servidor');
+  assert.ok(!source.includes('buildCenterReport'), 'la interfaz no compone el informe: lo pide a su API');
+});
+
+test('la bandeja de conocimiento se pinta desde la foto del servidor y no decide nada', () => {
+  assert.ok(source.includes('function KnowledgeSection('), 'existe la sección de conocimiento');
+  // Contrato estructural a propósito: la conducta (pinta política, procedencia y pendientes) se mide
+  // ejecutando el componente en tests/render.test.mjs. Aquí sólo se comprueba que el panel lo monta.
+  assert.ok(source.includes('e(KnowledgeSection, {'), 'la sección de conocimiento se monta en analítica');
+  for (const key of ['analytics.knowledge', 'analytics.knowledge.mode', 'analytics.knowledge.pending', 'analytics.knowledge.decisions', 'analytics.knowledge.contradictions', 'analytics.knowledge.unreadable']) {
+    assert.ok(source.includes(key), 'falta la clave ' + key);
+  }
+  for (const key of ['analytics.knowledge.policy', 'analytics.knowledge.policy.autonomous', 'analytics.knowledge.policy.human', 'analytics.knowledge.policy.done']) {
+    assert.ok(source.includes(key), 'falta la clave de política ' + key);
+  }
+  // La política la fija una persona desde el panel: la sección delega en `onPolicy` y no llama a `act`.
+  const section = source.slice(source.indexOf('function KnowledgeSection('), source.indexOf('/**\n * Indicadores con fuente declarada'));
+  assert.ok(!/act\('(approve|publish|toggle|activate)'/.test(section), 'la bandeja no ejecuta acciones de decisión');
+  assert.ok(section.includes('onPolicy('), 'la sección delega el cambio de política en el manejador del panel');
+  assert.ok(source.includes("act('policy', { projectId: String(projectId ?? ''), mode: String(mode ?? '') })"), 'el panel pide el cambio a su API');
+});
+
+test('el cajón resuelve la versión vigente dentro del manejador', () => {
+  assert.ok(source.includes("compareWithCurrent"), 'hay un manejador de comparación');
+  assert.ok(source.includes("/diff?"), 'la comparación pide el diff al servidor');
+  assert.ok(source.includes("URLSearchParams({ id: skillId, from: version, to: currentVersion })"), 'la comparación fija el sentido from→to');
+  assert.ok(source.includes('const currentVersion = String(findSkill(snapshot, skillId)'), 'la versión vigente se resuelve dentro del manejador, no en las dependencias del hook');
+  assert.ok(source.includes("diff.preview"), 'la vista pinta el preview que devuelve el servidor');
+  for (const key of ['drawer.diff', 'drawer.diff.title', 'drawer.diff.none', 'drawer.diff.truncated', 'drawer.diff.error']) {
+    assert.ok(source.includes(key), 'falta la clave ' + key);
+  }
+});
+
+test('las acciones de identidad del panel están cableadas y bloqueadas hasta v3', () => {
+  for (const action of ['identity-adopt', 'repair', 'identity-relink', 'identity-unlink']) {
+    assert.ok(source.includes("'" + action + "'"), 'falta la acción ' + action);
+  }
+  for (const key of ['projects.identity.action.adopt', 'projects.identity.action.locked', 'projects.identity.action.done', 'analytics.doctor.resync']) {
+    assert.ok(source.includes(key), 'falta la clave ' + key);
+  }
+  assert.ok(source.includes("available !== true"), 'la vista sabe si las acciones están disponibles');
+  assert.ok(source.includes("identity.available !== true"), 'el panel explica el bloqueo en vez de un botón muerto');
+  assert.ok(source.includes('runIdentityAction'), 'la acción confirmada se ejecuta una sola vez');
+  assert.ok(source.includes('IdentityDialog'), 'hay diálogo de confirmación antes de escribir');
+});

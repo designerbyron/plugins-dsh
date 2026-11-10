@@ -16,13 +16,13 @@ import {
   restoreStore,
   withState,
 } from '../lib/state.mjs';
-import { candidate, tempProject, tempRoot } from './helpers.mjs';
+import { candidate, tempProject, tempRoot, autonomyRoot } from './helpers.mjs';
 
 const SHA = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 /** Un almacén válido de verdad, creado por el producto (nunca a mano). */
 function healthyStore() {
-  const root = tempRoot('lsc-s4a');
+  const root = autonomyRoot('lsc-s4a');
   const project = tempProject('proyecto', root);
   const created = runAction({ root, action: 'create', payload: candidate(), actor: 'ai', cwd: project, now: '2026-11-01T10:00:00.000Z' });
   assert.equal(created.ok, true);
@@ -62,7 +62,7 @@ for (const [label, text] of [
   ['{"skills":"x"}', '{"skills":"x","projects":{},"assignments":{},"improvements":{},"events":[]}'],
 ]) {
   test(`${label} es invalid-shape`, () => {
-    const root = tempRoot('lsc-s4a-shape');
+    const root = autonomyRoot('lsc-s4a-shape');
     writeRaw(root, text);
     const loaded = loadState(root);
     assert.equal(loaded.ok, false);
@@ -72,7 +72,7 @@ for (const [label, text] of [
 }
 
 test('un documento de una versión futura no se acepta como válido ni se migra', () => {
-  const root = tempRoot('lsc-s4a-future');
+  const root = autonomyRoot('lsc-s4a-future');
   writeRaw(root, JSON.stringify({ schemaVersion: 99, skills: {}, projects: {}, assignments: {}, improvements: {}, events: [] }));
   const before = readFileSync(centerFile(root));
   const loaded = loadState(root);
@@ -90,7 +90,7 @@ test('una mutación sobre cada estado ilegible devuelve store-unreadable y no es
     ['future-version', JSON.stringify({ schemaVersion: 9, skills: {}, projects: {}, assignments: {}, improvements: {}, events: [] })],
   ];
   for (const [expected, text] of cases) {
-    const root = tempRoot('lsc-s4a-reject');
+    const root = autonomyRoot('lsc-s4a-reject');
     writeRaw(root, text);
     const before = readFileSync(centerFile(root));
     const createdAt = statSync(centerFile(root)).mtimeMs;
@@ -213,7 +213,7 @@ test('un almacén válido sigue aceptando mutaciones y un no-op no escribe', () 
 });
 
 test('un almacén ausente se puede inicializar con la primera operación', () => {
-  const root = tempRoot('lsc-s4a-missing');
+  const root = autonomyRoot('lsc-s4a-missing');
   assert.equal(loadState(root).integrity, 'missing');
   const created = runAction({ root, action: 'create', payload: candidate(), actor: 'ai', now: '2026-11-06T10:00:00.000Z' });
   assert.equal(created.ok, true);
@@ -221,7 +221,7 @@ test('un almacén ausente se puede inicializar con la primera operación', () =>
 });
 
 test('la API responde 409 cuando la mutación choca con un centro ilegible', () => {
-  const root = tempRoot('lsc-s4a-409');
+  const root = autonomyRoot('lsc-s4a-409');
   writeRaw(root, '{ roto');
   const answer = handleApiRequest({
     root,

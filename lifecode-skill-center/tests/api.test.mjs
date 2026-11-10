@@ -12,12 +12,12 @@ import { buildSnapshot, runAction, listAssignedFor, centerRoot, API_VERSION, API
 import { skillProviderFor } from '../lib/provider.mjs';
 import { loadState, centerFile, materializedRoot } from '../lib/state.mjs';
 import { parseSkillFile } from '../lib/skillfile.mjs';
-import { candidate, tempProject, tempRoot } from './helpers.mjs';
+import { candidate, tempProject, tempRoot, autonomyRoot } from './helpers.mjs';
 
 const NOW = '2026-11-08T12:00:00.000Z';
-const root = () => tempRoot('lsc-api');
-const projectA = () => tempProject('proyecto-a', tempRoot('lsc-cwd'));
-const projectB = () => tempProject('proyecto-b', tempRoot('lsc-cwd'));
+const root = () => autonomyRoot('lsc-api');
+const projectA = () => tempProject('proyecto-a', autonomyRoot('lsc-cwd'));
+const projectB = () => tempProject('proyecto-b', autonomyRoot('lsc-cwd'));
 
 function createOne(store, cwd, overrides = {}) {
   const created = runAction({ root: store, action: 'create', payload: candidate(overrides), actor: 'ai', cwd, now: NOW });
@@ -65,8 +65,42 @@ test('el snapshot cuenta lo que hay y deja claro en qué proyectos está cada sk
   assert.equal(snapshot.skills[0].currentVersion, '1.0.0');
   assert.equal(snapshot.skills[0].current.evaluation.status, 'pass');
   assert.deepEqual(snapshot.skills[0].enabledIn, []);
+  assert.deepEqual(snapshot.skills[0].adoption, [], 'sin asignaciones no hay filas de adopción');
   assert.equal(snapshot.totals.skills, 1);
   assert.equal(snapshot.analytics.skills.total, 1);
+});
+
+test('la matriz de adopción publica encendidas, apagadas y las que van por detrás de la vigente', () => {
+  const store = root();
+  const cwd = projectA();
+  const others = tempProject('proyecto-matriz', store);
+  mkdirSync(cwd, { recursive: true });
+  mkdirSync(others, { recursive: true });
+
+  const created = createOne(store, cwd);
+  runAction({ root: store, action: 'open', cwd, now: NOW, actor: 'human' });
+  runAction({ root: store, action: 'open', cwd: others, now: NOW, actor: 'human' });
+  const projects = loadState(store).state.projects;
+  const rowA = Object.values(projects).find((project) => project.cwd === cwd.replaceAll('\\', '/'));
+  const rowB = Object.values(projects).find((project) => project.cwd === others.replaceAll('\\', '/'));
+  assert.ok(rowA !== undefined && rowB !== undefined);
+
+  const onA = runAction({ root: store, action: 'toggle', payload: { projectId: rowA.id, skillId: created.id, enabled: true }, now: NOW, actor: 'human', cwd });
+  assert.equal(onA.ok, true, `encender en A: ${onA.code ?? ''} ${onA.message ?? ''}`);
+  const onB = runAction({ root: store, action: 'toggle', payload: { projectId: rowB.id, skillId: created.id, enabled: true }, now: NOW, actor: 'human', cwd });
+  assert.equal(onB.ok, true, `encender en B: ${onB.code ?? ''} ${onB.message ?? ''}`);
+  const offB = runAction({ root: store, action: 'toggle', payload: { projectId: rowB.id, skillId: created.id, enabled: false }, now: NOW, actor: 'human', cwd });
+  assert.equal(offB.ok, true, `apagar en B: ${offB.code ?? ''} ${offB.message ?? ''}`);
+
+  const snapshot = buildSnapshot({ root: store, cwd, now: NOW, scan: false });
+  const adoption = snapshot.skills[0].adoption;
+  assert.equal(adoption.length, 2, 'una fila por TODO proyecto que tenga la skill, encendida o no');
+  const byProject = Object.fromEntries(adoption.map((row) => [row.projectId, row]));
+  assert.equal(byProject[rowA.id].enabled, true);
+  assert.equal(byProject[rowA.id].version, '1.0.0');
+  assert.equal(byProject[rowB.id].enabled, false, 'una apagada sigue siendo visible en la matriz');
+  assert.deepEqual(snapshot.skills[0].enabledIn, [rowA.id]);
+  assert.deepEqual(adoption.map((row) => row.projectId), [...adoption.map((row) => row.projectId)].sort(), 'orden estable por proyecto');
 });
 
 test('la IA no enciende, no revierte, no importa y no decide: eso es de la persona', () => {
@@ -202,7 +236,7 @@ test('cambiar la versión fijada reescribe el SKILL.md materializado en el mismo
 
 test('la detección ve la biblioteca propia y las skills que ya viven en el disco', () => {
   const store = root();
-  const cwd = tempProject('proyecto-con-skills', tempRoot('lsc-detect'));
+  const cwd = tempProject('proyecto-con-skills', autonomyRoot('lsc-detect'));
   const created = createOne(store, cwd, { description: 'Despliega el proyecto en la nube con verificación de humo.' });
 
   // Una skill que ya existía en el proyecto, puesta a mano en el disco.
@@ -223,7 +257,7 @@ test('la detección ve la biblioteca propia y las skills que ya viven en el disc
 
 test('importar una skill del disco entra en la biblioteca como propuesta de la persona', () => {
   const store = root();
-  const cwd = tempProject('proyecto-import', tempRoot('lsc-import'));
+  const cwd = tempProject('proyecto-import', autonomyRoot('lsc-import'));
   const skillDir = join(cwd, '.dsh', 'skills', 'heredada');
   mkdirSync(skillDir, { recursive: true });
   const file = join(skillDir, 'SKILL.md');
@@ -275,7 +309,7 @@ test('una acción que no existe se dice, no se ignora', () => {
 /* ------------------------------------------------------------------------------------------- */
 
 test('el despacho HTTP respeta ruta, método, cuerpo y aviso de invalidación', async () => {
-  const root = tempRoot('lsc-http');
+  const root = autonomyRoot('lsc-http');
   const skill = candidate();
   const base = API_PREFIX + '/state';
 
@@ -370,4 +404,22 @@ test('el actor del panel lo pone el canal: el cuerpo no puede escribirlo', () =>
   const state = loadState(store).state;
   assert.equal(state.assignments[project.id][created.id].by, 'human', 'el cuerpo no elige quién firma');
   assert.equal(state.events[state.events.length - 1].actor, 'human');
+});
+
+test('la analítica se puede acotar por proyecto y ventana desde la ruta', () => {
+  const store = root();
+  const cwd = projectA();
+  const created = runAction({
+    root: store, action: 'create', cwd, now: NOW, actor: 'ai',
+    payload: candidate({ id: 'skill-analitica', title: 'Skill de analítica' }),
+  });
+  assert.equal(created.ok, true);
+  const snapshot = handleApiRequest({ root: store, method: 'GET', pathname: API_PREFIX, search: '?scan=0', now: NOW });
+  assert.equal(snapshot.status, 200);
+  const scoped = handleApiRequest({
+    root: store, method: 'GET', pathname: API_PREFIX, search: '?scan=0&days=7&project=no-existe', now: NOW,
+  });
+  assert.equal(scoped.status, 200);
+  assert.equal(scoped.body.analytics.series.length, 7, 'la ventana pedida llega al resumen');
+  assert.equal(scoped.body.analytics.assignments.total, 0, 'un proyecto inexistente no hereda las cifras globales');
 });
