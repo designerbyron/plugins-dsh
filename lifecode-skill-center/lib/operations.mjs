@@ -203,10 +203,11 @@ export function createSkill(state, input, { now = new Date().toISOString(), acto
  * El actor `ai` no puede: una mejora del modelo es una **propuesta** (`proposeImprovement`) hasta que
  * una persona la aprueba. Es la diferencia entre preparar y publicar, y es una regla, no una costumbre.
  */
-export function publishVersion(state, id, input, { now = new Date().toISOString(), actor = 'human' } = {}) {
+export function publishVersion(state, id, input, { now = new Date().toISOString(), actor = 'human', authorized = false } = {}) {
   const skill = state.skills[id];
   if (skill === undefined) return { ok: false, code: 'missing', message: `no hay ninguna skill con el id "${id}"` };
-  if (actor === 'ai') {
+  // La IA sólo publica si la compuerta de decisiones se lo autorizó y lo dejó registrado.
+  if (actor === 'ai' && authorized !== true) {
     return {
       ok: false,
       code: 'approval-required',
@@ -225,6 +226,16 @@ export function publishVersion(state, id, input, { now = new Date().toISOString(
     references: input?.references === undefined ? base.references : referencesOf(input.references),
     body: input?.body === undefined ? base.body : String(input.body),
   };
+  // Publicar exactamente lo que ya está publicado no es una versión nueva: sería un número gastado sin
+  // cambio verificable. El diff de una mejora real siempre toca algo de esto.
+  const sameAsBase = candidate.description === base.description
+    && candidate.whenToUse === base.whenToUse
+    && candidate.body === base.body
+    && JSON.stringify(candidate.tags) === JSON.stringify(base.tags)
+    && JSON.stringify(candidate.references) === JSON.stringify(base.references);
+  if (sameAsBase) {
+    return { ok: false, code: 'unchanged', message: 'el contenido no cambia: publicar lo mismo no crea una versión nueva' };
+  }
   const evaluation = evaluateSkill(candidate, { evaluatedAt: now });
   if (evaluation.blocksPublish) {
     return { ok: false, code: 'evaluation-failed', evaluation, message: 'la versión no pasa la puerta de calidad', findings: evaluation.findings };
@@ -300,8 +311,9 @@ export function proposeImprovement(state, id, input, { now = new Date().toISOStr
  * Aprueba o rechaza una propuesta. **Solo una persona**: es la puerta que el plan llama «no publicar
  * cambios de alcance amplio sin política de autorización».
  */
-export function decideImprovement(state, improvementId, decision, { now = new Date().toISOString(), actor = 'human', note = '' } = {}) {
-  if (actor !== 'human') {
+export function decideImprovement(state, improvementId, decision, { now = new Date().toISOString(), actor = 'human', note = '', authorized = false } = {}) {
+  // Aprobar publica una versión: la IA sólo llega aquí con la compuerta superada y la decisión registrada.
+  if (actor !== 'human' && authorized !== true) {
     return { ok: false, code: 'approval-required', message: 'aprobar o rechazar una propuesta es un acto humano' };
   }
   const improvement = state.improvements[improvementId];
@@ -315,8 +327,8 @@ export function decideImprovement(state, improvementId, decision, { now = new Da
   if (decision === 'reject') {
     improvement.status = 'rejected';
     improvement.decidedAt = now;
-    improvement.decidedBy = 'human';
-    appendEvent(state, { id: eventId(now, 'improvement.rejected'), at: now, type: 'improvement.rejected', skillId: skill.id, version: improvement.baseVersion, actor: 'human', note: oneLine(note) });
+    improvement.decidedBy = actor === 'ai' ? 'ai' : 'human';
+    appendEvent(state, { id: eventId(now, 'improvement.rejected'), at: now, type: 'improvement.rejected', skillId: skill.id, version: improvement.baseVersion, actor: actor === 'ai' ? 'ai' : 'human', note: oneLine(note) });
     return { ok: true, status: 'rejected', improvementId };
   }
 
@@ -351,10 +363,20 @@ export function decideImprovement(state, improvementId, decision, { now = new Da
   skill.updatedAt = now;
   improvement.status = 'approved';
   improvement.decidedAt = now;
-  improvement.decidedBy = 'human';
+  improvement.decidedBy = actor === 'ai' ? 'ai' : 'human';
   improvement.version = version.version;
-  appendEvent(state, { id: eventId(now, 'improvement.approved'), at: now, type: 'improvement.approved', skillId: skill.id, version: version.version, actor: 'human' });
+  appendEvent(state, { id: eventId(now, 'improvement.approved'), at: now, type: 'improvement.approved', skillId: skill.id, version: version.version, actor: actor === 'ai' ? 'ai' : 'human' });
   return { ok: true, status: 'approved', improvementId, version, skill };
+}
+
+/**
+ * Autorización de la IA en la operación pura. La compuerta (`lib/decisions.mjs`) es quien decide y registra;
+ * aquí sólo se comprueba que la autorización exista. Una acción humana nunca necesita este permiso.
+ */
+function refusesUnauthorizedAi(actor, authorized, operation) {
+  return actor === 'ai' && authorized !== true
+    ? { ok: false, code: 'approval-required', message: `la IA no ${operation} sin una decisión autorizada: falta evidencia o una persona` }
+    : null;
 }
 
 /**
@@ -363,7 +385,9 @@ export function decideImprovement(state, improvementId, decision, { now = new Da
  * Apagar no borra: la asignación queda con `enabled: false` y su versión, así que volver a encenderla
  * devuelve exactamente lo que había. Y no toca los demás proyectos: cada fila es de su proyecto.
  */
-export function toggleAssignment(state, input, { now = new Date().toISOString(), actor = 'human' } = {}) {
+export function toggleAssignment(state, input, { now = new Date().toISOString(), actor = 'human', authorized = false } = {}) {
+  const refusal = refusesUnauthorizedAi(actor, authorized, 'enciende ni apaga');
+  if (refusal !== null) return refusal;
   const projectId = text(input?.projectId);
   const skillId = text(input?.skillId);
   const project = state.projects[projectId];
@@ -377,6 +401,10 @@ export function toggleAssignment(state, input, { now = new Date().toISOString(),
   const row = state.assignments[projectId] ?? {};
   const previous = row[skillId];
   const enabled = input?.enabled === true;
+  // Pedir el estado que ya está puesto no es un cambio: devolverlo como tal sin duplicar el diario.
+  if (previous !== undefined && previous.enabled === enabled && wanted === null) {
+    return { ok: true, projectId, skillId, enabled, version: previous.version, unchanged: true };
+  }
   // Si nadie dice versión: al encender por primera vez, la vigente; al volver a encender, la que estaba
   // puesta. Que una versión publicada mientras el proyecto estaba apagado entre sola sería un cambio
   // silencioso de lo que ese proyecto ejecuta, y para eso está el selector de versión.
@@ -405,14 +433,27 @@ export function toggleAssignment(state, input, { now = new Date().toISOString(),
 }
 
 /** Devuelve una asignación a una versión anterior. La versión que se deja atrás no se borra. */
-export function rollbackAssignment(state, input, { now = new Date().toISOString(), actor = 'human' } = {}) {
+export function rollbackAssignment(state, input, { now = new Date().toISOString(), actor = 'human', authorized = false } = {}) {
+  const refusal = refusesUnauthorizedAi(actor, authorized, 'revierte una asignación');
+  if (refusal !== null) return refusal;
   const projectId = text(input?.projectId);
   const skillId = text(input?.skillId);
   const skill = state.skills[skillId];
   if (skill === undefined) return { ok: false, code: 'missing-skill', message: `no hay ninguna skill con el id "${skillId}"` };
-  const target = versionOf(skill, text(input?.version));
-  if (target === null) return { ok: false, code: 'unknown-version', message: 'esa versión no existe en la skill' };
   const row = state.assignments[projectId];
+  const pinned = text(row?.[skillId]?.version);
+  const requested = text(input?.version);
+  let wanted = requested;
+  if (wanted === '' && pinned !== '') {
+    const order = (skill.versions ?? []).map((version) => text(version.version));
+    const index = order.indexOf(pinned);
+    wanted = index > 0 ? order[index - 1] : '';
+  }
+  if (wanted === '' && pinned !== '') {
+    return { ok: false, code: 'no-previous-version', message: 'no hay una versión anterior a la fijada' };
+  }
+  const target = versionOf(skill, wanted);
+  if (target === null) return { ok: false, code: 'unknown-version', message: 'esa versión no existe en la skill' };
   if (row === undefined || row[skillId] === undefined) {
     return { ok: false, code: 'not-assigned', message: 'esa skill no está asignada a ese proyecto' };
   }
@@ -447,6 +488,59 @@ export function forkSkill(state, input, { now = new Date().toISOString(), actor 
 }
 
 /** Las skills que un proyecto carga de verdad: encendidas, con una versión que existe. */
+
+/**
+ * Avanza a la versión vigente las asignaciones encendidas de un proyecto que se quedaron atrás.
+ * No toca las apagadas: una skill desactivada conserva su versión fija para que volver a encenderla restaure
+ * exactamente lo que había. No toca otros proyectos: la sincronización es por proyecto y explícita.
+ */
+export function advanceAssignments(state, input, { now = new Date().toISOString(), actor = 'human', authorized = false } = {}) {
+  const refusal = refusesUnauthorizedAi(actor, authorized, 'mueve el pin de un proyecto');
+  if (refusal !== null) return refusal;
+  const projectId = text(input?.projectId);
+  if (state.projects[projectId] === undefined) {
+    return { ok: false, code: 'unknown-project', message: 'ese proyecto no está registrado en el centro' };
+  }
+  const wanted = Array.isArray(input?.skillIds) ? input.skillIds.map((value) => text(value)).filter((value) => value !== '') : null;
+  const row = state.assignments[projectId] ?? {};
+  const updated = [];
+  const skipped = [];
+
+  for (const [skillId, assignment] of Object.entries(row)) {
+    if (assignment?.enabled !== true) continue;
+    if (wanted !== null && wanted.includes(skillId) === false) continue;
+    const skill = state.skills[skillId];
+    if (skill === undefined) {
+      skipped.push({ skillId, reason: 'missing-skill' });
+      continue;
+    }
+    const current = text(skill.currentVersion);
+    if (current === '' || assignment.version === current) continue;
+    const target = versionOf(skill, current);
+    if (target === null) {
+      skipped.push({ skillId, reason: 'unknown-version' });
+      continue;
+    }
+    row[skillId] = { ...assignment, version: target.version, updatedAt: now, by: actor === 'ai' ? 'ai' : 'human' };
+    updated.push({ skillId, from: assignment.version, to: target.version });
+    appendEvent(state, {
+      id: eventId(now, 'skill', skillId),
+      at: now,
+      type: 'skill.advanced',
+      skillId,
+      projectId,
+      version: target.version,
+      actor: actor === 'ai' ? 'ai' : 'human',
+      note: 'el proyecto pasó a la versión vigente',
+    });
+  }
+
+  if (updated.length === 0) {
+    return { ok: true, projectId, updated: [], skipped, unchanged: Object.keys(row).length };
+  }
+  return { ok: true, projectId, updated, skipped, unchanged: Object.keys(row).length - updated.length };
+}
+
 export function assignedSkills(state, projectId) {
   const row = state.assignments[projectId];
   if (row === undefined) return [];

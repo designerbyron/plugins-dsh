@@ -27,6 +27,26 @@ import { isSafeId, parseVersion, shortHash } from './format.mjs';
  */
 export const SCHEMA_VERSION = 2;
 
+/**
+ * Esquema que introduce la identidad portable (LSC‑017…025): `uuid`, `manifestSha256`,
+ * `manifestRegisteredAt`, campos de fork/detach y el mapa `operations`. Es **aditivo** y este código lo
+ * lee, lo conserva y lo escribe sin degradarlo; lo que no hace es migrar solo: las operaciones de
+ * identidad exigen v3 y responden `migration-required` mientras el centro esté en v2.
+ */
+export const IDENTITY_SCHEMA_VERSION = 3;
+
+/**
+ * Tope de lectura. No es el esquema que se escribe por defecto (eso es `SCHEMA_VERSION`): es lo que
+ * `normalizeState` acepta sin recortar, porque recortar la versión al leerla y guardarla después
+ * convertiría un centro v3 en v2 sin avisar.
+ */
+export const MAX_SCHEMA_VERSION = 3;
+
+/** ¿Este documento admite operaciones de identidad? */
+export function identityAvailable(state) {
+  return Number.isInteger(state?.schemaVersion) && state.schemaVersion >= IDENTITY_SCHEMA_VERSION;
+}
+
 /** Versión mínima que se acepta leer. v1 se lee; para escribir se migra antes. */
 export const MIN_SCHEMA_VERSION = 1;
 /** Tope del diario de eventos. Más allá de esto lo que sobra no se consulta y engorda cada escritura. */
@@ -56,6 +76,7 @@ export function emptyState(now = new Date().toISOString()) {
     projects: {},
     assignments: {},
     improvements: {},
+    requests: {},
     events: [],
   };
 }
@@ -137,6 +158,19 @@ export function normalizeSkill(raw) {
       note: text(raw.origin.note),
     }
     : { kind: 'human', from: null, fromVersion: null, note: '' };
+  // R16.4 §C: procedencia de un paquete importado. Aditivo y condicional: una skill que no se importó no
+  // gana claves (el round-trip de un centro viejo debe seguir siendo idéntico), y un valor con forma
+  // inválida se descarta en vez de conservarse a medias.
+  if (isObject(raw.origin)) {
+    const bundleChecksum = typeof raw.origin.bundleChecksum === 'string' ? raw.origin.bundleChecksum.trim() : '';
+    if (bundleChecksum !== '') origin.bundleChecksum = bundleChecksum;
+    const originalSkillId = typeof raw.origin.originalSkillId === 'string' ? raw.origin.originalSkillId.trim() : '';
+    if (originalSkillId !== '') origin.originalSkillId = originalSkillId;
+    const originalVersion = typeof raw.origin.originalVersion === 'string' ? raw.origin.originalVersion.trim() : '';
+    if (/^\d+\.\d+\.\d+$/.test(originalVersion)) origin.originalVersion = originalVersion;
+    const importedAt = typeof raw.origin.importedAt === 'string' ? raw.origin.importedAt.trim() : '';
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(importedAt)) origin.importedAt = importedAt;
+  }
   return {
     id: text(raw.id),
     title: text(raw.title),
@@ -152,9 +186,29 @@ export function normalizeSkill(raw) {
   };
 }
 
+/**
+ * Campos de identidad de v3. Se copian **sólo si existen**: una entrada v2 no gana campos vacíos, porque
+ * el hash de su propia representación cambiaría y una lectura se convertiría en una escritura.
+ */
+const PROJECT_IDENTITY_FIELDS = [
+  'uuid',
+  'manifestSha256',
+  'manifestRegisteredAt',
+  'adoptedAt',
+  'detachedFrom',
+  'detachedAt',
+  'detachedSha256',
+  'originalUuid',
+  'forkedFrom',
+  'forkOperationId',
+  'forkedAt',
+  'forkPreviousManifestSha256',
+  'forkArchivedFile',
+];
+
 function normalizeProject(raw) {
   if (!isObject(raw) || typeof raw.id !== 'string' || raw.id === '') return null;
-  return {
+  const project = {
     id: raw.id,
     name: text(raw.name, raw.id),
     cwd: text(raw.cwd),
@@ -162,6 +216,10 @@ function normalizeProject(raw) {
     updatedAt: text(raw.updatedAt),
     note: text(raw.note),
   };
+  for (const field of PROJECT_IDENTITY_FIELDS) {
+    if (typeof raw[field] === 'string' && raw[field] !== '') project[field] = raw[field];
+  }
+  return project;
 }
 
 function normalizeAssignment(raw) {
@@ -188,7 +246,7 @@ export function normalizeState(raw) {
   const state = {
     // La versión del documento se conserva al leer: quien decide subirla es la migración.
     schemaVersion: Number.isInteger(raw.schemaVersion) && raw.schemaVersion >= MIN_SCHEMA_VERSION
-      ? Math.min(raw.schemaVersion, SCHEMA_VERSION)
+      ? Math.min(raw.schemaVersion, MAX_SCHEMA_VERSION)
       : MIN_SCHEMA_VERSION,
     createdAt: text(raw.createdAt, base.createdAt),
     updatedAt: text(raw.updatedAt, base.createdAt),
@@ -252,20 +310,83 @@ export function normalizeState(raw) {
   state.events = list(raw.events)
     .filter((event) => isObject(event) && typeof event.type === 'string')
     .slice(-MAX_EVENTS)
-    .map((event) => ({
-      id: text(event.id),
-      at: text(event.at),
-      type: event.type,
-      skillId: text(event.skillId),
-      projectId: text(event.projectId),
-      version: text(event.version),
-      // `system` no es una persona ni el modelo: es el harness pidiendo el catálogo. Colapsarlo a
-      // `human` falseaba la telemetría (una carga aparecía como acto de una persona).
-      actor: event.actor === 'ai' || event.actor === 'system' ? event.actor : 'human',
-      note: text(event.note),
-    }));
+    .map((event) => {
+      const normalized = {
+        id: text(event.id),
+        at: text(event.at),
+        type: event.type,
+        skillId: text(event.skillId),
+        projectId: text(event.projectId),
+        version: text(event.version),
+        // `system` no es una persona ni el modelo: es el harness pidiendo el catálogo. Colapsarlo a
+        // `human` falseaba la telemetría (una carga aparecía como acto de una persona).
+        actor: event.actor === 'ai' || event.actor === 'system' ? event.actor : 'human',
+        note: text(event.note),
+      };
+      // R16.4 §C/G4: la traza de una importación vive también en el diario. Se conservan los campos de
+      // auditoría sólo cuando existen (un evento viejo round-trip idéntico, sin claves nuevas).
+      if (event.code === 'skill-imported') {
+        const code = text(event.code);
+        if (code !== '') normalized.code = code;
+        const checksum = text(event.checksum);
+        if (checksum !== '') normalized.checksum = checksum;
+        if (typeof event.renamed === 'boolean') normalized.renamed = event.renamed;
+        const renamedFrom = event.renamedFrom;
+        if (typeof renamedFrom === 'string' && renamedFrom !== '') normalized.renamedFrom = renamedFrom;
+        else if (renamedFrom === null) normalized.renamedFrom = null;
+        const originalSkillId = text(event.originalSkillId);
+        if (originalSkillId !== '') normalized.originalSkillId = originalSkillId;
+        const from = event.from;
+        if (typeof from === 'string' && from !== '') normalized.from = from;
+        else if (from === null) normalized.from = null;
+        const originalVersion = text(event.originalVersion);
+        if (/^\d+\.\d+\.\d+$/.test(originalVersion)) normalized.originalVersion = originalVersion;
+      }
+      // R17: la atribución y los deltas del Activity Center también sobreviven a la recarga. Sólo se
+      // copian las claves que existen: un evento viejo se relee exactamente igual.
+      preserveActivityFields(event, normalized);
+      return normalized;
+    });
   // Metadatos de la migración (sólo existen en v2). Si no se conservan, la siguiente lectura del
   // documento los borraría al guardar y el historial de esquema se perdería sin avisar.
+  // Peticiones humanas a la IA: la persona describe la necesidad y el agente la cumple. Se conservan
+  // porque son trabajo pendiente: perderlas al recargar dejaría a alguien esperando para siempre.
+  if (isObject(raw.requests)) {
+    const requests = {};
+    for (const [id, entry] of Object.entries(raw.requests)) {
+      if (!isObject(entry) || typeof id !== 'string' || id === '') continue;
+      const status = ['pending', 'fulfilled', 'dismissed'].includes(entry.status) ? entry.status : 'pending';
+      requests[id] = {
+        id,
+        text: text(entry.text),
+        createdAt: text(entry.createdAt),
+        status,
+        skillId: text(entry.skillId),
+        fulfilledAt: text(entry.fulfilledAt),
+        by: text(entry.by),
+        note: text(entry.note),
+      };
+    }
+    if (Object.keys(requests).length > 0) state.requests = requests;
+  }
+  // Comprobantes durables de operación (v3): sin ellos, la idempotencia dependería de encontrar un
+  // evento en un diario que se compacta, y una reparación interrumpida podría registrarse dos veces.
+  if (isObject(raw.operations)) {
+    const operations = {};
+    for (const [operationId, entry] of Object.entries(raw.operations)) {
+      if (!isObject(entry) || typeof operationId !== 'string' || operationId === '') continue;
+      const status = entry.status === 'registered' ? 'registered' : 'pending';
+      const kind = typeof entry.kind === 'string' ? entry.kind : '';
+      operations[operationId] = {
+        kind,
+        uuid: text(entry.uuid),
+        targetSha256: text(entry.targetSha256),
+        registeredAt: text(entry.registeredAt),
+        status,
+      };
+    }
+    if (Object.keys(operations).length > 0) state.operations = operations;
+  }
   if (isObject(raw.schemaMeta) && Number.isInteger(raw.schemaMeta.migratedFrom)) {
     state.schemaMeta = {
       migratedFrom: raw.schemaMeta.migratedFrom,
@@ -419,6 +540,22 @@ function normalizationLosses(parsed) {
   if (isPlainObject(before.schemaMeta) && !isPlainObject(after.schemaMeta)) {
     losses.push('schemaMeta no sobrevive a la normalización');
   }
+  if (isPlainObject(before.operations)) {
+    if (!isPlainObject(after.operations)) losses.push('operations no sobrevive a la normalización');
+    else {
+      for (const operationId of Object.keys(before.operations)) {
+        if (after.operations[operationId] === undefined) losses.push(`operations.${operationId} no sobrevive`);
+      }
+    }
+  }
+  for (const [id, project] of Object.entries(before.projects ?? {})) {
+    if (!isPlainObject(project)) continue;
+    for (const field of PROJECT_IDENTITY_FIELDS) {
+      if (typeof project[field] === 'string' && after.projects[id]?.[field] !== project[field]) {
+        losses.push(`projects.${id}.${field} no sobrevive`);
+      }
+    }
+  }
 
   for (const [id, improvement] of Object.entries(before.improvements ?? {})) {
     if (!isPlainObject(improvement) || typeof improvement.skillId !== 'string') {
@@ -440,6 +577,13 @@ function normalizationLosses(parsed) {
   }
   if (after.events.length !== Math.min(usableEvents.length, MAX_EVENTS)) {
     losses.push('events no sobreviven en el mismo número');
+  }
+  for (const [id, entry] of Object.entries(parsed.requests ?? {})) {
+    if (!isPlainObject(entry)) {
+      losses.push(`requests.${id} no es un objeto`);
+      continue;
+    }
+    if (typeof entry.text !== 'string' || entry.text.trim() === '') losses.push(`requests.${id} sin texto`);
   }
 
   return losses;
@@ -465,10 +609,14 @@ export function checkStoreShape(parsed) {
     return { ok: false, reason: 'falta "schemaVersion": es obligatorio para saber qué esquema se está leyendo' };
   }
   if (!Number.isInteger(version) || version < MIN_SCHEMA_VERSION) {
-    return { ok: false, reason: `"schemaVersion" no es un entero entre ${MIN_SCHEMA_VERSION} y ${SCHEMA_VERSION}` };
+    return { ok: false, reason: `"schemaVersion" no es un entero entre ${MIN_SCHEMA_VERSION} y ${MAX_SCHEMA_VERSION}` };
   }
-  if (version > SCHEMA_VERSION) {
-    return { ok: false, future: true, reason: `el documento es de la versión ${version} y este centro escribe la ${SCHEMA_VERSION}` };
+  if (version > MAX_SCHEMA_VERSION) {
+    // Un centro más nuevo no se degrada ni se migra aquí: se lee en sólo lectura y avisa.
+    return { ok: false, future: true, reason: `el documento es de la versión ${version} y este código lee hasta la ${MAX_SCHEMA_VERSION}` };
+  }
+  if (parsed.operations !== undefined && !isPlainObject(parsed.operations)) {
+    return { ok: false, reason: '"operations" debería ser un mapa de comprobantes' };
   }
   const losses = normalizationLosses(parsed);
   if (losses.length > 0) {
@@ -713,6 +861,12 @@ export function functionalSignature(state) {
 export function withState(root = defaultRoot(), mutate, { now } = {}) {
   const stamp = now ?? new Date().toISOString();
   const release = acquireLock(root);
+  // R17: las opciones nuevas se leen del mismo objeto sin cambiar la firma que audita el catálogo de
+  // mutantes (`j-lock-removed` declara textualmente la apertura con `{ now }`).
+  const options = arguments.length > 2 && arguments[2] !== null && typeof arguments[2] === 'object' ? arguments[2] : {};
+  const eventDefaults = options.eventDefaults ?? null;
+  const operationId = text(options.operationId);
+  const operationKind = text(options.operationKind);
   try {
     const loaded = loadState(root);
     // La puerta va **dentro** del candado: si se comprobara antes, dos procesos podrían ver un almacén
@@ -729,13 +883,24 @@ export function withState(root = defaultRoot(), mutate, { now } = {}) {
         saved: false,
         state: loaded.state,
         storeError: loaded.error,
+        appended: [],
       };
     }
+    const events = Array.isArray(loaded.state.events) ? loaded.state.events : [];
+    const lastIdBefore = events.length > 0 ? text(events[events.length - 1]?.id) : '';
     const before = functionalSignature(loaded.state);
     const result = mutate(loaded.state, { now: stamp, loaded });
+    // R17/R6: el recibo de la operación hace idempotente el reintento. Se registra sólo si la mutación
+    // salió bien y antes de firmar el documento, para que también cuente como cambio persistido.
+    if (text(operationId) !== '' && result !== null && typeof result === 'object' && result.ok === true) {
+      recordOperation(loaded.state, text(operationId), {
+        kind: text(operationKind) !== '' ? text(operationKind) : 'activity',
+        registeredAt: stamp,
+      });
+    }
     const after = functionalSignature(loaded.state);
     if (before === after) {
-      return { ok: true, saved: false, result, state: loaded.state, storeError: null, integrity: loaded.integrity };
+      return { ok: true, saved: false, result, state: loaded.state, storeError: null, integrity: loaded.integrity, appended: [] };
     }
     // Antes de reemplazar el documento se asegura una copia verificada del que hay en disco. Si no se
     // puede copiar, no se escribe: quedarse sin respaldo es peor que no guardar este cambio.
@@ -749,10 +914,25 @@ export function withState(root = defaultRoot(), mutate, { now } = {}) {
         integrity: loaded.integrity,
         state: loaded.state,
         storeError: loaded.error,
+        appended: [],
       };
     }
+    const appended = (() => {
+      const current = Array.isArray(loaded.state.events) ? loaded.state.events : [];
+      const index = lastIdBefore === '' ? -1 : current.findIndex((event) => text(event?.id) === lastIdBefore);
+      return index === -1 ? current.slice() : current.slice(index + 1);
+    })();
+    // Los valores por defecto de actividad los aporta quien abre la transacción (canal, operación): se
+    // aplican sólo a los eventos nuevos y nunca pisan lo que el dominio ya escribió.
+    if (isObject(eventDefaults)) {
+      for (const event of appended) {
+        if (isObject(event) === false) continue;
+        if (event.channel === undefined && text(eventDefaults.channel) !== '') event.channel = text(eventDefaults.channel);
+        if (event.operationId === undefined && text(eventDefaults.operationId) !== '') event.operationId = text(eventDefaults.operationId);
+      }
+    }
     saveState(root, loaded.state, { now: stamp });
-    return { ok: true, saved: true, result, state: loaded.state, storeError: null, integrity: loaded.integrity, backup: { created: backup.created === true, sha256: backup.sha256 ?? null } };
+    return { ok: true, saved: true, result, state: loaded.state, storeError: null, integrity: loaded.integrity, backup: { created: backup.created === true, sha256: backup.sha256 ?? null }, appended };
   } finally {
     release();
   }
@@ -1468,13 +1648,28 @@ export function migrateStore(root = defaultRoot(), { now = new Date().toISOStrin
   }
 }
 
-/** Añade un evento al diario, recortando por delante lo que ya no cabe. */export function appendEvent(state, event) {
+/**
+ * Durabilidad mínima R17 (§3): sólo dos campos nuevos sobreviven a la recarga.
+ *
+ * El resto del DTO de actividad se deriva al leer; guardar más sería engordar el documento sin necesidad
+ * y, peor, afirmar cosas que luego no se pueden sostener. `channel` es la evidencia de canal y
+ * `operationId` permite el replay idempotente de una operación.
+ */
+function preserveActivityFields(source, target) {
+  const channel = text(source?.channel) || text(source?.actorEvidence?.channel);
+  if (channel !== '') target.channel = channel;
+  const operationId = text(source?.operationId);
+  if (operationId !== '') target.operationId = operationId;
+}
+
+/** Añade un evento al diario, recortando por delante lo que ya no cabe. */
+export function appendEvent(state, event) {
   // `isObject` dice «objeto» y un array no lo es: usarlo aquí vaciaba el diario en cada evento y la
   // telemetría sólo recordaba el último. Se comprueba la forma real del campo, no la del tipo.
   if (!Array.isArray(state.events)) state.events = [];
   const at = text(event.at) || new Date().toISOString();
   const type = text(event.type, 'unknown');
-  state.events.push({
+  const appended = {
     // Id y sello se completan aquí cuando quien llama no los trae: un evento sin identificador no se
     // puede referenciar y uno sin fecha no se puede ordenar, así que no tiene sentido aceptarlos.
     id: text(event.id) || `ev-${shortHash(`${at}:${type}:${state.events.length}`, 12)}`,
@@ -1484,10 +1679,14 @@ export function migrateStore(root = defaultRoot(), { now = new Date().toISOStrin
     projectId: text(event.projectId),
     version: text(event.version),
     // `system` no es una persona ni el modelo: es el harness pidiendo el catálogo. Colapsarlo a
-      // `human` falseaba la telemetría (una carga aparecía como acto de una persona).
-      actor: event.actor === 'ai' || event.actor === 'system' ? event.actor : 'human',
+    // `human` falseaba la telemetría (una carga aparecía como acto de una persona).
+    actor: event.actor === 'ai' || event.actor === 'system' ? event.actor : 'human',
     note: text(event.note),
-  });
+  };
+  // R17 §3: los dos únicos campos durables nuevos. Se escriben aquí para que la transacción los guarde
+  // en el mismo acto que el evento; el resto del DTO se deriva al leer.
+  preserveActivityFields(event, appended);
+  state.events.push(appended);
   if (state.events.length > MAX_EVENTS) state.events.splice(0, state.events.length - MAX_EVENTS);
   return state.events.at(-1);
 }
@@ -1525,4 +1724,34 @@ export function recordDailyEvent(state, { type, skillId = '', projectId = '', ve
     at: `${target}T00:00:00.000Z`,
     id: `${target}-${type}-${skillId}-${projectId}`.slice(0, 120),
   });
+}
+
+/**
+ * Deja un comprobante durable de una operación de filesystem.
+ *
+ * El comprobante vive en el documento porque el diario se compacta: un evento puede desaparecer por
+ * recorte, pero un comprobante no. Se escribe en la **misma** transacción que el evento (misma
+ * `withState`), para que nunca exista uno sin el otro.
+ */
+export function recordOperation(state, operationId, entry = {}) {
+  const id = typeof operationId === 'string' && operationId.length > 0 ? operationId : '';
+  if (id === '') return null;
+  const stamp = typeof entry.registeredAt === 'string' ? entry.registeredAt : new Date().toISOString();
+  const operation = {
+    kind: typeof entry.kind === 'string' ? entry.kind : 'unknown',
+    uuid: typeof entry.uuid === 'string' ? entry.uuid : '',
+    targetSha256: typeof entry.targetSha256 === 'string' ? entry.targetSha256 : '',
+    registeredAt: stamp,
+    status: entry.status === 'pending' ? 'pending' : 'registered',
+  };
+  if (!isObject(state.operations)) state.operations = {};
+  state.operations[id] = operation;
+  return operation;
+}
+
+/** Comprobante ya registrado, para que un reintento no haga trabajo ni escriba de nuevo. */
+export function operationOf(state, operationId) {
+  if (!isObject(state.operations)) return null;
+  const entry = state.operations[operationId];
+  return isObject(entry) ? entry : null;
 }

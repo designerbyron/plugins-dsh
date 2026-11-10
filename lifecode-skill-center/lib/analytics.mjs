@@ -51,11 +51,45 @@ export function activitySeries(state, { now = new Date().toISOString(), days = S
 }
 
 /** Los totales de un vistazo. */
-export function summarize(state, { now = new Date().toISOString(), days = SERIES_DAYS } = {}) {
-  const skills = Object.values(state?.skills ?? {});
+/**
+ * Resumen del centro, opcionalmente acotado a un proyecto y a una skill. El filtro no inventa una segunda
+ * contabilidad: reduce la misma materia prima (asignaciones, mejoras y eventos) y deja que el resto del cálculo
+ * siga siendo el único. Con filtro, «skills» significa «skills que ese proyecto tiene asignadas»; sin filtro,
+ * «skills de la biblioteca».
+ */
+export function summarize(state, { now = new Date().toISOString(), days = SERIES_DAYS, projectId = '', skillId = '' } = {}) {
+  const allSkills = Object.values(state?.skills ?? {});
   const projects = Object.values(state?.projects ?? {});
-  const improvements = Object.values(state?.improvements ?? {});
-  const assignments = state?.assignments ?? {};
+  const selectedProject = typeof projectId === 'string' ? projectId : '';
+  const selectedSkill = typeof skillId === 'string' ? skillId : '';
+
+  const assignedHere = selectedProject !== '' ? Object.keys(state?.assignments?.[selectedProject] ?? {}) : null;
+  // Con una skill pedida, la descripción es la de esa skill aunque el proyecto no la tenga asignada: el filtro de
+  // proyecto acota asignaciones y eventos, no borra la ficha de la skill que el usuario está mirando.
+  const scopedIds = selectedSkill !== ''
+    ? new Set([selectedSkill])
+    : assignedHere !== null
+      ? new Set(assignedHere)
+      : null;
+  const inScope = (id) => scopedIds === null || scopedIds.has(String(id ?? ''));
+
+  const skills = allSkills.filter((skill) => inScope(skill.id));
+  const improvements = Object.values(state?.improvements ?? {}).filter((entry) => inScope(entry.skillId));
+  // Con un filtro de skill, las asignaciones de otros proyectos para esa skill siguen contando: es la misma
+  // skill en varios proyectos, y esconderlo daría una lectura falsa de «cuántos proyectos la tienen».
+  // Se recorta también **dentro** de cada fila: contar la fila entera daría asignaciones de otras skills al
+  // filtrar por una (defecto real: 3 en vez de 2 con alfa en dos proyectos).
+  const trimRow = (row) => (selectedSkill === ''
+    ? row
+    : Object.fromEntries(Object.entries(row ?? {}).filter(([skillIdKey]) => skillIdKey === selectedSkill)));
+  const assignments = Object.fromEntries(Object.entries(state?.assignments ?? {})
+    .filter(([projectIdKey, row]) => (selectedProject === '' || projectIdKey === selectedProject)
+      && (selectedSkill === '' || Object.keys(trimRow(row)).length > 0))
+    .map(([projectIdKey, row]) => [projectIdKey, trimRow(row)]));
+
+  const scopedEvents = (state?.events ?? []).filter((event) =>
+    (selectedProject === '' || String(event?.projectId ?? '') === selectedProject)
+    && (selectedSkill === '' || String(event?.skillId ?? '') === selectedSkill));
 
   let activeAssignments = 0;
   let totalAssignments = 0;
@@ -88,7 +122,7 @@ export function summarize(state, { now = new Date().toISOString(), days = SERIES
   const proposed = improvements.filter((entry) => entry.status === 'proposed').length;
   const approved = improvements.filter((entry) => entry.status === 'approved').length;
   const rejected = improvements.filter((entry) => entry.status === 'rejected').length;
-  const loads = (state?.events ?? []).filter((event) => event?.type === 'skill.loaded').length;
+  const loads = scopedEvents.filter((event) => event?.type === 'skill.loaded').length;
 
   const topSkills = [...skillUsage.entries()]
     .sort((left, right) => right[1] - left[1] || String(left[0]).localeCompare(String(right[0])))
@@ -112,6 +146,6 @@ export function summarize(state, { now = new Date().toISOString(), days = SERIES
     quality: { average: averageQuality, measured: scores.length },
     loads,
     topSkills,
-    series: activitySeries(state, { now, days }),
+    series: activitySeries({ ...state, events: scopedEvents }, { now, days }),
   };
 }

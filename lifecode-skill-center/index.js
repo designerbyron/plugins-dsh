@@ -19,22 +19,102 @@
  */
 
 import { defineTool } from '@deepseek-ai/dsh-tools';
+import { createRequire } from 'node:module';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
+import { loadKnowledge, recordOriginVerification, withKnowledge } from './lib/knowledge.mjs';
 import {
   API_PREFIX,
   CHANNEL_API,
   CHANNEL_BROWSER,
   apiRouteOf,
+  capabilitiesPayload,
   centerRoot,
   handleApiRequest,
   healthPayload,
+  inventoryEvidence,
+  inventoryPayload,
+  projectsPayload,
   workspacesPayload,
 } from './lib/api.mjs';
 import { skillProviderFor } from './lib/provider.mjs';
+import { materializedRoot } from './lib/state.mjs';
 import { centerTools } from './lib/tools.mjs';
 import { createStoreSignal } from './lib/watch.mjs';
 
 export { API_PREFIX };
+
+/**
+ * Comprueba el origen declarado de un hallazgo contra el catálogo real de subagentes del Host.
+ *
+ * El subagente no puede fabricar esta prueba: el cuerpo sólo trae `insightId`, y el hijo se busca en
+ * `subagents.listChildren(...)`. No se usa `agents.currentInitiator()`: en un handler HTTP no hay
+ * ejecución de agente y devolvía `null` (medido en vivo como 503 `initiator-unavailable`). En su lugar
+ * se pregunta por las sesiones que el Host conoce (`agents.list()`) y se acepta como prueba que **alguna**
+ * de ellas liste al hijo declarado; la sesión que lo lista queda escrita como `parentId`.
+ *
+ * Si el servicio no está o no expone `listChildren`, la respuesta es 503 y el hallazgo sigue
+ * **declarado, no verificado**.
+ */
+async function originVerifyOutcome({ ctx, root, admission, body }) {
+  const insightId = String(body?.insightId ?? '').trim();
+  if (insightId === '') return { status: 400, body: { ok: false, code: 'bad-request', message: 'falta insightId' } };
+
+  const subagents = ctx.get?.('subagents');
+  const agents = ctx.get?.('agents');
+  if (typeof subagents?.listChildren !== 'function') {
+    return { status: 503, body: { ok: false, code: 'host-unavailable', message: 'el Host no expone subagents.listChildren: el origen sigue declarado' } };
+  }
+
+  const loaded = loadKnowledge(root);
+  const insight = (loaded.document?.insights ?? []).find((item) => item.insightId === insightId) ?? null;
+  if (insight === null) return { status: 404, body: { ok: false, code: 'insight-not-found', message: insightId } };
+
+  const declared = insight.origin?.declared ?? {};
+  const wanted = [String(declared.sessionId ?? ''), String(declared.parentRunId ?? '')].filter((value) => value !== '');
+  if (wanted.length === 0) {
+    return { status: 200, body: { ok: false, code: 'origin-not-declared', message: 'el hallazgo no declara la sesión que lo produjo: no hay nada que contrastar' } };
+  }
+
+  let sessions = [];
+  try {
+    sessions = typeof agents?.list === 'function' ? agents.list() : [];
+  } catch {
+    sessions = [];
+  }
+  const parentIds = [];
+  for (const agent of Array.isArray(sessions) ? sessions : []) {
+    const id = String(agent?.session?.id ?? agent?.sessionId ?? agent?.id ?? '');
+    if (id !== '' && !parentIds.includes(id)) parentIds.push(id);
+  }
+  if (parentIds.length === 0) {
+    return { status: 503, body: { ok: false, code: 'initiator-unavailable', message: 'el Host no expone sesiones sobre las que contrastar el origen' } };
+  }
+
+  const checked = [];
+  for (const parentId of parentIds) {
+    let children = [];
+    try {
+      children = await subagents.listChildren(parentId);
+    } catch {
+      continue;
+    }
+    checked.push(parentId);
+    const match = (Array.isArray(children) ? children : []).find((child) => wanted.includes(String(child?.id ?? '')));
+    if (match === undefined) continue;
+    const written = withKnowledge(root, (document) => recordOriginVerification(document, {
+      insightId,
+      proof: { childId: String(match.id), parentId, verifiedBy: 'subagents.listChildren', at: new Date().toISOString() },
+    }), { now: new Date().toISOString() });
+    if (written.ok !== true || written.result?.ok !== true) {
+      return { status: 409, body: { ok: false, code: written.result?.code ?? 'write-failed', message: written.result?.detail ?? '' } };
+    }
+    return { status: 200, body: { ok: true, insightId, origin: written.result.insight.origin, saved: written.saved === true } };
+  }
+
+  return { status: 200, body: { ok: false, code: 'origin-not-verified', message: 'el hijo declarado no aparece en el catálogo de ninguna sesión del Host', declaredFor: wanted, checked } };
+}
 
 /** Identidad del Loader. */
 export const name = 'lifecode-skill-center';
@@ -71,6 +151,20 @@ const PROTOCOL = [
 
 /** Cuerpo máximo que acepta un POST del panel: una skill con sus referencias cabe de sobra. */
 const MAX_BODY_BYTES = 1_048_576;
+
+/**
+ * Versión del propio plugin para el handshake de capacidades (R16.2). Se lee del `package.json` con
+ * `createRequire` porque el adaptador es CJS-compatible dentro del harness y un import con `assert`
+ * rompería en algunos cargadores. Si el fichero no se puede leer, el handshake sigue respondiendo: la
+ * versión vacía es un dato honesto, no un error de la ruta.
+ */
+const PLUGIN_VERSION = (() => {
+  try {
+    return String(createRequire(import.meta.url)('./package.json')?.version ?? '');
+  } catch {
+    return '';
+  }
+})();
 
 /**
  * Lee el cuerpo de un POST y lo deja en texto.
@@ -262,6 +356,138 @@ function resolveWorkspaceRegistry(ctx) {
   }
 }
 
+/**
+ * Resuelve un servicio del Host **en cada petición** y devuelve `null` si no está.
+ *
+ * No se cachea el fallo: los servicios pueden montarse después de `apply()` (el registro durable espera a
+ * `sessionPersistence`). Un servicio con forma rara se devuelve tal cual; el payload puro lo valida y
+ * contesta el código cerrado (`skills-registry-unavailable`, `workspace-registry-unavailable`).
+ */
+function resolveService(ctx, name) {
+  try {
+    return ctx?.get?.(name) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveSkillsRegistry(ctx) {
+  return resolveService(ctx, 'skills');
+}
+
+/** `ctx.get('loader')` y, si no está registrado como servicio, la propiedad del loader del contexto. */
+function resolveLoader(ctx) {
+  const service = resolveService(ctx, 'loader');
+  if (service !== null && service !== undefined) return service;
+  try {
+    return ctx?.loader ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveSessions(ctx) {
+  return resolveService(ctx, 'sessionPersistence');
+}
+
+/**
+ * `DSH_HOME` oficial: configurado > `$DSH_HOME` (blanco ignorado) > `~/.dsh`. Nunca cadena vacía: si ni
+ * config ni entorno lo dan, la raíz personal del usuario es la respuesta oficial, no una ruta inventada.
+ */
+export function resolveDshHome(config = {}, env = process.env) {
+  const configured = typeof config?.dshHome === 'string' ? config.dshHome.trim() : '';
+  if (configured !== '') return configured;
+  const fromEnv = typeof env?.DSH_HOME === 'string' ? env.DSH_HOME.trim() : '';
+  if (fromEnv !== '') return fromEnv;
+  const home = homedir();
+  return home === '' ? '' : join(home, '.dsh');
+}
+
+export function resolveAgentsHome(config = {}, env = process.env) {
+  const configured = typeof config?.agentsHome === 'string' ? config.agentsHome.trim() : '';
+  if (configured !== '') return configured;
+  const fromEnv = typeof env?.DSH_AGENTS_HOME === 'string' ? env.DSH_AGENTS_HOME.trim() : '';
+  if (fromEnv !== '') return fromEnv;
+  const home = homedir();
+  return home === '' ? '' : join(home, '.agents');
+}
+
+/**
+ * Acciones POST que pasan por una compuerta de preflight. Para juzgarlas con datos reales el adaptador
+ * mide el inventario **antes** del despacho sincrónico: el motor de colisiones tiene que ver las entradas,
+ * no un lienzo vacío (§4.3).
+ */
+const GATED_ACTIONS = new Set([
+  'register-project',
+  'adopt-project',
+  'repair-manifest',
+  'detach-project',
+  'materialize-project',
+  'toggle',
+  'create',
+  'publish',
+  'import',
+  'inspect-bundle',
+  'import-bundle',
+]);
+
+/**
+ * Fuentes que sólo el Host puede medir. Las demás (`state`, `manifest`, `filesystem-*`) las vuelve a
+ * medir el gate sobre el almacén y el sistema de ficheros reales: heredar su estado de la foto del
+ * inventario las pisaría con una lectura distinta de la que decide.
+ */
+const HOST_MEASURED_SOURCES = new Set(['skills-registry', 'loader', 'sessions']);
+
+/**
+ * Evidencia que el despacho **sincrónico** no puede leer por sí mismo.
+ *
+ * `runAction` no puede esperar, así que el adaptador preconsulta aquí el inventario completo y las
+ * colisiones, y le pasa la foto ya medida. Si la medición falla se declara una fila `skills-registry` en
+ * `error` (fail-closed honesto): nunca un `null` silencioso que aparente «no hay conflictos».
+ */
+async function resolvePreflightEvidence({ ctx, root, cwd, dshHome, agentsHome }) {
+  try {
+    const evidence = await inventoryEvidence({
+      root,
+      registry: resolveWorkspaceRegistry(ctx),
+      skills: resolveSkillsRegistry(ctx),
+      loader: resolveLoader(ctx),
+      sessions: resolveSessions(ctx),
+      hostCwd: cwd,
+      cwd,
+      dshHome,
+      agentsHome,
+      materializedRoot: materializedRoot(root),
+    });
+    if (evidence.unavailable !== undefined) {
+      return {
+        inventory: null,
+        collisions: null,
+        hostSources: [{ id: 'skills-registry', status: 'unavailable', reason: evidence.unavailable.message }],
+      };
+    }
+    if (evidence.storeUnreadable !== undefined) {
+      // El gate vuelve a leer el almacén y contesta 409: aquí no se inventa evidencia.
+      return { inventory: null, collisions: null, hostSources: null };
+    }
+    return {
+      inventory: evidence.inventory,
+      collisions: evidence.collisions,
+      // Sólo las fuentes que SÓLO el Host puede medir pisan la compuerta; las de E/S (state, manifest,
+      // filesystem-*) las vuelve a medir el gate sobre el almacén real y no se heredan de la foto.
+      hostSources: Array.isArray(evidence.sources)
+        ? evidence.sources.filter((row) => HOST_MEASURED_SOURCES.has(String(row?.id ?? '')))
+        : null,
+    };
+  } catch (error) {
+    return {
+      inventory: null,
+      collisions: null,
+      hostSources: [{ id: 'skills-registry', status: 'error', reason: `la medición del inventario falló: ${String(error?.message ?? error)}` }],
+    };
+  }
+}
+
 export function apply(ctx, config = {}) {
   const root = config.root ?? centerRoot();
 
@@ -272,7 +498,21 @@ export function apply(ctx, config = {}) {
     text: PROTOCOL,
   });
 
-  for (const tool of centerTools({ root })) ctx.tools.register(defineTool(tool));
+  // La creación asistida por IA también pasa por la compuerta: el adaptador mide inventario y colisiones
+  // justo antes de ejecutar, para que un nombre que ya sirve otro proveedor no se cree a ciegas.
+  const toolEvidence = async ({ cwd = '' } = {}) => {
+    const measured = await resolvePreflightEvidence({
+      ctx,
+      root,
+      cwd: cwd === '' ? resolveHostCwd(ctx) : String(cwd),
+      dshHome: resolveDshHome(config),
+      agentsHome: resolveAgentsHome(config),
+    });
+    // Sin inventario se conserva la fila de fuente medida (si la hay): la compuerta de creación debe
+    // poder avisar `catalog-unverified` en vez de callar que el catálogo no se miró.
+    return { inventory: measured.inventory ?? null, collisions: measured.collisions ?? null, hostSources: measured.hostSources ?? null };
+  };
+  for (const tool of centerTools({ root, evidence: toolEvidence })) ctx.tools.register(defineTool(tool));
 
   // ── El catálogo y su invalidación ───────────────────────────────────────────────────────────────
   // El registro cachea los catálogos y sólo los tira cuando el provider llama a la invalidación que él
@@ -331,7 +571,28 @@ export function apply(ctx, config = {}) {
         return;
       }
 
-      // 2. Un `Origin` ajeno se rechaza antes de admitir. El proxy del escritorio borra esta cabecera en
+      // 2. El handshake de capacidades es la SEGUNDA y última superficie sin credencial. Se sirve antes
+      //    de la admisión porque un panel contra un backend viejo (o con `connection` caída) necesita
+      //    distinguir «esta ruta no existe» de «existe pero le faltan capacidades»; si quedara detrás de
+      //    la puerta, un 503/401 sería indistinguible de un backend antiguo. Su payload es 100% estático
+      //    y del propio plugin (id, versión, apiVersion, contractVersion, capabilities, rutas, contrato,
+      //    generatedAt): no lee almacén, no resuelve servicios, no devuelve rutas de disco, recuentos ni
+      //    datos del usuario. Todo lo demás sigue exigiendo admisión (paso 4).
+      if ((method === 'GET' || method === 'HEAD') && route === 'capabilities') {
+        sendJson(
+          res,
+          200,
+          capabilitiesPayload({
+            now: new Date().toISOString(),
+            pluginVersion: PLUGIN_VERSION,
+            implementation: 'r16.2',
+          }),
+          { head: method === 'HEAD' },
+        );
+        return;
+      }
+
+      // 3. Un `Origin` ajeno se rechaza antes de admitir. El proxy del escritorio borra esta cabecera en
       //    el canal del panel, así que esto sólo alcanza a peticiones directas; se conserva como defensa
       //    en profundidad y porque un Host/Origin no confiable es un 403 declarado en el contrato.
       const origin = String(req.headers?.origin ?? '');
@@ -343,7 +604,7 @@ export function apply(ctx, config = {}) {
         }
       }
 
-      // 3. La puerta. Sin credencial del Host no se lee ni se escribe nada: el fallo es visible (401/403)
+      // 4. La puerta. Sin credencial del Host no se lee ni se escribe nada: el fallo es visible (401/403)
       //    y, si el harness no ofrece `connection`, es 503 — nunca una lectura libre por omisión.
       const admission = admitRequest(ctx, req);
       if (!admission.ok) {
@@ -351,7 +612,7 @@ export function apply(ctx, config = {}) {
         return;
       }
 
-      // 4. Sólo después de admitir se toca el cuerpo y el almacén.
+      // 5. Sólo después de admitir se toca el cuerpo y el almacén.
       let body = null;
       if (method === 'POST') {
         const raw = await readRequestBody(req);
@@ -365,24 +626,86 @@ export function apply(ctx, config = {}) {
       }
 
       let outcome = null;
+      const hostCwd = resolveHostCwd(ctx);
+      const dshHome = resolveDshHome(config);
+      const agentsHome = resolveAgentsHome(config);
       try {
-        // El inventario de workspaces necesita el servicio del Host, así que se compone aquí: el despacho
-        // puro no puede tocar `ctx`, y devolverle una foto falsa sería peor que decir «no disponible».
         if ((method === 'GET' || method === 'HEAD') && route === 'workspaces') {
+          // El inventario de workspaces necesita el servicio del Host, así que se compone aquí: el despacho
+          // puro no puede tocar `ctx`, y devolverle una foto falsa sería peor que decir «no disponible».
           outcome = await workspacesPayload({
             root,
             registry: resolveWorkspaceRegistry(ctx),
-            hostCwd: resolveHostCwd(ctx),
+            hostCwd,
           });
+        } else if ((method === 'GET' || method === 'HEAD') && route === 'inventory') {
+          // Inventario único de skills de todas las fuentes (§5.1). El adaptador sólo resuelve servicios;
+          // la decisión de qué es cada entrada y cuándo una fuente está incompleta vive en `lib/`.
+          const params = new URLSearchParams(url.search);
+          outcome = await inventoryPayload({
+            root,
+            registry: resolveWorkspaceRegistry(ctx),
+            skills: resolveSkillsRegistry(ctx),
+            loader: resolveLoader(ctx),
+            sessions: resolveSessions(ctx),
+            hostCwd,
+            dshHome,
+            agentsHome,
+            materializedRoot: materializedRoot(root),
+            limit: params.get('limit') ?? undefined,
+          });
+        } else if ((method === 'GET' || method === 'HEAD') && route === 'projects') {
+          // Proyección de los siete estados (§5.4): el registro de workspaces y la sesión viva los pone
+          // el Host; el estado, el manifiesto y el materializado los pone el centro.
+          const params = new URLSearchParams(url.search);
+          outcome = await projectsPayload({
+            root,
+            registry: resolveWorkspaceRegistry(ctx),
+            hostCwd,
+            skills: resolveSkillsRegistry(ctx),
+            loader: resolveLoader(ctx),
+            sessions: resolveSessions(ctx),
+            cwd: params.get('cwd') ?? '',
+            dshHome,
+            agentsHome,
+            materializedRoot: materializedRoot(root),
+          });
+        } else if (method === 'POST' && route === 'origin-verify') {
+          outcome = await originVerifyOutcome({ ctx, root, admission, body });
         } else {
+          // Las acciones que llevan compuerta necesitan la foto real del inventario y de las colisiones:
+          // `runAction` es sincrónico y no puede medirlas, así que el adaptador las mide aquí, antes del
+          // despacho. Si la medición falla, la fila de fuente viaja en `error` (nunca un `null` callado).
+          let evidence = null;
+          if (method === 'POST' && GATED_ACTIONS.has(String(body?.action ?? ''))) {
+            evidence = await resolvePreflightEvidence({
+              ctx,
+              root,
+              cwd: String(body?.cwd ?? body?.payload?.cwd ?? '') || hostCwd,
+              dshHome,
+              agentsHome,
+            });
+          }
           outcome = handleApiRequest({
             root,
             method,
             pathname: url.pathname,
             search: url.search,
             body,
-            hostCwd: resolveHostCwd(ctx),
+            hostCwd,
             channel: admission.channel,
+            // La comprobación del producto informa del inventario del Host, no de una foto: se le pasa el servicio
+            // resuelto, igual que a la ruta de workspaces. Sin él, ese renglón diría «no disponible» siendo falso.
+            registry: resolveWorkspaceRegistry(ctx),
+            skills: resolveSkillsRegistry(ctx),
+            loader: resolveLoader(ctx),
+            sessions: resolveSessions(ctx),
+            dshHome,
+            agentsHome,
+            materializedRoot: materializedRoot(root),
+            hostSources: evidence?.hostSources ?? null,
+            inventory: evidence?.inventory ?? null,
+            collisions: evidence?.collisions ?? null,
           });
         }
       } catch (error) {
