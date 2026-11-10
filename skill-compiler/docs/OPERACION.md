@@ -385,6 +385,7 @@ $DSH_HOME/skill-compiler/projects/<clave>/
   approved/<id>/   lo que el proveedor sirve
   rejected/<id>/   apartado
   superseded/<id>-<fecha>/   versión anterior
+  superseded/proposals/<id>/<revision>/   candidata sustituida (SKILL.md · meta.json · references/)
 ```
 
 La `<clave>` de proyecto se deriva del `cwd`: `<último-tramo>-<hash8>`. Para saber la de un directorio:

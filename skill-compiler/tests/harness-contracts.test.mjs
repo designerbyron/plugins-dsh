@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 import { defineTool } from '@deepseek-ai/dsh-tools';
 
-import { skillPropose, skillReview, skillUpstreamCheck, skillVendor } from '../lib/definitions.mjs';
+import { skillImprove, skillPropose, skillReview, skillUpstreamCheck, skillVendor } from '../lib/definitions.mjs';
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8'));
@@ -45,13 +45,14 @@ function hostSources(dir = PACKAGE_ROOT, found = []) {
 }
 
 describe('contratos con el harness', () => {
-  it('las cuatro herramientas compilan con el compilador REAL del harness', () => {
+  it('las cinco herramientas compilan con el compilador REAL del harness', () => {
     const root = join(PACKAGE_ROOT, 'tmp-de-prueba');
     const definitions = {
       skill_propose: skillPropose({ root, curated: [] }),
       skill_vendor: skillVendor({ root }),
       skill_review: skillReview({ root }),
       skill_upstream_check: skillUpstreamCheck({ root }),
+      skill_improve: skillImprove({ root }),
     };
     for (const [name, definition] of Object.entries(definitions)) {
       // Si un esquema no es válido, `defineTool` lanza JsonSchemaError. Es exactamente lo que hacía el

@@ -1,8 +1,24 @@
 # El anfitrión: qué ofrece hoy, qué no, y cómo queda el plugin
 
 Este documento declara **lo que el anfitrión (DeepSeek Harness) ofrece de verdad**, lo que no, y cómo el plugin
-se comporta en cada caso. Todo lo de la primera tabla está medido contra la compilación instalada el 19-10-2026
-(`app.asar` del 17-10 03:20), no deducido de la documentación.
+se comporta en cada caso. Todo lo de la primera tabla está medido contra la compilación instalada, no deducido
+de la documentación.
+
+## 0 · Qué versión es cada cosa
+
+Cuatro números que no hay que confundir, porque una frase como «compatible con DSH», sin ellos, no dice nada:
+
+| Qué | Valor en esta medición |
+|---|---|
+| **Plugin** (este paquete) | `5.0.2` — el de `package.json`, publicado como tag `v5.0.2` |
+| **Anfitrión** (DSH instalado) | `0.2.1-rc.5`, build `d4db512a`, canal **nightly**, `app.asar` compilado el 2026-10-29 |
+| **Dependencias del anfitrión** que instala este paquete | `0.2.0-rc.2`, clavadas a propósito: el motivo y el procedimiento de subida están en [`DEPENDENCIAS.md`](DEPENDENCIAS.md) |
+| **Medición** | 2026-11-04, contra el anfitrión de la fila anterior |
+
+`0.2.1-rc.5` es una compilación **nightly**, no una versión estable de DSH. Lo que aquí se declara es
+compatibilidad con **esa** build, **medida ese día**: otra compilación no medida no queda cubierta, y la forma de
+cubrirla es repetir las sondas de este documento sobre ella. Las filas que citan una compilación anterior llevan
+su fecha y se conservan como historia; no se reescriben.
 
 ## 1 · Capacidades medidas
 
@@ -12,9 +28,13 @@ se comporta en cada caso. Todo lo de la primera tabla está medido contra la com
 | Registro de comandos **por agente** (filas por propuesta en el menú «/») | **no** | tres caminos probados, tres motivos (abajo) |
 | Ejecutar una orden desde la interfaz (`runCommand` con texto) | **sí**, con **texto con barra** | el panel aprobó 10 propuestas reales: 3 + 7, 0 fallos |
 | Listar los comandos existentes (`listCommands`) | **sí** | el panel mide el efecto contra esa lista |
-| Nombre del comando por idioma en el menú «/», con cambio en vivo | **sí** | el operador fijó `--es` en la 0.2.1-rc.2 y el menú pasó de `/skill-approve` a `/skill-aprobar` **sin reiniciar** (abajo) |
+| Nombre del comando por idioma en el menú «/», con cambio en vivo | **sí** | el operador fijó `--es` en la `0.2.1-rc.2` (2026-10-23) y el menú pasó de `/skill-approve` a `/skill-aprobar` **sin reiniciar** (abajo) |
 | Eventos de sesión (`session.snapshotEvents()`) | **sí** | `/skill-auto` se pliega de los `command/run` |
 | Catálogo de skills por proyecto (`~/.dsh/skills`, `approved/`) | **sí** | 36 aprobadas, 4 publicadas y 1 apagada en la medición de la 4.0.0 (2026-10-23; 48 auditadas), servidas sin reiniciar |
+| Herramientas del plugin registradas y visibles al modelo | **sí** | las cuatro (`skill_propose`, `skill_vendor`, `skill_review`, `skill_upstream_check`) en la lista de herramientas de una sesión real: 56 en total (2026-11-04) |
+| Protocolo del plugin en el prompt de sistema | **sí** | presente en el `system/message` de esa misma sesión: 938 caracteres (2026-11-04) |
+| Proyección registrada en el registro **real** | **sí** | `doctor`: el registro de proyecciones real proyecta la unidad sin lanzar, en snapshot y en lectura en frío (2026-11-04) |
+| Filas de pendientes materializadas en el registro de comandos | **sí** | `doctor` desde un proyecto con dos propuestas: `2 pending -> 8 menu rows`, con sus cuatro verbos por pendiente (2026-11-04) |
 
 ### Lo que no ofrece: filas de comando por agente
 
@@ -47,7 +67,7 @@ idioma activo. `register()` devuelve el **disposer** de esa definición y cada a
 `commands/change`, al que está suscrito el adaptador de UI (`dsh-client-ui-commands`), cuya invalidación es
 **suave**: por eso el cambio de idioma da las altas **antes** que las bajas.
 
-Eso se midió **en vivo** en la `0.2.1-rc.2`: ejecutado `/skill-compiler-language --es`, el comando contestó
+Eso se midió **en vivo** en la `0.2.1-rc.2` (2026-10-23): ejecutado `/skill-compiler-language --es`, el comando contestó
 «Idioma fijado en es (antes en). El menu / ofrece /skill-aprobar» y, **sin reiniciar la app**, el menú `/` pasó
 de `/skill-approve` a `/skill-aprobar` con su descripción en español. `doctor` dice el idioma activo y las filas
 que sirve (`16 operaciones y 16 filas en <idioma>`), construidas desde el mapa y no desde un número escrito a
@@ -124,7 +144,7 @@ Consecuencias, dichas sin adornos:
 | `ownership.json` ausente | la propiedad del puesto no se presume | `ownership dsh-only` o `ownership machine` |
 | **Leer** qué está pendiente ejecuta `/skill-pending` (el anfitrión no da un canal de lectura) | cada lectura deja una notificación en el flujo, y el panel preguntaba cinco veces por decisión | desde la 5.0.1 el panel comparte **una foto por sesión** (una lectura en vuelo, ventana de 1,5 s, `force` para medir el efecto) y pregunta **una vez antes y una después** de decidir; las demás tarjetas leen esa misma foto, y una propuesta ya decidida deja de ofrecerse | un canal de lectura del anfitrión que no ejecute el comando |
 
-La etiqueta de release vigente es **`v5.0.1`** —la que declara los contratos de este documento—; el historial de
+La etiqueta de release vigente es **`v5.0.2`** —la que declara los contratos de este documento—; el historial de
 versiones está en [`CHANGELOG.md`](../../CHANGELOG.md).
 
 Lo que **no** es una limitación y conviene no confundir: el aprendizaje funciona de punta a punta —proponer,

@@ -34,6 +34,8 @@ import { join } from 'node:path';
 
 import { lineasDePuerta } from './audit.mjs';
 import { parseFrontmatter } from './compiler.mjs';
+import { ejecutarAprobacion } from './approve-tx.mjs';
+import { huellaDeContenido } from './security.mjs';
 import { resolveLang, t, textoDeCodigo } from './i18n/index.mjs';
 
 /** Un token nuevo por arranque: 128 bits en hexadecimal. */
@@ -91,6 +93,7 @@ function readState(root, key, state) {
 export function buildReview(root, key, check) {
   const pending = readState(root, key, 'proposed').map((row) => ({ ...row, check: check(row.id, key) }));
   return {
+    root,
     projectKey: key,
     pending,
     approved: readState(root, key, 'approved').map((row) => ({ id: row.id, description: row.description })),
@@ -216,9 +219,18 @@ export function resolveAction(model, id, action, { approve, reject, force = fals
   if (row.check.warnings.length > 0 && force !== true) {
     return { status: 303, notice: tx('review.notice.warnings', { id }), noticeCode: 'review.notice.warnings', noticeParams: { id } };
   }
-  const result = approve(id, model.projectKey);
+  // La misma transaccion que el comando humano: la version viva se aparta con manifiesto y el asiento
+  // del diario es obligatorio antes de dar la aprobacion por buena. La carpeta de la propuesta se toma de
+  // la validacion si la trae; si no, se compone desde el modelo (el `check` inyectado puede no devolverla).
+  const dirPropuesta = row.check.dir ?? join(model.root, 'projects', model.projectKey, 'proposed', id);
+  const result = ejecutarAprobacion({
+    root: model.root, key: model.projectKey, id,
+    esperada: huellaDeContenido(dirPropuesta),
+    scope: 'project',
+    nota: 'aprobacion desde el panel de revision',
+  });
   if (!result.ok) {
-    const params = { id, reason: result.reason ?? tx('review.notice.fallback') };
+    const params = { id, reason: result.error ?? result.reason ?? tx('review.notice.fallback') };
     return { status: 303, notice: tx('review.notice.failed', params), noticeCode: 'review.notice.failed', noticeParams: params };
   }
   const params = { id };

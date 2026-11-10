@@ -55,11 +55,11 @@ describe('activación', () => {
     assert.equal(inject.includes('sessionProjections'), false, 'la proyección es opcional: no puede impedir el arranque');
   });
 
-  it('apply() no lanza y registra la sección, las cuatro herramientas y el proveedor', () => {
+  it('apply() no lanza y registra la sección, las cinco herramientas y el proveedor', () => {
     const s = sandbox();
     const { ctx, seen, disposeAll } = fakeContext();
 
-    // Es la llamada que hacía fallar al plugin: dentro compila las cuatro definiciones.
+    // Es la llamada que hacía fallar al plugin: dentro compila las cinco definiciones.
     // Señal propia sin vigilancia: esta prueba mide la activación, no el sistema de ficheros.
     apply(ctx, { root: s.root, catalog: createCatalogSignal({ root: s.root, watch: false }) });
 
@@ -69,7 +69,7 @@ describe('activación', () => {
     assert.equal(seen.sections[0].text.includes('skill_propose'), true);
 
     assert.deepEqual(seen.tools.map((t) => t.name).sort(),
-      ['skill_propose', 'skill_review', 'skill_upstream_check', 'skill_vendor']);
+      ['skill_improve', 'skill_propose', 'skill_review', 'skill_upstream_check', 'skill_vendor']);
     // Cada herramienta trae el esquema de parámetros que verá el modelo: si `defineTool` no se hubiera
     // podido cargar, esto estaría vacío.
     const propose = seen.tools.find((t) => t.name === 'skill_propose');

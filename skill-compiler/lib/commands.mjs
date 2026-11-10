@@ -31,6 +31,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { AUTO_COMMAND, autoApproveFromEvents, parseAutoCommand } from './auto-approve.mjs';
+import { ejecutarAprobacion, recuperarTransacciones } from './approve-tx.mjs';
+import { conCerrojo } from './lock.mjs';
 import {
   ambito,
   approve, checkProposal, curatedLibraryRoot, defaultRoot, disable, enable, listForProject, locate, move, pending, sugerenciaDeId,
@@ -310,8 +312,33 @@ export function approveProposal({ root = defaultRoot(), key, id, force = false, 
       { code: 'invalid-flag', params: { flag: '--preserve-state', id: wanted } },
     );
   }
-  const moved = approve(wanted, key, { root, scope, esperada: huellaAntes, ...(preservarEstado ? { estado: 'disabled' } : {}) });
-  if (!moved.ok) return bad(t('cmd.approve.move-failed', { id: wanted, reason: moved.reason }));
+  const ejecutada = conCerrojo(root, key, wanted, () => {
+    // Primero, cerrar lo que haya quedado a medias de una aprobacion anterior sobre este id.
+    const recuperacion = recuperarTransacciones({ root, key });
+    if (scope !== 'global') {
+      const r = ejecutarAprobacion({
+        root, key, id: wanted, scope,
+        esperada: huellaAntes,
+        estado: preservarEstado ? 'disabled' : 'approved',
+        nota: `aprobacion humana de ${wanted}`,
+        avisos: check.warnings,
+        cerrojo: false, // ya se tomo arriba, en `conCerrojo`
+      });
+      return r.ok
+        ? { ok: true, path: r.path, superseded: r.superseded, manifiesto: r.manifiesto, tx: r.tx, recuperacion }
+        : { ok: false, reason: r.error, problemas: r.problemas ?? [], tx: r.tx, recuperacion };
+    }
+    // Publicar en la biblioteca global sigue por su camino: mueve a otra raiz y deja constancia en `published/`.
+    const global = approve(wanted, key, { root, scope, esperada: huellaAntes });
+    return { ...global, recuperacion };
+  });
+  if (ejecutada?.lock) return bad(ejecutada.reason);
+  if (!ejecutada.ok) {
+    const lineas = [t('cmd.approve.move-failed', { id: wanted, reason: ejecutada.reason })];
+    if (Array.isArray(ejecutada.problemas) && ejecutada.problemas.length > 0) lineas.push(...ejecutada.problemas);
+    return bad(lineas.join('\n'));
+  }
+  const moved = ejecutada;
 
   // El catálogo acaba de cambiar: sin este aviso, la skill no llega al agente hasta reiniciar.
   catalog?.notify();
@@ -319,18 +346,23 @@ export function approveProposal({ root = defaultRoot(), key, id, force = false, 
   // La aprobación queda registrada **con sus huellas**: qué contenido se aprobó y cuál quedó activo. Sin esta
   // entrada, «se aprobó» es una afirmación sin respaldo —y las aprobaciones eran justo lo único que no
   // anotaba el diario, mientras las promociones sí.
-  anotarEntradaEnDiario(diarioDelProyecto(root, key), {
-    id: wanted,
-    key,
-    decision: scope === 'global' ? 'publicada' : (preservarEstado ? 'actualizada-apagada' : 'aprobada'),
-    ambito: scope,
-    por: 'humano',
-    canal: 'comando',
-    hashAnterior: huellaAntes,
-    hashResultante: huellaDeContenido(join(moved.path, '..')),
-    superseded: moved.superseded ?? null,
-    avisos: check.warnings,
-  });
+  // El asiento de una aprobacion **local** lo escribe la transaccion (`approve-tx.mjs`), que ademas
+  // comprueba que quedo escrito y deshace la operacion si no. Aqui solo queda el de la publicacion global,
+  // que va por otra raiz y no pasa por esa transaccion.
+  if (scope === 'global') {
+    anotarEntradaEnDiario(diarioDelProyecto(root, key), {
+      id: wanted,
+      key,
+      decision: 'publicada',
+      ambito: scope,
+      por: 'humano',
+      canal: 'comando',
+      hashAnterior: huellaAntes,
+      hashResultante: huellaDeContenido(join(moved.path, '..')),
+      superseded: moved.superseded ?? null,
+      avisos: check.warnings,
+    });
+  }
 
   // Belt and braces: si el contenido activado no es el validado, no se queda activo con un aviso — se
   // devuelve a `proposed`, se dice qué fichero difiere y la aprobación se declara fallida.

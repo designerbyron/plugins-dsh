@@ -695,6 +695,36 @@ switch (command) {
       line(false, tr('cli.doctor.security-failed', { message: error.message }), tr('cli.doctor.security-failed-remedy'));
     }
 
+    // Aprobaciones que quedaron a medias. `doctor` solo mira: quien repara es la siguiente aprobacion de ese
+    // proyecto (que recupera dentro del cerrojo antes de tocar nada) o una recuperacion explicita. Se dice
+    // aqui porque, si no, una intencion puede quedarse en `.tx/` sin que nadie la vea nunca.
+    try {
+      const { diagnosticarTransacciones } = await import('../lib/approve-tx.mjs');
+      const { leerProyectosDelAlmacen } = await import('../lib/compiler.mjs');
+      const almacen = leerProyectosDelAlmacen(root);
+      if (almacen.estado === 'legible') {
+        for (const proyecto of almacen.proyectos) {
+          for (const t of diagnosticarTransacciones({ root, key: proyecto }).pendientes) {
+            const datos = {
+              id: t.id ?? t.tx, proyecto, estado: t.estado, tx: t.tx,
+              problemas: t.problemas.join('; ') || tr('cli.doctor.tx-no-detail'),
+            };
+            // Una transaccion a medias impide decir "everything in place" (o se revierte, o se completa),
+            // pero no es lo mismo que una inconsistencia: `revert`/`complete`/`mismatch` se cierran solos en
+            // la siguiente aprobacion, y se marcan como pendientes. `inconsistent`/`unreadable` son rojo.
+            const grave = t.estado === 'inconsistent' || t.estado === 'unreadable';
+            const clave = grave ? 'cli.doctor.tx-inconsistent'
+              : t.problemas.length > 0 ? 'cli.doctor.tx-pending-detail' : 'cli.doctor.tx-pending';
+            bad += 1;
+            process.stdout.write(`${(grave ? tr('cli.mark.fail') : tr('cli.mark.pending')).padEnd(6)} ${tr(clave, datos)}\n`);
+            process.stdout.write(`${tr('cli.doctor.remedy', { remedy: tr('cli.doctor.tx-remedy') })}\n`);
+          }
+        }
+      }
+    } catch (error) {
+      line(false, tr('cli.doctor.tx-failed', { message: error.message }), tr('cli.doctor.tx-remedy'));
+    }
+
     // El idioma, con su fuente. Informativo: un `DSH_LANG` invalido no impide activar el plugin, pero se dice
     // una vez y con el valor recibido -callarlo seria peor que el propio error-.
     {

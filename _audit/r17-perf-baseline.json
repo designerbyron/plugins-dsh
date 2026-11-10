@@ -1,0 +1,31 @@
+{
+  "measuredAt": "2026-11-10T01:04:37.242Z",
+  "stage": "baseline-before-r17",
+  "files": {
+    "clientBytes": 454594,
+    "indexBytes": 31694,
+    "apiBytes": 189722,
+    "libFiles": 28,
+    "libBytes": 671740
+  },
+  "codeCounts": {
+    "clientFetch": 12,
+    "clientSetInterval": 1,
+    "clientSetTimeout": 2,
+    "clientRaf": 0,
+    "indexSetInterval": 0,
+    "apiSetInterval": 0,
+    "clientNotifyCallers": 39,
+    "clientActivityUI": 44
+  },
+  "store": {
+    "events": 29,
+    "skills": 8,
+    "projects": 3,
+    "eventsBytes": 6336,
+    "last80SnapshotBytes": 6336
+  },
+  "expectedStartupRequests": 0,
+  "expectedIdleRequests": 0,
+  "note": "El panel no arranca con fetch propio: snapshot se carga al abrir (load()); no hay polling ni setInterval. Baseline de tamaño y de payload; el coste de render se mide en tests/r17-* con el runtime de pruebas."
+}

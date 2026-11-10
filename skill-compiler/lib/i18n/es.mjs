@@ -375,6 +375,8 @@ export default Object.freeze({
   'cli.no-scope-label': '(sin ambito)',
   'cli.mark.ok': 'ok',
   'cli.mark.fail': 'FALLA',
+  // Una operacion a medias se puede cerrar sola: no es lo mismo que una puerta roja. La marca lo dice.
+  'cli.mark.pending': 'PEND',
   'cli.check.fail': 'FALLO  {error}',
   'cli.check.warning': 'aviso  {aviso}',
   'cli.check.green': '{id}: en verde',
@@ -477,6 +479,13 @@ export default Object.freeze({
   'cli.doctor.security-failed-remedy': 'comprueba que el almacen existe y se puede leer',
   'cli.doctor.security-empty': 'capa de seguridad: nada que revisar todavia (no existe {ruta}: el almacen aun no tiene proyectos)',
   'cli.doctor.security-unreadable': 'capa de seguridad: no se pudo leer {ruta} ({codigo})',
+  // Aprobaciones que quedaron a medias: la intencion sigue en `.tx/` y el paquete esta donde el cierre lo dejo.
+  'cli.doctor.tx-pending': 'transaccion pendiente (recuperable): {id} en {proyecto} - estado {estado} - tx {tx} - recuperacion: necesaria',
+  'cli.doctor.tx-pending-detail': 'transaccion pendiente: {id} en {proyecto} - estado {estado} - tx {tx} - {problemas} - recuperacion: necesaria',
+  'cli.doctor.tx-inconsistent': 'transaccion inconsistente: {id} en {proyecto} - estado {estado} - tx {tx} - {problemas}',
+  'cli.doctor.tx-remedy': 'se cierra sola en la siguiente aprobacion de ese proyecto, o a mano en `projects/<clave>/.tx/`; `doctor` no repara nunca',
+  'cli.doctor.tx-no-detail': 'sin detalle',
+  'cli.doctor.tx-failed': 'transacciones pendientes: no se pudieron revisar ({message})',
   'cli.doctor.catalogue-incomplete': '  catalogo incompleto: {n} clave(s) sin traducir',
   'cli.doctor.deps-header': '\ndependencias declaradas: {n}',
   'cli.doctor.remedy': '        remedio: {remedy}',

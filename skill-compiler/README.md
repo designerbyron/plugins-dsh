@@ -49,6 +49,17 @@ Y una tercera herramienta, de solo lectura: `skill_upstream_check` dice si el or
 que se tomó, sin tocar nuestra versión (que está adaptada a propósito: sobrescribirla destruiría justo
 lo que la hace útil).
 
+Y la herramienta que **mantiene vivo** lo aprendido: `skill_improve` corrige o amplía una skill que ya
+existe **por secciones** —lo que no se nombra queda byte a byte—, crea o actualiza sus referencias, puede
+ajustar `description` y `whenToUse` (y **solo** esos dos campos del frontmatter: id, procedencia, ámbito y
+estado los administra el sistema) y compara el inventario de conocimiento de la versión viva con el de la
+candidata, de modo que una regla que desaparece sin justificar **impide escribir**. Cada nueva candidata del
+mismo id **archiva la anterior entera** en `superseded/proposals/<id>/<revision>/`, con su hash y su motivo:
+la revisión que se sustituye ya no se pierde. No toca la versión activa: deja la revisión en `proposed/`,
+con su diff y sus huellas, esperando tu decisión. Y devuelve el informe `Self-improvement review`, una
+línea por archivo con lo que de verdad pasó (`patched`, `written`, `unchanged`), la candidata archivada y el
+recuento de reglas conservadas, movidas, reformuladas, perdidas e **inciertas**.
+
 ## Vendorizar: nuestra versión de una skill externa
 
 Le dices al agente, por ejemplo:
@@ -223,9 +234,11 @@ node bin/skill-compiler.mjs doctor        # "16 operaciones y 16 filas en <idiom
 /skill-compiler-language --es             # y el menú "/" pasa a los nombres españoles, sin reiniciar
 ```
 
-**Lo que el anfitrión impone** (medido en la `0.2.1-rc.2`): el cambio se hace dando las altas antes que las
-bajas sobre `commands/change`, así que la ventana muestra dos nombres y **nunca cero**; la visibilidad del menú
-no se puede medir sin pantalla, y se informa aparte de la invocabilidad y del registro.
+**Lo que el anfitrión impone** (medido el 2026-11-04 sobre DSH `0.2.1-rc.5`, build `d4db512a`, canal nightly):
+el cambio se hace dando las altas antes que las bajas sobre `commands/change`, así que la ventana muestra dos
+nombres y **nunca cero**; la visibilidad del menú no se puede medir sin pantalla, y se informa aparte de la
+invocabilidad y del registro. Qué versión es del plugin, cuál del anfitrión, cuál de las dependencias y qué se
+comprobó exactamente: [`docs/ANFITRION.md`](docs/ANFITRION.md).
 
 ### Los comandos, con su nombre en cada idioma
 

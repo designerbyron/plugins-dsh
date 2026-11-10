@@ -34,7 +34,14 @@ $DSH_HOME/
       approved/<id>/            ← aprobado: esto es lo que el proveedor sirve
       rejected/<id>/            ← apartado sin borrar
       superseded/<id>-<fecha>/  ← versión anterior de una skill reemplazada
+      superseded/proposals/<id>/<revision>/  ← candidata sustituida por otra del mismo id (paquete entero)
 ```
+
+`superseded/proposals/` es **histórico, no operativo**: no sale en pendientes, no se aprueba y no se publica.
+Cada `<revision>` lleva marca de tiempo y huella del paquete, no se reutiliza, y su manifiesto
+(`<revision>.json`, al lado de la carpeta) declara fichero a fichero el `sha256` y los bytes que tenía, más
+el motivo de la sustitución y la huella de la candidata que la reemplazó. La carpeta archivada queda byte a
+byte como estaba: el manifiesto se escribe fuera de ella.
 
 **La clave de proyecto** se calcula como `<último-tramo-del-cwd>-<hash8-de-la-ruta-completa>`. El hash
 evita que dos proyectos con la misma carpeta en rutas distintas compartan ámbito y, con él, skills.

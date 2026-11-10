@@ -27,7 +27,7 @@ import { curatedLibraryRoot, defaultRoot } from './lib/compiler.mjs';
 import { resolveLang } from './lib/i18n/index.mjs';
 import { createLanguageCommand, createLanguageState, createLocalizedSet, swapSet } from './lib/localized-commands.mjs';
 import { pendingRowsFor, retiredRowsFor } from './lib/pending-rows.mjs';
-import { PROTOCOL, scopeOf, skillPropose, skillProvider, skillReview, skillUpstreamCheck, skillVendor } from './lib/definitions.mjs';
+import { PROTOCOL, scopeOf, skillImprove, skillPropose, skillProvider, skillReview, skillUpstreamCheck, skillVendor } from './lib/definitions.mjs';
 
 /** Identidad del Loader. */
 export const name = 'skill-compiler';
@@ -107,6 +107,10 @@ export function apply(ctx, config = {}) {
   ctx.tools.register(defineTool(skillVendor({ root, catalog })));
   ctx.tools.register(defineTool(skillReview({ root })));
   ctx.tools.register(defineTool(skillUpstreamCheck({ root })));
+  // La quinta: mejorar una skill que ya vive, por secciones. Va con las demas y no como comando porque el
+  // disparador natural es el modelo (cuando detecta una regla que fallo o un conocimiento nuevo), y porque
+  // su resultado es un informe que se lee en el flujo, no una decision que haya que teclear.
+  ctx.tools.register(defineTool(skillImprove({ root })));
 
   // ── El catálogo: servir, y saber cuándo cambió ─────────────────────────────────────────────────
   //

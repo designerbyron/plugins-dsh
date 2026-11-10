@@ -157,7 +157,7 @@ describe('promover: activa con pruebas y aparta la anterior', () => {
     const ultima = leerDiario(KEY, opts(arena)).at(-1);
     assert.equal(ultima.decision, 'promovida');
     assert.equal(ultima.hashAnterior, huella);
-    assert.equal(ultima.hashResultante, r.hashResultante);
+    assert.equal(ultima.hashResultante, r.hashResultante, 'el diario y el retorno dicen la misma huella');
     assert.ok(ultima.pruebas.every((p) => p.ok), 'el diario guarda las pruebas que pasaron');
   });
 

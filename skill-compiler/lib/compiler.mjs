@@ -1238,7 +1238,9 @@ export function renderSkill({ id, description, whenToUse, body, project, project
     '',
   ].join('\n') : '';
 
-  return `${front.join('\n')}${banner}${body.replace(/^\s*\n/, '')}\n`;
+  // Un salto mas tras el H1: `front` acaba en el H1 y sin esto el primer `##` quedaba pegado al titulo
+  // (`# desc\n## 1.`), que no es Markdown valido como separacion de secciones.
+  return `${front.join('\n')}\n${banner}${body.replace(/^\s*\n/, '')}\n`;
 }
 
 // ── escritura: proponer, aprobar, rechazar ───────────────────────────────────────────────────────
@@ -1295,6 +1297,93 @@ function arbolDe(dir, rel = '', acc = { files: [], dirs: [], errores: [] }) {
  *
  * @returns `{ ok, files, reason? }` — `files` son las rutas relativas escritas y verificadas.
  */
+/** La carpeta hermana de `proposed/` y `approved/`: historial no operativo. */
+export const CARPETA_SUPERSEDED = 'superseded';
+/**
+ * Dentro del archivo, las propuestas sustituidas tienen su propio apartado: el archivo de skills apartadas
+ * usa `<id>-<fecha>` y mezclar las dos formas haria ilegible el conteo.
+ */
+export const CARPETA_PROPUESTAS_ARCHIVADAS = 'proposals';
+
+/** sha256 y bytes de cada fichero de un paquete, en orden estable, mas la huella del conjunto. */
+function manifiestoDePaquete(dir) {
+  const files = treeOf(dir).files.map((ruta) => {
+    const buf = readFileSync(join(dir, ruta));
+    return { path: ruta, bytes: buf.length, sha256: createHash('sha256').update(buf).digest('hex') };
+  });
+  const paquete = createHash('sha256').update(files.map((f) => `${f.path}:${f.sha256}`).join('\n')).digest('hex');
+  return { files, paquete };
+}
+
+/**
+ * Archiva la propuesta que ya vive en `dir` antes de instalar la nueva. La unidad es el **paquete
+ * completo** (SKILL.md, meta.json, references/, cualquier fichero del paquete), no solo el documento: el
+ * manifiesto se escribe **fuera** de la carpeta archivada para que la carpeta quede byte a byte igual a
+ * como estaba.
+ *
+ * Un revision-id no se reutiliza nunca: lleva marca de tiempo y huella del paquete, y si aun asi colisiona
+ * se numera. El `rename` es atomico porque origen y destino estan bajo la misma raiz; no se supone
+ * atomicidad entre volumenes.
+ *
+ * @returns `{ ok: true, revision: null }` si no habia nada que archivar, o `{ ok, revision, dir, files }`.
+ */
+function archivarPropuestaAnterior(dir, { root, clave, id, motivo, reemplazo, now }) {
+  if (!existsSync(dir)) return { ok: true, revision: null };
+  let manifiesto;
+  try {
+    manifiesto = manifiestoDePaquete(dir);
+  } catch (error) {
+    return { ok: false, reason: `no se pudo leer la propuesta anterior de "${id}": ${error.message}` };
+  }
+  const base = join(root, 'projects', clave, CARPETA_SUPERSEDED, CARPETA_PROPUESTAS_ARCHIVADAS, id);
+  const sello = String(now).replace(/[:.]/g, '-');
+  let revision = `${sello}-${manifiesto.paquete.slice(0, 8)}`;
+  let destino = join(base, revision);
+  for (let n = 2; existsSync(destino); n += 1) {
+    revision = `${sello}-${manifiesto.paquete.slice(0, 8)}-${n}`;
+    destino = join(base, revision);
+  }
+  const asiento = {
+    id,
+    revision,
+    projectKey: clave,
+    archivedAt: now,
+    reason: motivo,
+    files: manifiesto.files,
+    packageHash: manifiesto.paquete,
+    replacedBy: reemplazo,
+  };
+  try {
+    mkdirSync(base, { recursive: true });
+    renameSync(dir, destino);
+  } catch (error) {
+    return { ok: false, reason: `no se pudo archivar la propuesta anterior de "${id}": ${error.message}` };
+  }
+  try {
+    writeFileSync(join(base, `${revision}.json`), `${JSON.stringify(asiento, null, 2)}\n`);
+  } catch (error) {
+    // El paquete ya se movio: se devuelve a su sitio para no dejar la propuesta desaparecida.
+    try { renameSync(destino, dir); } catch { /* si tampoco se puede, lo dice el motivo de abajo */ }
+    return { ok: false, reason: `no se pudo dejar constancia del archivado de "${id}": ${error.message}` };
+  }
+  return { ok: true, revision, dir: destino, files: manifiesto.files, paquete: manifiesto.paquete };
+}
+
+/** Deshace un archivado: el paquete vuelve a `proposed/` como estaba. */
+function desarchivarPropuesta(archivado, dir, { root, clave, id }) {
+  if (!archivado?.revision) return true;
+  try {
+    if (!existsSync(archivado.dir)) return false;
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dirname(dir), { recursive: true });
+    renameSync(archivado.dir, dir);
+    rmSync(join(root, 'projects', clave, CARPETA_SUPERSEDED, CARPETA_PROPUESTAS_ARCHIVADAS, id, `${archivado.revision}.json`), { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function writeAtomic(dir, files) {
   // Una sola forma de nombrar cada fichero: las claves se normalizan antes de escribir y de verificar,
   // así que comparar es comparar. Dos claves que normalicen a la misma ruta se rechazan en vez de
@@ -1367,7 +1456,7 @@ export function validateGroup(group) {
   return { ok: errors.length === 0, errors, valor: errors.length === 0 ? { id, motivo, ...(esperadas === null ? {} : { esperadas }) } : null };
 }
 
-export function propose(input, { root = defaultRoot(), cwd, key = null, now = new Date().toISOString(), curated = curatedLibraryRoot(), extraFiles = {}, metaExtra = {}, references = [], revision, group: grupoDeclarado } = {}) {
+export function propose(input, { root = defaultRoot(), cwd, key = null, now = new Date().toISOString(), curated = curatedLibraryRoot(), extraFiles = {}, metaExtra = {}, references = [], revision, group: grupoDeclarado, diario = null } = {}) {
   const validation = validateInput(input, { references, cwd });
   if (!validation.ok) return { status: 'invalid', errors: validation.errors, warnings: validation.warnings };
   // El lote se acepta en el input o aparte, y por el mismo motivo que la revisión: quien propone puede ser
@@ -1577,9 +1666,45 @@ export function propose(input, { root = defaultRoot(), cwd, key = null, now = ne
       ...(alcanceDeLaPropuesta !== null ? { scope: alcanceDeLaPropuesta } : {}),
       ...metaExtra,
     };
+    const shaNueva = createHash('sha256').update(skill).digest('hex');
+    const motivoSustitucion = revisionValidada?.change ?? 'nueva revision del mismo id';
+    // Antes de instalar nada: si ya vive una propuesta con este id, se archiva ENTERA. Reescribir sin
+    // archivar es lo que hizo desaparecer una revision anterior sin dejar rastro.
+    const archivado = archivarPropuestaAnterior(dir, {
+      root, clave, id: candidate.id, now, motivo: motivoSustitucion,
+      reemplazo: { sha256: shaNueva, revision: revisionValidada?.claim ?? null },
+    });
+    if (!archivado.ok) return { status: 'invalid', errors: [archivado.reason], warnings: validation.warnings };
     const escrito = writeAtomic(dir, { 'SKILL.md': skill, 'meta.json': `${JSON.stringify(meta, null, 2)}\n`, ...archivosReferencia, ...extraFiles });
     // Nada a medias: si la verificación de la escritura falla, la propuesta no existe y no queda basura.
-    if (!escrito.ok) return { status: 'invalid', errors: [escrito.reason], warnings: validation.warnings };
+    if (!escrito.ok) {
+      const devuelta = desarchivarPropuesta(archivado, dir, { root, clave, id: candidate.id });
+      const aviso = archivado.revision
+        ? [devuelta ? 'la propuesta anterior se restauro' : 'ATENCION: la propuesta anterior quedo en superseded/ y no se pudo devolver']
+        : [];
+      return { status: 'invalid', errors: [escrito.reason, ...aviso], warnings: validation.warnings };
+    }
+    // El rastro forma parte de la operacion: si no se puede anotar, la sustitucion se deshace.
+    if (archivado.revision) {
+      const anotado = anotarEntradaEnDiario(diario ?? join(root, 'projects', clave, 'journal.jsonl'), {
+        tipo: 'propuesta-sustituida',
+        id: candidate.id,
+        projectKey: clave,
+        revisionAnterior: archivado.revision,
+        paqueteAnterior: archivado.paquete,
+        sha256Nueva: shaNueva,
+        motivo: motivoSustitucion,
+        por: 'sistema',
+      }, { now });
+      if (!anotado) {
+        const devuelta = desarchivarPropuesta(archivado, dir, { root, clave, id: candidate.id });
+        return {
+          status: 'invalid',
+          errors: [`no se pudo anotar la sustitucion en el diario: la propuesta anterior sigue en su sitio${devuelta ? '' : ' (ATENCION: revisa superseded/)'}`],
+          warnings: validation.warnings,
+        };
+      }
+    }
     return {
       status: 'proposed',
       id: candidate.id,
@@ -1587,7 +1712,10 @@ export function propose(input, { root = defaultRoot(), cwd, key = null, now = ne
       projectKey: clave,
       path: join(dir, 'SKILL.md'),
       warnings: validation.warnings,
-      sha256: createHash('sha256').update(skill).digest('hex'),
+      sha256: shaNueva,
+      ...(archivado.revision
+        ? { superseded: { revision: archivado.revision, packageHash: archivado.paquete, files: archivado.files.length, dir: archivado.dir } }
+        : { superseded: null }),
       ...(grupo.valor ? { group: grupo.valor, siblings: overlap.siblings } : {}),
       references: referencias,
       links: validation.links,

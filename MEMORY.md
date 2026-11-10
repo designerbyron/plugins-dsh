@@ -1,17 +1,109 @@
 # MEMORY — estado vivo de la colección
 
 Memoria durable del repositorio. No es el historial de una sesión: es lo que hay que saber al entrar.
-Última actualización: 2026-10-23.
+Última actualización: 2026-11-08.
+
+## LifeCode Skill Center (plugin nuevo, v1.0.1 sin publicar)
+
+`lifecode-skill-center/` — el centro visual del conocimiento reutilizable. **No es el compilador con un panel
+encima**: es otro plugin, con su almacén propio (`%USERPROFILE%\.dsh\lifecode-skill-center\center.json`), su
+proveedor de skills (rango 160, por debajo del compilador) y su ruta HTTP
+(`/lifecode-skill-center/api`, **sin barra final**: una ruta `prefix` con barra sólo casa la base exacta).
+Ciclo: crear → evaluar → publicar → asignar → usar → medir → mejorar.
+
+Auditoría del 8 de noviembre (commit `819970f`, acto LSC-001): **119 pruebas**, puerta hermética con
+el almacén real idéntico antes y después de la suite, `check` 102/102, y la promesa medida en el harness vivo
+(creada desde el panel, servida en dos proyectos, apagada en uno sin tocar el otro, pin de versión distinto por
+proyecto: A en 1.1.0 y B en 1.0.0). Defectos reales que la auditoría encontró y cerró: `POST` imposible con una
+ruta `resource` (405 antes de mirar la ruta), escrituras perdidas sin candado (50 aperturas → 31 proyectos),
+materializado que no seguía al pin, referencias lista descartadas en silencio, `skill.loaded` con actor
+`system` colapsado a `human`, y abrir el panel escribiendo sin que nada cambiara. Para recargar el plugin en
+vivo basta `plugin_manager({action:'set_bundle', target:'@local/lifecode-skill-center', enabled:true})`: el
+harness lo re-importa sin reiniciar la app. Los registros antiguos conservan lo que tenían (un `skill.loaded`
+con actor `human`, una mejora sin `version`): las correcciones aplican hacia adelante, no reescriben historia.
+
+Lo que hay que saber antes de tocarlo:
+
+- **La autorización vive en el borde.** `lib/operations.mjs` muta y anota `actor`; `lib/api.mjs` es el único
+  camino de entrada y devuelve `approval-required` a `actor:'ai'` para encender, volver de versión, decidir,
+  publicar e importar. Si añades una acción, la política va ahí.
+- **Una asignación apunta a una versión exacta.** Aprobar `1.1.0` no cambia lo que carga un proyecto que tenía
+  `1.0.0`; el panel mueve la versión con la acción `rollback` (que es «pon esta versión»).
+- **Invalidar el catálogo es obligatorio.** `CHANGES_CATALOG` en `index.js` + `lib/watch.mjs`; el registro de
+  skills cachea y no tiene TTL.
+- **El panel no recibe la carpeta de la sesión** (el slot `main` sólo da binding a `conversation`), así que
+  usa la del proceso (`hostCwd`) y la persona confirma en el selector de proyectos.
+- **119 pruebas + puerta hermética** (`npm run test:hermetic`) y `npm run check` (pureza del núcleo y
+  coherencia de instalación). Las trampas ya pagadas están en `lifecode-skill-center/docs/DESARROLLO.md`.
+
+Pendiente declarado: decisión de push (no ejecutado por gobernanza: un commit se decide y el envío se
+declara). La instalación en el perfil sí está hecha y verificada en la ventana real del harness.
+
+## LSC-004 (2026-11-08) — el panel no habla HTTP: el shell pone la credencial
+
+Medido sobre el escritorio, no supuesto. `dsh-app://app` no habla con el `webServer` como un navegador:
+`protocol.handle` borra `host`, `origin`, `cookie` y `sec-fetch-site`, e **inyecta la cookie de sesión del
+Host** que el proceso principal obtuvo al arrancar (`authenticateWebHost`: 303 + `set-cookie`, se queda en el
+shell; `set-cookie` está en `WITHHELD_RESPONSE_HEADERS`, la página nunca la ve). Consecuencias que cambian el
+diseño:
+
+- **No hace falta capacidad ni token de sesión.** `connection.requestRejection(req)` devuelve `undefined`
+  para el panel y `401` para un proceso local sin cookie: esa es toda la diferencia que hay que explotar.
+- **La puerta debe ser fail-closed**: sin el servicio `connection` se responde `503 auth-unavailable`, no
+  lectura libre. Hoy la ruta privada contesta 200 a cualquier proceso local.
+- **El borde HTTP no puede distinguir IA de persona**: `PrincipalMap` sólo tiene `owner`. El canal se conoce
+  por el punto de entrada (ruta HTTP = panel; herramienta = agente), nunca por un `actor` del cliente.
+- **`Origin` no llega** en el canal del panel (se borra), así que el guardia actual por `Origin` no protege
+  nada de ese canal y sólo frena peticiones directas.
+- El id de proyecto derivado de la ruta crea proyectos fantasma al mover la carpeta: la identidad va a UUID
+  con manifiesto `.dsh/lifecode-skill-center.json` (sin rutas absolutas, sin asignaciones), con adopción
+  humana y `legacyIds` para no romper lo existente.
+
+Detalle completo, incluida la máquina de estados y el plan por etapas: `_audit/PROPUESTA-LSC-004.md`.
+
+## LSC-005 (2026-11-08) — S1: toda petición del panel se admite o no se atiende
+
+Implementado y medido en el harness real (commit `de8eebf`, sin push). Lo que cambió de forma durable:
+
+- **La ruta de la API admite cada petición** con `connection.admit()`: sin credencial del Host ⇒ `401`; sin
+  el servicio `connection` ⇒ `503 auth-unavailable` (fail-closed, sin interruptor de configuración); el
+  peer se compara con `connection.browserPeer` para saber el canal — **no** se infiere del éxito de la
+  admisión, y el principal `owner` no distingue persona de IA.
+- **`GET /health` va antes de la admisión** y sólo dice `{ok, apiVersion, auth:'host'|'unavailable'}`.
+- **El actor lo pone el canal**: el despacho HTTP firma siempre `human`; `body.actor` y
+  `x-lifecode-actor` se ignoran (probado). La IA sigue entrando por las herramientas, que fijan `ai`.
+- **Credencial de operador**: lee (200) y no escribe (403 `api-peer-restricted`). Sólo probado en unitario:
+  este harness no emite credenciales de operador.
+- Suite **132 pruebas** (119 + 13 de S1), `check` 102/102 y hermética verde. Rollback verificado en un
+  *worktree* desechable: `git revert de8eebf` deja el árbol idéntico a `819970f`.
+- **Sigue abierto T13**: `provider.list()` escribe `center.json` (mueve `updatedAt`) al entregar el
+  catálogo aunque no haya evento nuevo. Es de C1/C2, no de S1.
+
+Informe con la tabla de las doce pruebas y los hashes: `_audit/INFORME-LSC-005.md`.
 
 ## Versión publicada
+
+**v5.0.2** (2026-10-23, parche del panel: cero lecturas al listar, generacion en el store para que una lectura
+vieja no pise la nueva, y la foto comun independiente del verbo de la tarjeta; + la guia de idiomas en la
+documentacion) sobre **v5.0.1** (una sola foto de pendientes por sesion y ninguna propuesta ya decidida
+ofreciendose otra vez) y **v5.0.0**, publicada ese mismo dia: tag anotado `v5.0.0` sobre el commit de cierre de
+ese acto (`git rev-parse v5.0.0^{}`; la version y el CHANGELOG entran en `354e93a`) y release estable en
+`designerbyron/plugins-dsh`. **902 pruebas en verde** en **224 suites** (889/220 al publicar la 5.0.0), suite
+hermética en verde (huella del almacén real idéntica antes y después); i18n **938 claves por idioma** y 16
+operaciones x 2 nombres; ASCII **8.289 medidos con tope 8.289** en **26/26** ficheros de primera parte. Cambio de
+contrato de la 5.0.0: **un nombre de comando por operación en el idioma activo** y el modelo de alias, retirado.
+El tag de la publicada es `v5.0.2` sobre `bbd5e38`, y `origin/main` apunta al mismo commit.
+
+Antes, los 805/8.401/24 eran el estado de la rama `hardening/post-4.0.1` sola, y los 860/695/8.353 el del primer
+candidato integrado.
+
+### Historia de las versiones anteriores (registro, no estado de hoy)
 
 **v4.0.1**, publicada el 2026-10-23: tag anotado `v4.0.1` sobre `8393977`, release estable en
 `designerbyron/plugins-dsh`. Cierra el defecto que daba por bueno un almacén que no se podía leer (el
 `ENOENT` de `projects/` es «todavía no hay», no «no pude leer»), y deja el contrato de verbos del panel
 probado con cuatro arenas. **v4.0.0** (tag `v4.0.0`) fue la entrega del idioma ES/EN con el contrato del
 modelo congelado, las puertas obligatorias y el contrato de resultado por elemento.
-
-### Historia de las versiones anteriores (registro, no estado de hoy)
 
 **v3.2.0**, en su día y sin commitear mientras se validaba: la propiedad con
 **cuatro estados** (`ausente` · `declarada` · `invalida` · `ilegible`), el inventario que distingue
@@ -29,19 +121,6 @@ silencio dejando la sesión sin superficie de decisión. **v3.0.0** en `main` lo
 medias, y el aviso del turno **cuenta por tipo y se retira**. **v2.0.0** publicada (`8ecd891`): la puerta de
 calidad vigente, `audit`, `repair`/`promote` con los tres niveles de riesgo y la promoción automática
 **apagada** por defecto.
-
-**v5.0.2** (2026-10-23, parche del panel: cero lecturas al listar, generacion en el store para que una lectura
-vieja no pise la nueva, y la foto comun independiente del verbo de la tarjeta; + la guia de idiomas en la
-documentacion) sobre **v5.0.1** (una sola foto de pendientes por sesion y ninguna propuesta ya decidida
-ofreciendose otra vez) y **v5.0.0**, publicada ese mismo dia: tag anotado `v5.0.0` sobre el commit de cierre de
-ese acto (`git rev-parse v5.0.0^{}`; la version y el CHANGELOG entran en `354e93a`) y release estable en
-`designerbyron/plugins-dsh`. **902 pruebas en verde** en **224 suites** (889/220 al publicar la 5.0.0), suite
-hermética en verde (huella del almacén real idéntica antes y después); i18n **938 claves por idioma** y 16
-operaciones x 2 nombres; ASCII **8.289 medidos con tope 8.289** en **26/26** ficheros de primera parte. Cambio de
-contrato de la 5.0.0: **un nombre de comando por operación en el idioma activo** y el modelo de alias, retirado.
-
-Antes, los 805/8.401/24 eran el estado de la rama `hardening/post-4.0.1` sola, y los 860/695/8.353 el del primer
-candidato integrado.
 
 ## Almacén: el objetivo del `DIAGNOSTICO-2026-10-15`, alcanzado
 
@@ -709,3 +788,105 @@ El acto que cerró el bloqueo anterior, con lo medido al publicar:
 - **Publicación**: `package.json` y `package-lock.json` a 5.0.0, entrada `[5.0.0]` en el CHANGELOG, portada y
   `docs/` con los números medidos, tag anotado `v5.0.0` sobre el commit de cierre y release estable en
   `designerbyron/plugins-dsh`. Las releases `v4.0.0` y `v4.0.1` quedan intactas y el historial no se reescribió.
+
+## Acto 2026-11-04 — coherencia documental y compatibilidad medida del anfitrión
+
+Acto **sin versión nueva**: no cambia comportamiento, contratos ni datos. Cierra contradicciones documentales y
+deja el anfitrión declarado con su fecha.
+
+- **Portada**: la tabla de plugins decía `v4.0.1 · 777 pruebas` mientras el mismo README declaraba la `5.0.2` con
+  **902 pruebas**. Corregida a la versión del manifiesto, y añadida la regla de que un recuento de pruebas es una
+  medición fechada, no una cifra prometida.
+- **`docs/ANFITRION.md`**: gana la ficha de las cuatro versiones (plugin / anfitrión / dependencias / medición) y
+  la medición del **2026-11-04** sobre **DSH `0.2.1-rc.5`** (build `d4db512a`, canal nightly, `app.asar` del
+  2026-10-29): las cuatro herramientas en la lista de una sesión real (56 herramientas), el protocolo en el prompt
+  de sistema (938 caracteres), la proyección aceptada por el registro **real** y las filas de pendientes
+  materializadas (`2 pending -> 8 menu rows` desde un proyecto con dos propuestas). La etiqueta vigente pasa de
+  `v5.0.1` a `v5.0.2`.
+- **`MEMORY.md`**: la sección «Versión publicada» abría con la `v4.0.1`; ahora abre con la `v5.0.2` sobre
+  `bbd5e38`, y la `v4.0.1` se conserva como historia.
+- **Dependencias: sin cambios, y con motivo medido.** `0.2.1-rc.5` **no** satisface `^0.2.0-rc.2` con las reglas
+  por defecto de SemVer 7.7.4 (`satisfies` devuelve `false`; solo con `includePrerelease: true`). Un rango no
+  habría seguido al anfitrión: habría dejado de fijar la versión sin acercarse a la del runtime. El pin exacto se
+  queda, como ya documenta `docs/DEPENDENCIAS.md`.
+- **Lo que no se toca**: `app.asar`, el almacén real, las propuestas pendientes y la release `v5.0.2`.
+
+## Acto 2026-11-04/05 — motor de auto-mejora (rama de trabajo, sin versión)
+
+Acto **funcional y sin versión nueva**: añade una quinta herramienta y un motor. No se publica nada, no se mueve
+ningún tag y la superficie aprobada de `skill_propose`/`approve` queda intacta.
+
+- **`lib/improve.mjs`** (nuevo): mejora una skill **viva** por secciones. `partirCuerpo` separa preámbulo y
+  secciones `##`; `aplicarParches` sustituye por clave de título (sin el número) e inserta las nuevas con
+  `despuesDe`; `mejorar` compone la candidata, crea o actualiza referencias, compara el inventario de reglas de la
+  versión viva contra el de la candidata y pasa **la misma puerta que `propose`**. Lo que no se nombra queda byte a
+  byte. No abre una segunda vía de escritura y no mueve la versión activa: deja la revisión en `proposed/`.
+- **`skill_improve`**: quinta herramienta, registrada en `index.js`. Parámetros: `id`, `operacion`
+  (`patch`/`enhance`/`reorganize`/`no_change`/`new`), `parches` (por sección y por referencia), `revision`
+  (claim/evidence/measurement/change/removed), `perdidasJustificadas`, `retirarSecciones`, `evidencia`.
+- **Informe `Self-improvement review`**: una línea por archivo con lo que **de verdad** pasó en disco
+  (`patched`/`written`/`unchanged`), más el recuento de reglas antes y después y las pérdidas justificadas. Los
+  números salen del resultado, no de una estimación.
+- **Conservación**: una regla del inventario que desaparece sin justificar **bloquea la escritura**. Se comprobó
+  con el caso real: 92 reglas frente a 38, y las cinco secciones de la versión activa presentes literalmente.
+- **Caso de aceptación `shell-and-source-editing-traps`**: candidata de **12 secciones** y 8.236 B en
+  `saas-corporative-a3c393fa/proposed/` (base: activa `e45cc88…`, que sigue intacta y sirviendo). Integra las
+  cinco reglas de la activa y las seis de la propuesta del 14-oct, ordenadas por momento de uso. Cuatro pérdidas
+  declaradas: los cuatro encabezados que cambian de número al reordenar.
+- **Medición propia de la sección de shell** (Windows 11, PowerShell 5.1.26100): `*>` no crea la carpeta, el
+  comando no llega a ejecutarse y `$LASTEXITCODE` conserva el valor anterior; `Get-ExecutionPolicy` = `Restricted`.
+- **Suite**: **921 pruebas en 226 suites** (17 nuevas en `tests/improve.test.mjs`), hermética verde, i18n y ASCII
+  en verde con **8.289 caracteres heredados en 27/27** ficheros de primera parte (el módulo nuevo entra con 0 de
+  deuda no ASCII).
+- **Deudas que este acto deja dichas**:
+  1. Publicar exigirá versión **mayor** (superficie visible nueva) con su entrada de `CHANGELOG` y la portada.
+  2. El motor **no toca el frontmatter**: un `whenToUse` mejorado no se puede aplicar por esta vía (hoy queda
+     fuera del alcance o se declara en la revisión).
+  3. `propose` **reemplaza** la propuesta existente del mismo id sin archivar la anterior (`superseded/` no
+     existe para propuestas). En este acto eso sobrescribió el texto literal de la propuesta del 14-oct —su
+     contenido temático quedó integrado y verificado, pero el original no se conserva—. Un `superseded/` por id
+     eliminaría el riesgo.
+
+## Acto 2026-11-05 — endurecimiento del motor (E.1, rama de trabajo, sin versión)
+
+Cierra las cuatro brechas que el ACTO E dejó dichas. **Ninguna candidata se aprueba y la activa sigue intacta.**
+
+- **`superseded/proposals/<id>/<revision>/`**: cada nueva candidata del mismo id archiva la anterior **entera**
+  (SKILL.md, meta.json, `references/`, cualquier fichero del paquete) antes de instalar la nueva. El manifiesto
+  (`<revision>.json`) va **fuera** de la carpeta archivada —así el paquete queda byte a byte— y declara `sha256`
+  y bytes por fichero, huella del paquete, motivo y la huella de la candidata que la reemplaza. El revision-id
+  lleva sello y huella del paquete y **no se reutiliza** (si colisiona, se numera). Es histórico: no sale en
+  pendientes, no se aprueba, no se publica; `audit` no lo cuenta como skill apartada.
+- **Escritura transaccional**: la protección vive en el punto de escritura de `propose` (única vía: la usan
+  `skill_propose`, `skill_improve`, `vendor` y la reparación). Orden: archivar → instalar (con la verificación
+  de `writeAtomic`) → anotar en el diario. Si falla la instalación, la anterior **se restaura**; si falla el
+  diario, se deshace todo y no se archiva nada. El asiento es `tipo: "propuesta-sustituida"` y entra en la
+  cadena del diario.
+- **Inventario de reglas corregido** (`lib/repair.mjs`): el emparejamiento de backticks es **por línea** y
+  respeta los bloques de código; un tramo de un solo carácter ya no desalinea el resto del documento (era el
+  defecto real: `{2,}` no casaba y el motor saltaba al backtick siguiente). El inventario conserva la
+  **sección de origen** de cada regla y añade `bloques` e `inciertas`. Nuevo `clasificarPerdidas`:
+  conservada · reubicada · reformulada (Jaccard ≥ 0,6, declarado) · perdida · **incierta** (delimitadores
+  sueltos en el origen: no se afirma ni pérdida ni conservación).
+- **Frontmatter**: `skill_improve` puede cambiar `description` y `whenToUse` y **solo** esos dos. Cualquier
+  otro campo (`name`, `id`, `metadata`, `origin`, `project`, `projectKey`, `learnedAt`, `state`, `scope`) es
+  `invalid` y no escribe. Valor vacío o con saltos, también. Si no cambia, no aparece en el informe.
+- **Informe**: añade `superseded` («Previous proposal archived (superseded/proposals/…)»), `preserved`,
+  `reworded`/`moved` y `uncertain`; `meta.json` solo se declara si el frontmatter cambió.
+- **Suite**: **964 pruebas en 239 suites** (41 nuevas: `tests/superseded.test.mjs` 11,
+  `tests/inventario.test.mjs` 15, `tests/frontmatter.test.mjs` 15). ASCII 8.287 en 27/27 (el tope bajó 2 en
+  `repair.mjs`); i18n verde; hermética verde.
+- **La propuesta del 14-oct SE RECUPERO.** Búsqueda forense en `~/.dsh/sessions/**` (las sesiones son tramas
+  zstd concatenadas: hay que cortar por el magic `28 b5 2f fd`, porque `zstdDecompressSync` solo devuelve la
+  primera). El evento guarda el JSON completo de la llamada a `skill_propose`: `id`, `description`,
+  `whenToUse`, `body` (4.811 caracteres, 6 secciones), `tags` y `evidence`. Queda en el scratch de la sesión;
+  **su restauración en `superseded/proposals/` necesita autorización** porque es escritura en el almacén.
+- **Hallazgo al comparar**: la candidata actual **no contiene todo** el material de esa propuesta. Medido con
+  el inventario nuevo: faltan **13 tramos** (`BOM = EF BB BF`, `TextDecoder('utf-8',{fatal:true})`, `bin2hex`,
+  `codePointAt`, `Buffer`, `.mjs`, `npm.ps1`, `buildId`, `"exit=$LASTEXITCODE"`, `comando *> ruta\en\…`,
+  `npm run build *> log`, `node node_modules/<paquete>/<cli>.mjs`, `·`), **4 bloques** con la tabla de puntos
+  de código (`'É' correcto   C3 89`, `'★' correcto   E2 98 85`, y las dos filas de la vuelta de mojibake) y
+  **2 viñetas**. La afirmación del ACTO E («contenido temático integrado») era demasiado generosa: hay que
+  regenerar la candidata con esas secciones íntegras.
+- **Deuda**: publicar exigirá versión **mayor** con su `CHANGELOG`; y el frontmatter administrado por el
+  sistema sigue sin poder migrarse por esta vía (a propósito).
