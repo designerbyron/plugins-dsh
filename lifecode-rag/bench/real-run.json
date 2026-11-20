@@ -1,0 +1,66 @@
+{
+ "environment": {
+  "node": "v24.21.0",
+  "platform": "win32",
+  "arch": "x64"
+ },
+ "corpus": {
+  "sources": 121,
+  "chunks": 964,
+  "vectors": 964,
+  "bytes": 3862528,
+  "vectorCols": [
+   "chunk_key",
+   "model",
+   "dim",
+   "vec"
+  ],
+  "file": "<USER_HOME>/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/lcr-real-copy/rag.sqlite3"
+ },
+ "results": [
+  {
+   "label": "real:fts",
+   "iterations": 20,
+   "warmup": 5,
+   "ms": {
+    "p50": 0.486,
+    "p95": 1.034,
+    "mean": 0.531
+   }
+  },
+  {
+   "label": "real:hybrid:fragment",
+   "iterations": 20,
+   "warmup": 5,
+   "ms": {
+    "p50": 9.796,
+    "p95": 11.011,
+    "mean": 9.861
+   }
+  },
+  {
+   "label": "real:hybrid:source",
+   "iterations": 20,
+   "warmup": 5,
+   "ms": {
+    "p50": 10.305,
+    "p95": 15.095,
+    "mean": 10.565
+   }
+  },
+  {
+   "label": "real:vector-only",
+   "iterations": 20,
+   "warmup": 5,
+   "ms": {
+    "p50": 8.924,
+    "p95": 9.915,
+    "mean": 8.885
+   }
+  }
+ ],
+ "memory": {
+  "rssStartMB": 55.2,
+  "rssEndMB": 108.2
+ }
+}

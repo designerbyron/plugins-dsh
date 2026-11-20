@@ -1,0 +1,42 @@
+# HASHES — FUNCTIONAL AUDIT 01
+# acto: HERMES-LCRAG-FUNCTIONAL-AUDIT-01
+# generado: 2026-11-19T17:00:56Z
+# rutas relativas a lifecode-rag/ ; verificar con: sha256sum -c eval/functional-audit-01/HASHES.txt
+# HASHES.txt no se incluye a si mismo
+
+## A. Evidencia de la auditoria
+39edd940a92c8130102e4b589f1e2d69602dc547e73523dfa3048d5a79e9460d *eval/functional-audit-01/ACCEPTANCE-MATRIX.md
+94e248885625369e2e3db263872e462e91865b60d39324288878e5d71608451b *eval/functional-audit-01/DATA-PROVENANCE-MATRIX.md
+2a7eefa4851dfb178c45f5c8c2e8fe647d63399992053a643322bf473200c224 *eval/functional-audit-01/DEFECT-REGISTER.md
+cd32c6ac0c6dbcfd32ddfd4299313c9a844e83410817d4f7cea1a84d52be3ef9 *eval/functional-audit-01/EXECUTIVE-REPORT.md
+4460065ca23725b613a8aef2db05d3cd2ab1756c61b4d5c94f8903389b618484 *eval/functional-audit-01/HOST-VERIFICATION.md
+fd5a516b70e14a6cbf4291a576c2f3d9e50b23715aec0c50f770c4f002dd7fec *eval/functional-audit-01/logs/check.txt
+ac7618cec2b20c445b0b174a7464c6b20f4ca7b6e3dfc1989ea92c4bc3cc7453 *eval/functional-audit-01/logs/hermetic.txt
+5eef735e5dd399913bdda58037756985f76de10bb80dc2782e2c96d101857baa *eval/functional-audit-01/logs/node-test.txt
+1534cb76027eb9eadce85e877cbf285f9106b76028bd46bb742924231482107a *eval/functional-audit-01/screens/01-project.png
+62889c2e249b4c2b380a1b02f39dc48b1ed6a8173c9cab8b3de4a022ffd17e2f *eval/functional-audit-01/screens/02-libraries.png
+412d3add3c0a28d43d507e556252bd331497f3d27d0cf060135a6e362ac022b8 *eval/functional-audit-01/screens/03-sources.png
+802e84ca651e86f7a2c641fbf7b9ac7d402f2e584b5c691c9fbe4eec697f5242 *eval/functional-audit-01/screens/04-search.png
+479b189ef825c521d6eed97ad6f3d401964c8053fd1acb621f84f1acef8f1fb4 *eval/functional-audit-01/screens/05-context.png
+34ced8cbc83f1bf18eeef185d75160309d456d99187309bfeb1825e1b26000c4 *eval/functional-audit-01/screens/06-operations.png
+fca2e1bc7af6a6f675c74cc73f9c347233227160565c8eec2693dbab6c06fabf *eval/functional-audit-01/screens/07-diagnostics.png
+098f1f04d07145fd04235031122d9cbe5f4741e788102f52c0c7b669f444e8a9 *eval/functional-audit-01/screens/08-connection.png
+2b8e9d778ee1b85e928e4abc535fdbc4803839038c5eba6a50eb39437f74c774 *eval/functional-audit-01/screens/09-history.png
+e99bdd4c76e75fc9f5d19386dbef65c224e6bc6136de0d813c91799c040f6510 *eval/functional-audit-01/screens/10-fleet-reference.png
+c05013080c36329f4f4131c08a728fea52b22d1f67fc6a5723d49e9f6a8d8038 *eval/functional-audit-01/SECURITY-AND-FIXTURE-VERIFICATION.md
+e3970c2a152b249058881c004d2b72c7989e0f6ba6886241d5a6471fbd37da81 *eval/functional-audit-01/TEST-RESULTS.md
+c452d81d9c4930a7eb33a5350f499a58f1a1c46562650552c162d4192ff85b72 *eval/functional-audit-01/VIEW-BY-VIEW-RESULTS.md
+3bf2abc49ae58782a877bbb793ad0a6136035faecfadf9efe4180e069d51fb37 *eval/functional-audit-01/VISUAL-OBSERVATIONS.md
+
+## B. Codigo y documentos del plugin (sin cambios durante la auditoria)
+b9f37f029b47ea77cfcf20d36e2bf8f6ca19f68984d2aec53a07260b1ceab9ef *client.js
+5d200cc623e1ffc7b4a736ac7bd476ded4e8e09e295922bd9206133999c2302c *tests/client.test.mjs
+9ef00251c25d1f8e0e81623b668c70dc04ed2d1bc74237251b53c3f7dccf4206 *tools/check.mjs
+e43ff1a7a296d07c3f4648ab56e1a821adb9a1697edf9c8db4d5b2ecf665804f *package.json
+aa7fe63598146360ed4dad8a9c736491336da08f543968a25199f34ed718de30 *docs/PA-UI-0-ACCEPTANCE.md
+
+## C. Documentos normativos de referencia
+934224310e10006d0ab3dbc2fec18b5a418a9e7c5e0f68f2570ee544e468c68a *docs/PA-UI-0-API-CONTRACT.md
+bae5139187138aaa5805ee89140ec9edd1326ee9a1c39bc36b62987151b4d19b *docs/PA-UI-0-GAPS.md
+0bb29725ed796c105c38be8463da3a72ad1a34f9132669bc91764ae164e35911 *docs/PA-UI-0.4-ROUTE-B-EVALUATION.md
+a58db7d6cac0756e2711c5ef556111dc7d38cec206420021e2bc42e42b4068f1 *docs/CONTRATO-v0.1.md

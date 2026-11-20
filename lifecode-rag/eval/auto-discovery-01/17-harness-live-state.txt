@@ -1,0 +1,17 @@
+registry_sha256=e73d7c9e4a5c45d43c458a7ce6a9aa2c08f954b361edf61f53e59e68e284d3a4
+store_sha256=049891a1313315777229178beaee8fedca3669bbcc6ea6588bc9747c6772315e
+workspace_json_sha256=862479eceb8fef269746309dfef39161db951f34589ad9df3e09db3d8abf6872
+projects=1 roots=1 libraries=0 grants=0
+session session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188 project=prj_01M7RBSRD33M26HGBEFW51WPP6 state=active source=explicit
+trust_meta=NULL
+sources=121
+chunks=964
+vectors=964
+audit=141
+workspace   C:\xampp\htdocs\businesssuite sessions=1
+workspace   C:\xampp\htdocs\carlosdiaz sessions=1
+workspace   C:\xampp\htdocs\edgartreelawnservices sessions=1
+workspace   C:\xampp\htdocs\nexusbusinesssuite sessions=37
+workspace   C:\xampp\htdocs\duranspainting sessions=2
+workspace * C:\xampp\htdocs\plugins-dhs sessions=7
+workspace   C:\xampp\htdocs\saas-corporative sessions=22

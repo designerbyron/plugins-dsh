@@ -1,0 +1,77 @@
+{
+ "root": "<USER_HOME>/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/lcr-host-snapshot-5",
+ "sessionId": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+ "cwd": "C:/xampp/htdocs/plugins-dhs",
+ "workspaces": 7,
+ "list": {
+  "total": 121,
+  "primeras": [
+   {
+    "id": "src_01b7b75cd0bbba4a",
+    "uri": "docs/AUTOMATION-POLICIES.md"
+   },
+   {
+    "id": "src_07038869210c21e9",
+    "uri": "lifecode-rag/index.js"
+   },
+   {
+    "id": "src_174920b63035549b",
+    "uri": "bin/lifecode-rag.mjs"
+   },
+   {
+    "id": "src_1929da640b591904",
+    "uri": "lib/policy.mjs"
+   },
+   {
+    "id": "src_2954e3203ffa9b6e",
+    "uri": "lib/paths.mjs"
+   }
+  ]
+ },
+ "search": {
+  "modo": "and",
+  "elapsedMs": 34,
+  "resultados": [
+   {
+    "sourceId": "src_a26afe7725768150",
+    "chunkKey": "src_a26afe7725768150#4",
+    "uri": "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+    "title": "Contrato de errores — Project-Aware RAG (PA0)",
+    "heading": "2. Códigos",
+    "rrf": 0.062283,
+    "snippet": " … códigos nuevos de la etapa [Project]-[Aware]; no existen en v0.1 … "
+   },
+   {
+    "sourceId": "src_c3f912136c2f1107",
+    "chunkKey": "src_c3f912136c2f1107#32",
+    "uri": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+    "title": "Arquitectura Project-Aware RAG — PA0",
+    "heading": "18.5 Ciclo de vida y convivencia con v0.2",
+    "rrf": 0.058127,
+    "snippet": "un perfil [Project]-[Aware] nuevo no recibe un almacén legado vacío y … "
+   },
+   {
+    "sourceId": "src_c3f912136c2f1107",
+    "chunkKey": "src_c3f912136c2f1107#35",
+    "uri": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+    "title": "Arquitectura Project-Aware RAG — PA0",
+    "heading": "19. Hardening de calidad (2026-11-18)",
+    "rrf": 0.055152,
+    "snippet": " … M6.7 — sincronización periódica controlada El programador [Project]-[Aware] vive en `lib … "
+   }
+  ]
+ },
+ "get": {
+  "ref": "src_a26afe7725768150",
+  "uri": "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+  "title": "Contrato de errores — Project-Aware RAG (PA0)",
+  "chunks": 10,
+  "primerFragmento": "# Contrato de errores — Project-Aware RAG (PA0) **Estado:** implementado y verificado en PA1–PA4 (pr"
+ },
+ "context": {
+  "citas": 3,
+  "tokens": 772,
+  "truncado": true
+ },
+ "ok": true
+}

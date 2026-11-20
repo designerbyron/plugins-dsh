@@ -1,0 +1,65 @@
+﻿{
+ "profile": "desktop",
+ "root": "C:\\xampp\\htdocs\\plugins-dhs",
+ "rootKey": "c:/xampp/htdocs/plugins-dhs",
+ "projects": [
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs",
+   "name": "plugins-dhs",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 0
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/lifecode-rag",
+   "name": "lifecode-rag",
+   "manifestName": "@local/lifecode-rag",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-skill-center",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/lifecode-skill-center",
+   "name": "lifecode-skill-center",
+   "manifestName": "@local/lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\skill-compiler",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/skill-compiler",
+   "name": "skill-compiler",
+   "manifestName": "@local/skill-compiler",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\demo",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/lifecode-rag/demo",
+   "name": "demo",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  }
+ ],
+ "skipped": [],
+ "truncated": false,
+ "visited": 100
+}

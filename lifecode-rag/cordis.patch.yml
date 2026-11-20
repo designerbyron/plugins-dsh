@@ -1,0 +1,3 @@
+- insert:
+    - id: lifecode-rag
+      name: '@local/lifecode-rag'

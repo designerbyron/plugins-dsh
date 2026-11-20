@@ -1,0 +1,751 @@
+/* LifeCode RAG — Workspace nativo (pestaña del host).
+ *
+ * Módulo de cliente Cordis: React llega por el cargador del host, no por imports de
+ * `@deepseek-ai/*`. La API es la misma que usan las herramientas; la interfaz no tiene privilegios.
+ */
+
+window.__ModuleLoader__.load({
+  id: '@local/lifecode-rag',
+  factory(require) {
+    const React = require('react');
+    const el = React.createElement;
+    const { useCallback, useEffect, useMemo, useRef, useState } = React;
+
+    const API = '/lifecode-rag/api';
+    const PANEL_ID = 'lifecode-rag';
+    const SIDEBAR_SLOT = 'sidebar.panellist';
+    const MAIN_SLOT = 'main';
+
+    /* ------------------------------------------------------------------ API */
+
+    async function request(path, options = {}) {
+      const method = options.method || 'GET';
+      const headers = { accept: 'application/json' };
+      if (options.body !== undefined) {
+        headers['content-type'] = 'application/json';
+        headers['x-lifecode-rag'] = '1';
+      }
+      const response = await fetch(API + path, {
+        method,
+        headers,
+        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      });
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+      if (!response.ok) {
+        if (response.status === 404 && !data?.error) {
+          // Un perfil Project-Aware no monta la API del almacén v0.2 (cada proyecto vive en su
+          // propio almacén y la superficie es la de las siete herramientas). Sin este caso el
+          // panel mostraba un «Not Found (http-404)» que parecía un fallo del producto.
+          const unavailable = new Error(
+            'este perfil usa Project-Aware: el panel del almacén v0.2 no está disponible; usa las herramientas lifecode_rag_*',
+          );
+          unavailable.code = 'panel-unavailable';
+          throw unavailable;
+        }
+        const error = new Error(data?.error?.message || `HTTP ${response.status}`);
+        error.code = data?.error?.code || `http-${response.status}`;
+        throw error;
+      }
+      return data;
+    }
+
+    const getSnapshot = () => request('/snapshot');
+    const getSources = (query = '') => request(`/sources${query ? `?${query}` : ''}`);
+    const getSource = (id) => request(`/sources/${encodeURIComponent(id)}`);
+    const search = (payload) => request('/search', { method: 'POST', body: payload });
+    const buildContext = (payload) => request('/context', { method: 'POST', body: payload });
+    const action = (payload) => request('/actions', { method: 'POST', body: payload });
+    const saveConfig = (patch) => request('/config', { method: 'POST', body: patch });
+    const metricSeries = (metric, days = 7) => request(`/metrics/series?metric=${encodeURIComponent(metric)}&days=${days}`);
+
+    /* --------------------------------------------------------------- helpers */
+
+    function formatNumber(value) {
+      return new Intl.NumberFormat('es-ES').format(value ?? 0);
+    }
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+      const units = ['B', 'kB', 'MB', 'GB'];
+      const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+      return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+    }
+
+    function formatTime(value) {
+      if (!value) return '—';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function errorText(error) {
+      if (!error) return '';
+      if (error.code) return `${error.message} (${error.code})`;
+      return error.message || String(error);
+    }
+
+    const TABS = [
+      ['resumen', 'Resumen'],
+      ['fuentes', 'Fuentes'],
+      ['buscar', 'Buscar'],
+      ['contexto', 'Contexto'],
+      ['metricas', 'Métricas'],
+      ['configuracion', 'Configuración'],
+      ['salud', 'Salud'],
+    ];
+
+    /* ------------------------------------------------------------------- UI */
+
+    function Chip({ tone = 'neutral', children }) {
+      return el('span', { className: `lcr-chip lcr-chip--${tone}` }, children);
+    }
+
+    function Card({ title, extra, children }) {
+      return el(
+        'section',
+        { className: 'lcr-card' },
+        el('header', { className: 'lcr-card__head' },
+          el('h3', { className: 'lcr-card__title' }, title),
+          extra || null),
+        el('div', { className: 'lcr-card__body' }, children),
+      );
+    }
+
+    function Empty({ title, hint }) {
+      return el('div', { className: 'lcr-empty' },
+        el('p', { className: 'lcr-empty__title' }, title),
+        hint ? el('p', { className: 'lcr-empty__hint' }, hint) : null);
+    }
+
+    function ErrorBox({ error, onRetry }) {
+      if (!error) return null;
+      return el('div', { className: 'lcr-error', role: 'alert' },
+        el('span', null, error),
+        onRetry ? el('button', { type: 'button', className: 'lcr-btn lcr-btn--ghost', onClick: onRetry }, 'Reintentar') : null);
+    }
+
+    function Confirm({ open, title, body, confirmLabel = 'Confirmar', onCancel, onConfirm }) {
+      if (!open) return null;
+      return el('div', { className: 'lcr-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+        el('div', { className: 'lcr-modal__box' },
+          el('h3', { className: 'lcr-modal__title' }, title),
+          el('p', { className: 'lcr-modal__body' }, body),
+          el('div', { className: 'lcr-modal__actions' },
+            el('button', { type: 'button', className: 'lcr-btn lcr-btn--ghost', onClick: onCancel }, 'Cancelar'),
+            el('button', { type: 'button', className: 'lcr-btn lcr-btn--danger', onClick: onConfirm }, confirmLabel))));
+    }
+
+    function Overview({ snapshot }) {
+      const counts = snapshot?.counts || {};
+      const health = snapshot?.health || { ok: false, checks: [] };
+      const store = snapshot?.store || {};
+      const stats = [
+        ['Fuentes', counts.sources],
+        ['Fragmentos', counts.chunks],
+        ['Vectores', counts.vectors],
+        ['Etiquetas', counts.tags],
+        ['Colecciones', counts.collections],
+      ];
+      return el('div', { className: 'lcr-stack' },
+        el('div', { className: 'lcr-stats' }, stats.map(([label, value]) =>
+          el('div', { className: 'lcr-stat', key: label },
+            el('span', { className: 'lcr-stat__label' }, label),
+            el('strong', { className: 'lcr-stat__value' }, formatNumber(value))))),
+        el('div', { className: 'lcr-grid' },
+          el(Card, { title: 'Almacén' },
+            el('dl', { className: 'lcr-kv' },
+              el('dt', null, 'Ruta'), el('dd', { className: 'lcr-mono' }, store.path || '—'),
+              el('dt', null, 'Base de datos'), el('dd', null, formatBytes(store.databaseBytes)),
+              el('dt', null, 'Auditoría'), el('dd', null, formatBytes(store.auditBytes)),
+              el('dt', null, 'Estado'), el('dd', null, store.initialized ? 'inicializado' : 'sin inicializar'))),
+          el(Card, { title: 'Salud' },
+            health.ok ? el(Chip, { tone: 'ok' }, 'todo en orden') : el(Chip, { tone: 'bad' }, 'revisar'),
+            el('ul', { className: 'lcr-checks' }, (health.checks || []).map((check) =>
+              el('li', { key: check.name, className: 'lcr-check' },
+                el('span', { className: `lcr-dot lcr-dot--${check.status === 'ok' ? 'ok' : check.status === 'warn' ? 'warn' : 'bad'}`, 'aria-hidden': 'true' }),
+                el('span', null, check.name),
+                el('span', { className: 'lcr-muted' }, check.status))))),
+        el(Card, { title: 'Actividad reciente' },
+          (snapshot?.activity?.recent || []).length === 0
+            ? el(Empty, { title: 'Sin actividad todavía', hint: 'Indexa una fuente para empezar.' })
+            : el('ul', { className: 'lcr-activity' },
+                (snapshot.activity.recent || []).map((event) =>
+                  el('li', { key: `${event.seq}-${event.at}` },
+                    el('span', { className: 'lcr-mono lcr-muted' }, formatTime(event.at)),
+                    el('span', null, event.action),
+                    el('span', { className: 'lcr-muted' }, event.target || '')))))));
+    }
+
+    function SourceDetail({ id, onBack, onChanged }) {
+      const [detail, setDetail] = useState(null);
+      const [error, setError] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [confirm, setConfirm] = useState(false);
+      const [chunks, setChunks] = useState(20);
+
+      const load = useCallback(async () => {
+        setError('');
+        try {
+          setDetail(await getSource(id));
+        } catch (failure) {
+          setError(errorText(failure));
+        }
+      }, [id]);
+
+      useEffect(() => { void load(); }, [load]);
+
+      const forget = async () => {
+        setBusy(true);
+        try {
+          await action({ action: 'forget', ref: id, confirm: true });
+          setConfirm(false);
+          onChanged();
+          onBack();
+        } catch (failure) {
+          setError(errorText(failure));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      if (error && !detail) return el('div', null, el(ErrorBox, { error, onRetry: load }), el('button', { type: 'button', className: 'lcr-btn lcr-btn--ghost', onClick: onBack }, 'Volver'));
+      if (!detail) return el('p', { className: 'lcr-muted' }, 'Cargando fuente…');
+
+      const source = detail.source || detail;
+      return el('div', { className: 'lcr-stack' },
+        el('div', { className: 'lcr-row' },
+          el('button', { type: 'button', className: 'lcr-btn lcr-btn--ghost', onClick: onBack }, '← Fuentes'),
+          el('button', { type: 'button', className: 'lcr-btn lcr-btn--danger', onClick: () => setConfirm(true), disabled: busy }, 'Olvidar fuente')),
+        el(Card, { title: source.title || source.id },
+          el('dl', { className: 'lcr-kv' },
+            el('dt', null, 'Id'), el('dd', { className: 'lcr-mono' }, source.id),
+            el('dt', null, 'Ruta'), el('dd', { className: 'lcr-mono' }, source.uri),
+            el('dt', null, 'Colección'), el('dd', null, source.collection || '—'),
+            el('dt', null, 'Actualizada'), el('dd', null, formatTime(source.updatedAt)),
+            el('dt', null, 'Etiquetas'), el('dd', null, (source.tags || []).join(', ') || '—')),
+          el(ErrorBox, { error })),
+        el(Card, { title: 'Fragmentos' },
+          el('ul', { className: 'lcr-chunks' }, (detail.chunks || []).slice(0, chunks).map((chunk) =>
+            el('li', { key: chunk.ordinal, className: 'lcr-chunk' },
+              el('div', { className: 'lcr-chunk__head' },
+                el('span', { className: 'lcr-mono' }, `#${chunk.ordinal}`),
+                el('span', { className: 'lcr-muted' }, chunk.heading || '')),
+              el('p', { className: 'lcr-chunk__text' }, chunk.text)))),
+          (detail.chunks || []).length > chunks
+            ? el('button', { type: 'button', className: 'lcr-btn lcr-btn--ghost', onClick: () => setChunks((n) => n + 30 ) }, 'Mostrar más')
+            : null),
+        el(Confirm, {
+          open: confirm,
+          title: 'Olvidar fuente',
+          body: `Se eliminarán ${formatNumber(source.chunks)} fragmentos y sus vectores. La acción queda auditada y no se puede deshacer.`,
+          confirmLabel: busy ? 'Eliminando…' : 'Eliminar',
+          onCancel: () => setConfirm(false),
+          onConfirm: forget,
+        }));
+    }
+
+    function Sources({ onChanged }) {
+      const [rows, setRows] = useState(null);
+      const [error, setError] = useState('');
+      const [selected, setSelected] = useState(null);
+      const [path, setPath] = useState('');
+      const [collection, setCollection] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [notice, setNotice] = useState('');
+
+      const load = useCallback(async () => {
+        setError('');
+        try {
+          const data = await getSources();
+          setRows(data.rows || []);
+        } catch (failure) {
+          setError(errorText(failure));
+        }
+      }, []);
+
+      useEffect(() => { void load(); }, [load]);
+
+      const ingest = async () => {
+        if (!path.trim()) {
+          setError('Indica una ruta de fichero o carpeta.');
+          return;
+        }
+        setBusy(true);
+        setError('');
+        setNotice('');
+        try {
+          const result = await action({ action: 'ingest', paths: [path.trim()], collection: collection.trim() || undefined });
+          const failed = (result.errors || []).length;
+          setNotice(`Indexados ${result.ingested ?? 0} · omitidos ${result.skipped ?? 0}${failed ? ` · errores ${failed}` : ''}`);
+          if (failed) setError(result.errors.map((item) => `${item.path}: ${item.code}`).join('\n'));
+          setPath('');
+          await load();
+          onChanged?.();
+        } catch (failure) {
+          setError(errorText(failure));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      if (selected) return el(SourceDetail, { id: selected, onBack: () => setSelected(null), onChanged: load });
+
+      return el('div', { className: 'lcr-stack' },
+        el(Card, { title: 'Añadir fuente' },
+          el('div', { className: 'lcr-form' },
+            el('label', { className: 'lcr-field' },
+              el('span', null, 'Ruta del proyecto'),
+              el('input', { className: 'lcr-input lcr-mono', value: path, onChange: (event) => setPath(event.target.value), placeholder: 'docs/ o C:\\\\ruta\\\\a\\\\carpeta' })),
+            el('label', { className: 'lcr-field' },
+              el('span', null, 'Colección (opcional)'),
+              el('input', { className: 'lcr-input', value: collection, onChange: (event) => setCollection(event.target.value), placeholder: 'documentacion' })),
+            el('button', { type: 'button', className: 'lcr-btn', onClick: ingest, disabled: busy }, busy ? 'Indexando…' : 'Indexar')),
+          el('p', { className: 'lcr-hint' }, 'Se permiten ficheros o carpetas. Los directorios del sistema y las rutas protegidas se rechazan enteras, sin escribir nada.'),
+          notice ? el('p', { className: 'lcr-ok' }, notice) : null,
+          el(ErrorBox, { error })),
+        el(Card, {
+          title: 'Fuentes',
+          extra: el('button', { type: 'button', className: 'lcr-btn lcr-btn--ghost', onClick: load }, 'Actualizar'),
+        },
+          rows === null
+            ? el('p', { className: 'lcr-muted' }, 'Cargando…')
+            : rows.length === 0
+              ? el(Empty, { title: 'Sin fuentes', hint: 'Añade una ruta para construir el índice.' })
+              : el('table', { className: 'lcr-table' },
+                  el('thead', null, el('tr', null,
+                    el('th', { scope: 'col' }, 'Título'),
+                    el('th', { scope: 'col' }, 'Colección'),
+                    el('th', { scope: 'col', className: 'lcr-num' }, 'Fragmentos'),
+                    el('th', { scope: 'col' }, 'Actualizada'))),
+                  el('tbody', null, rows.map((row) =>
+                    el('tr', { key: row.id },
+                      el('td', null,
+                        el('button', { type: 'button', className: 'lcr-link', onClick: () => setSelected(row.id) }, row.title || row.id),
+                        el('div', { className: 'lcr-mono lcr-muted lcr-small' }, row.uri)),
+                      el('td', null, row.collection || '—'),
+                      el('td', { className: 'lcr-num' }, formatNumber(row.chunks)),
+                      el('td', null, formatTime(row.updatedAt))))))));
+    }
+
+    function Search({ onContext }) {
+      const [query, setQuery] = useState('');
+      const [strategy, setStrategy] = useState('hybrid');
+      const [limit, setLimit] = useState(8);
+      const [result, setResult] = useState(null);
+      const [error, setError] = useState('');
+      const [busy, setBusy] = useState(false);
+
+      const run = async () => {
+        if (!query.trim()) return;
+        setBusy(true);
+        setError('');
+        try {
+          setResult(await search({ query: query.trim(), strategy, limit }));
+        } catch (failure) {
+          setError(errorText(failure));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      const rows = result?.results || [];
+      return el('div', { className: 'lcr-stack' },
+        el(Card, { title: 'Buscar en el conocimiento' },
+          el('div', { className: 'lcr-search' },
+            el('input', {
+              className: 'lcr-input',
+              value: query,
+              placeholder: '¿Qué necesitas saber?',
+              onChange: (event) => setQuery(event.target.value),
+              onKeyDown: (event) => { if (event.key === 'Enter') void run(); },
+            }),
+            el('select', { className: 'lcr-select', value: strategy, onChange: (event) => setStrategy(event.target.value) },
+              el('option', { value: 'hybrid' }, 'Híbrida'),
+              el('option', { value: 'fts' }, 'Léxica'),
+              el('option', { value: 'vector' }, 'Vectorial')),
+            el('select', { className: 'lcr-select', value: String(limit), onChange: (event) => setLimit(Number(event.target.value)) },
+              [5, 8, 12, 20].map((n) => el('option', { key: n, value: String(n) }, `${n} resultados`))),
+            el('button', { type: 'button', className: 'lcr-btn', onClick: run, disabled: busy }, busy ? 'Buscando…' : 'Buscar')),
+          el(ErrorBox, { error })),
+        result
+          ? el(Card, {
+              title: `${rows.length} resultado(s)`,
+              extra: el('span', { className: 'lcr-muted lcr-small' }, `${result.diagnostics?.strategy || result.mode} · ${result.elapsedMs ?? 0} ms`),
+            },
+              rows.length === 0
+                ? el(Empty, { title: 'Sin resultados', hint: 'Prueba otra formulación o revisa que la fuente esté indexada.' })
+                : el('ul', { className: 'lcr-results' }, rows.map((row) =>
+                    el('li', { key: row.chunkKey, className: 'lcr-result' },
+                      el('div', { className: 'lcr-result__head' },
+                        el('strong', null, row.title || row.sourceId),
+                        row.heading && row.heading !== row.title ? el('span', { className: 'lcr-muted' }, ` › ${row.heading}`) : null,
+                        el('span', { className: 'lcr-score' }, Number(row.score ?? 0).toFixed(3))),
+                      el('p', { className: 'lcr-result__text' }, String(row.snippet || '').replace(/[[\]]/g, '').replace(/\*\*/g, '')),
+                      el('div', { className: 'lcr-row lcr-row--end' },
+                        el('span', { className: 'lcr-mono lcr-muted lcr-small' }, row.chunkKey),
+                        el('button', {
+                          type: 'button',
+                          className: 'lcr-btn lcr-btn--ghost',
+                          onClick: () => onContext?.({ query: query.trim(), limit }),
+                        }, 'Construir contexto con esta consulta'))))))
+          : el(Empty, { title: 'Empieza con una consulta', hint: 'La búsqueda usa el mismo motor que las herramientas del modelo.' }));
+    }
+
+    function Context({ seed }) {
+      const [query, setQuery] = useState(seed?.query || '');
+      const [budget, setBudget] = useState(2000);
+      const [result, setResult] = useState(null);
+      const [error, setError] = useState('');
+      const [busy, setBusy] = useState(false);
+
+      useEffect(() => { if (seed?.query) setQuery(seed.query); }, [seed]);
+
+      const run = async () => {
+        if (!query.trim()) return;
+        setBusy(true);
+        setError('');
+        try {
+          setResult(await buildContext({ query: query.trim(), budgetTokens: budget, maxChunks: 12 }));
+        } catch (failure) {
+          setError(errorText(failure));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      return el('div', { className: 'lcr-stack' },
+        el(Card, { title: 'Ensamblar contexto' },
+          el('div', { className: 'lcr-form lcr-form--inline' },
+            el('input', { className: 'lcr-input', value: query, placeholder: 'Consulta', onChange: (event) => setQuery(event.target.value) }),
+            el('input', { className: 'lcr-input lcr-input--num', type: 'number', min: 100, max: 8000, step: 100, value: budget, onChange: (event) => setBudget(Number(event.target.value)) }),
+            el('button', { type: 'button', className: 'lcr-btn', onClick: run, disabled: busy }, busy ? 'Construyendo…' : 'Construir')),
+          el('p', { className: 'lcr-hint' }, 'Presupuesto en tokens estimados. Si el primer fragmento no cabe, se devuelve vacío y marcado como truncado, nunca un fragmento cortado a medias.'),
+          el(ErrorBox, { error })),
+        result
+          ? el('div', { className: 'lcr-grid' },
+              el(Card, { title: `Contexto · ${formatNumber(result.tokens)} tokens${result.truncated ? ' · truncado' : ''}` },
+                result.text ? el('pre', { className: 'lcr-context' }, result.text) : el(Empty, { title: 'Sin contexto que quepa', hint: 'Reduce los fragmentos o aumenta el presupuesto.' })),
+              el(Card, { title: 'Procedencia' },
+                el('ol', { className: 'lcr-citations' }, (result.citations || []).map((citation) =>
+                  el('li', { key: citation.chunkKey },
+                    el('span', { className: 'lcr-mono' }, `[${citation.n}] ${citation.chunkKey}`),
+                    el('div', null, citation.title || citation.uri))))))
+          : el(Empty, { title: 'Sin contexto todavía', hint: 'Lanza una consulta para ver citas y presupuesto.' }));
+    }
+
+    function Metrics({ snapshot }) {
+      const [metric, setMetric] = useState('query.ms');
+      const [series, setSeries] = useState(null);
+      const [error, setError] = useState('');
+
+      const load = useCallback(async () => {
+        setError('');
+        try {
+          setSeries(await metricSeries(metric, 7));
+        } catch (failure) {
+          setError(errorText(failure));
+        }
+      }, [metric]);
+
+      useEffect(() => { void load(); }, [load]);
+
+      const summary = snapshot?.metrics || [];
+      const rows = Array.isArray(summary) ? summary : [];
+      const points = Array.isArray(series) ? series : (series?.points || []);
+      const max = points.reduce((value, point) => Math.max(value, Number(point.value) || 0), 0) || 1;
+
+      return el('div', { className: 'lcr-stack' },
+        el(Card, { title: 'Agregados (últimos 7 días)' },
+          rows.length === 0
+            ? el(Empty, { title: 'Sin métricas todavía', hint: 'Se registran al buscar, indexar y construir contexto.' })
+            : el('table', { className: 'lcr-table' },
+                el('thead', null, el('tr', null, el('th', { scope: 'col' }, 'Métrica'), el('th', { scope: 'col' }, 'Dimensión'), el('th', { scope: 'col', className: 'lcr-num' }, 'Total'))),
+                el('tbody', null, rows.map((row) =>
+                  el('tr', { key: `${row.metric}-${row.dim}` },
+                    el('td', { className: 'lcr-mono' }, row.metric),
+                    el('td', null, row.dim || '—'),
+                    el('td', { className: 'lcr-num' }, formatNumber(row.total))))))),
+        el(Card, {
+          title: 'Serie',
+          extra: el('select', { className: 'lcr-select', value: metric, onChange: (event) => setMetric(event.target.value) },
+            ['query.ms', 'query.count', 'ingest.documents', 'context.tokens', 'automation.runs'].map((name) =>
+              el('option', { key: name, value: name }, name))),
+        },
+          el(ErrorBox, { error, onRetry: load }),
+          points.length === 0
+            ? el('p', { className: 'lcr-muted' }, 'Sin datos para esa métrica.')
+            : el('div', { className: 'lcr-bars' }, points.map((point) =>
+                el('div', { key: point.day, className: 'lcr-bar' },
+                  el('div', { className: 'lcr-bar__track' },
+                    el('div', { className: 'lcr-bar__fill', style: { height: `${Math.max(4, (Number(point.value) / max) * 100)}%` } })),
+                  el('span', { className: 'lcr-muted lcr-small' }, String(point.day).slice(5))))),
+          el('p', { className: 'lcr-hint' }, 'Percentiles estimados por histograma; nunca se guardan consultas, prompts ni respuestas.')));
+    }
+
+    function Settings({ snapshot, onSaved }) {
+      const config = snapshot?.config || {};
+      const [strategy, setStrategy] = useState(config.strategy || 'hybrid');
+      const [limit, setLimit] = useState(config.limit ?? 8);
+      const [enabled, setEnabled] = useState(Boolean(config.automation?.enabled));
+      const [roots, setRoots] = useState((config.automation?.watchRoots || []).join('\n'));
+      const [busy, setBusy] = useState(false);
+      const [error, setError] = useState('');
+      const [notice, setNotice] = useState('');
+
+      useEffect(() => {
+        setStrategy(config.strategy || 'hybrid');
+        setLimit(config.limit ?? 8);
+        setEnabled(Boolean(config.automation?.enabled));
+        setRoots((config.automation?.watchRoots || []).join('\n'));
+      }, [config.strategy, config.limit, config.automation?.enabled, config.automation?.watchRoots]);
+
+      const save = async () => {
+        setBusy(true);
+        setError('');
+        setNotice('');
+        try {
+          const watchRoots = roots.split('\n').map((line) => line.trim()).filter(Boolean);
+          await saveConfig({ search: { strategy, limit }, automation: { enabled, watchRoots } });
+          setNotice('Configuración guardada. La automatización se aplica al recargar el plugin.');
+          onSaved?.();
+        } catch (failure) {
+          setError(errorText(failure));
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      return el('div', { className: 'lcr-stack' },
+        el(Card, { title: 'Búsqueda' },
+          el('div', { className: 'lcr-form' },
+            el('label', { className: 'lcr-field' },
+              el('span', null, 'Estrategia por defecto'),
+              el('select', { className: 'lcr-select', value: strategy, onChange: (event) => setStrategy(event.target.value) },
+                el('option', { value: 'hybrid' }, 'Híbrida (léxica + vectorial)'),
+                el('option', { value: 'fts' }, 'Sólo léxica'),
+                el('option', { value: 'vector' }, 'Sólo vectorial'))),
+            el('label', { className: 'lcr-field' },
+              el('span', null, 'Resultados por consulta'),
+              el('input', { className: 'lcr-input lcr-input--num', type: 'number', min: 1, max: 50, value: limit, onChange: (event) => setLimit(Number(event.target.value)) })),
+            el('p', { className: 'lcr-hint' },
+              `Embeddings: ${config.embedding?.provider || 'local-hash-v1'} · ${config.embedding?.dim || 256} dims · ${config.embedding?.kind === 'semantic' ? 'semántico' : 'léxico (hash de tokens)'}. La calidad semántica requiere un proveedor neural aprobado.`))),
+        el(Card, { title: 'Automatización' },
+          el('label', { className: 'lcr-toggle' },
+            el('input', { type: 'checkbox', checked: enabled, onChange: (event) => setEnabled(event.target.checked) }),
+            el('span', null, 'Indexar automáticamente las carpetas vigiladas')),
+          el('label', { className: 'lcr-field' },
+            el('span', null, 'Carpetas vigiladas (una por línea, ruta absoluta)'),
+            el('textarea', { className: 'lcr-input lcr-mono', rows: 4, value: roots, onChange: (event) => setRoots(event.target.value) })),
+          el('p', { className: 'lcr-hint' }, 'La automatización no puede aprobar operaciones sensibles: olvidar fuentes y reindexar siguen exigiendo confirmación explícita.')),
+        el('div', { className: 'lcr-row' },
+          el('button', { type: 'button', className: 'lcr-btn', onClick: save, disabled: busy }, busy ? 'Guardando…' : 'Guardar configuración')),
+        el(ErrorBox, { error }),
+        notice ? el('p', { className: 'lcr-ok' }, notice) : null);
+    }
+
+    function Health({ snapshot }) {
+      const health = snapshot?.health || { ok: false, checks: [] };
+      const store = snapshot?.store || {};
+      return el('div', { className: 'lcr-stack' },
+        el(Card, { title: 'Comprobaciones' },
+          el('ul', { className: 'lcr-checks' }, (health.checks || []).map((check) =>
+            el('li', { key: check.name, className: 'lcr-check' },
+              el('span', { className: `lcr-dot lcr-dot--${check.status === 'ok' ? 'ok' : check.status === 'warn' ? 'warn' : 'bad'}`, 'aria-hidden': 'true' }),
+              el('span', null, check.name),
+              el('span', { className: 'lcr-muted' }, check.detail || check.status))))),
+        el(Card, { title: 'Diagnóstico' },
+          el('dl', { className: 'lcr-kv' },
+            el('dt', null, 'Versión de esquema'), el('dd', null, String(store.schemaVersion ?? '—')),
+            el('dt', null, 'Base de datos'), el('dd', { className: 'lcr-mono' }, store.path || '—'),
+            el('dt', null, 'Tamaño'), el('dd', null, formatBytes(store.databaseBytes)),
+            el('dt', null, 'Journal de auditoría'), el('dd', null, formatBytes(store.auditBytes))),
+          el('p', { className: 'lcr-hint' }, 'Si algo aparece en rojo, ejecuta el doctor del plugin: `node bin/lifecode-rag.mjs doctor`.')));
+    }
+
+    function Panel(props) {
+      const [tab, setTab] = useState('resumen');
+      const [snapshot, setSnapshot] = useState(null);
+      const [error, setError] = useState('');
+      const [seed, setSeed] = useState(null);
+      const timer = useRef(null);
+
+      const load = useCallback(async () => {
+        try {
+          setSnapshot(await getSnapshot());
+          setError('');
+        } catch (failure) {
+          setError(errorText(failure));
+        }
+      }, []);
+
+      useEffect(() => {
+        void load();
+        timer.current = setInterval(() => {
+          if (document.visibilityState !== 'hidden') void load();
+        }, 30_000);
+        return () => clearInterval(timer.current);
+      }, [load]);
+
+      const content = useMemo(() => {
+        switch (tab) {
+          case 'fuentes': return el(Sources, { onChanged: load });
+          case 'buscar': return el(Search, { onContext: (payload) => { setSeed(payload); setTab('contexto'); } });
+          case 'contexto': return el(Context, { seed });
+          case 'metricas': return el(Metrics, { snapshot });
+          case 'configuracion': return el(Settings, { snapshot, onSaved: load });
+          case 'salud': return el(Health, { snapshot });
+          default: return el(Overview, { snapshot });
+        }
+      }, [tab, snapshot, seed, load]);
+
+      return el('div', { className: 'lcr-root' },
+        el('header', { className: 'lcr-header' },
+          el('div', null,
+            el('h2', { className: 'lcr-title' }, 'LifeCode RAG'),
+            el('p', { className: 'lcr-subtitle' }, 'Conocimiento local, recuperación híbrida y contexto con procedencia.')),
+          el('button', { type: 'button', className: 'lcr-btn lcr-btn--ghost', onClick: load, 'aria-label': 'Actualizar datos' }, 'Actualizar')),
+        el('nav', { className: 'lcr-tabs', role: 'tablist', 'aria-label': 'Secciones del Workspace' },
+          TABS.map(([id, label]) =>
+            el('button', {
+              key: id,
+              type: 'button',
+              role: 'tab',
+              'aria-selected': tab === id,
+              className: `lcr-tab${tab === id ? ' lcr-tab--active' : ''}`,
+              onClick: () => setTab(id),
+            }, label))),
+        el(ErrorBox, { error, onRetry: load }),
+        el('main', { className: 'lcr-main' }, snapshot ? content : el('p', { className: 'lcr-muted' }, 'Cargando Workspace…')));
+    }
+
+    const ICON = (props) => {
+      const size = props?.size || 18;
+      return el('svg', {
+        width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round',
+        'aria-hidden': 'true', focusable: 'false',
+      },
+        el('path', { d: 'M4 5.5A2.5 2.5 0 0 1 6.5 3H18a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 18.5z' }),
+        el('path', { d: 'M8 7h8M8 11h8M8 15h5' }));
+    };
+
+    const CSS = `
+      .lcr-root { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px 28px; color: var(--dsw-alias-label-primary, #e8e8ea); background: var(--dsw-alias-bg-base, #17181c); min-height: 100%; font-size: 13px; line-height: 1.5; }
+      .lcr-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+      .lcr-title { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+      .lcr-subtitle { margin: 2px 0 0; color: var(--dsw-alias-label-secondary, #a0a0aa); }
+      .lcr-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--dsw-alias-border-l1, #2c2d33); padding-bottom: 6px; }
+      .lcr-tab { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary, #a0a0aa); padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit; }
+      .lcr-tab:hover { background: var(--dsw-alias-bg-layer-1, #202127); color: var(--dsw-alias-label-primary, #e8e8ea); }
+      .lcr-tab:focus-visible, .lcr-btn:focus-visible, .lcr-input:focus-visible, .lcr-select:focus-visible, .lcr-link:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f8cff); outline-offset: 2px; }
+      .lcr-tab--active { background: color-mix(in oklab, var(--dsw-alias-brand-primary, #4f8cff) 16%, transparent); color: var(--dsw-alias-label-primary, #e8e8ea); font-weight: 600; }
+      .lcr-main { display: flex; flex-direction: column; gap: 14px; }
+      .lcr-stack { display: flex; flex-direction: column; gap: 14px; }
+      .lcr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+      .lcr-card { background: var(--dsw-alias-bg-layer-1, #202127); border: 1px solid var(--dsw-alias-border-l1, #2c2d33); border-radius: 10px; overflow: hidden; }
+      .lcr-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--dsw-alias-border-l2, #34353d); }
+      .lcr-card__title { margin: 0; font-size: 13px; font-weight: 600; }
+      .lcr-card__body { padding: 12px 14px; }
+      .lcr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+      .lcr-stat { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 10px; background: var(--dsw-alias-bg-layer-1, #202127); border: 1px solid var(--dsw-alias-border-l1, #2c2d33); }
+      .lcr-stat__label { color: var(--dsw-alias-label-secondary, #a0a0aa); font-size: 12px; }
+      .lcr-stat__value { font-size: 22px; font-variant-numeric: tabular-nums; }
+      .lcr-kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; }
+      .lcr-kv dt { color: var(--dsw-alias-label-secondary, #a0a0aa); }
+      .lcr-kv dd { margin: 0; overflow-wrap: anywhere; }
+      .lcr-mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; }
+      .lcr-small { font-size: 11px; }
+      .lcr-muted { color: var(--dsw-alias-label-secondary, #a0a0aa); }
+      .lcr-hint { margin: 8px 0 0; color: var(--dsw-alias-label-secondary, #a0a0aa); font-size: 12px; }
+      .lcr-ok { color: var(--dsw-alias-state-success-primary, #2e9e6b); font-size: 12px; }
+      .lcr-error { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; background: color-mix(in oklab, var(--dsw-alias-state-error-primary, #e5484d) 12%, transparent); border: 1px solid color-mix(in oklab, var(--dsw-alias-state-error-primary, #e5484d) 40%, transparent); color: var(--dsw-alias-label-primary, #e8e8ea); white-space: pre-wrap; }
+      .lcr-chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+      .lcr-chip--ok { background: color-mix(in oklab, var(--dsw-alias-state-success-primary, #2e9e6b) 18%, transparent); color: var(--dsw-alias-state-success-primary, #2e9e6b); }
+      .lcr-chip--bad { background: color-mix(in oklab, var(--dsw-alias-state-error-primary, #e5484d) 18%, transparent); color: var(--dsw-alias-state-error-primary, #e5484d); }
+      .lcr-chip--neutral { background: var(--dsw-alias-bg-layer-2, #2a2b32); color: var(--dsw-alias-label-secondary, #a0a0aa); }
+      .lcr-checks { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+      .lcr-check { display: grid; grid-template-columns: 10px 1fr max-content; align-items: center; gap: 8px; }
+      .lcr-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+      .lcr-dot--ok { background: var(--dsw-alias-state-success-primary, #2e9e6b); }
+      .lcr-dot--warn { background: var(--dsw-alias-state-warn-primary, #d68a1f); }
+      .lcr-dot--bad { background: var(--dsw-alias-state-error-primary, #e5484d); }
+      .lcr-activity { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+      .lcr-activity li { display: grid; grid-template-columns: 120px 1fr auto; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--dsw-alias-border-l2, #34353d); }
+      .lcr-form { display: flex; flex-direction: column; gap: 10px; }
+      .lcr-form--inline { flex-direction: row; flex-wrap: wrap; align-items: center; }
+      .lcr-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dsw-alias-label-secondary, #a0a0aa); }
+      .lcr-input, .lcr-select { background: var(--dsw-alias-bg-base, #17181c); color: var(--dsw-alias-label-primary, #e8e8ea); border: 1px solid var(--dsw-alias-border-l1, #2c2d33); border-radius: 6px; padding: 6px 8px; font: inherit; }
+      .lcr-input--num { width: 110px; }
+      .lcr-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .lcr-search .lcr-input { flex: 1 1 260px; }
+      .lcr-btn { appearance: none; border: 1px solid var(--dsw-alias-border-l1, #2c2d33); background: var(--dsw-alias-bg-layer-2, #2a2b32); color: var(--dsw-alias-label-primary, #e8e8ea); border-radius: 6px; padding: 6px 12px; font: inherit; cursor: pointer; }
+      .lcr-btn:hover:not(:disabled) { border-color: var(--dsw-alias-brand-primary, #4f8cff); }
+      .lcr-btn:disabled { opacity: 0.55; cursor: default; }
+      .lcr-btn--ghost { background: transparent; }
+      .lcr-btn--danger { border-color: color-mix(in oklab, var(--dsw-alias-state-error-primary, #e5484d) 50%, transparent); color: var(--dsw-alias-state-error-primary, #e5484d); }
+      .lcr-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .lcr-row--end { justify-content: flex-end; }
+      .lcr-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      .lcr-table th { text-align: left; font-weight: 600; color: var(--dsw-alias-label-secondary, #a0a0aa); padding: 6px 8px; border-bottom: 1px solid var(--dsw-alias-border-l1, #2c2d33); }
+      .lcr-table td { padding: 7px 8px; border-bottom: 1px solid var(--dsw-alias-border-l2, #34353d); vertical-align: top; }
+      .lcr-num { text-align: right; font-variant-numeric: tabular-nums; }
+      .lcr-link { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-brand-primary, #4f8cff); padding: 0; font: inherit; cursor: pointer; text-align: left; }
+      .lcr-empty { padding: 18px; text-align: center; border: 1px dashed var(--dsw-alias-border-l1, #2c2d33); border-radius: 8px; }
+      .lcr-empty__title { margin: 0; font-weight: 600; }
+      .lcr-empty__hint { margin: 4px 0 0; color: var(--dsw-alias-label-secondary, #a0a0aa); font-size: 12px; }
+      .lcr-results, .lcr-chunks, .lcr-citations { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+      .lcr-result, .lcr-chunk { padding: 10px; border-radius: 8px; background: var(--dsw-alias-bg-base, #17181c); border: 1px solid var(--dsw-alias-border-l2, #34353d); }
+      .lcr-result__head, .lcr-chunk__head { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+      .lcr-score { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--dsw-alias-label-secondary, #a0a0aa); }
+      .lcr-result__text, .lcr-chunk__text { margin: 6px 0; color: var(--dsw-alias-label-primary, #e8e8ea); white-space: pre-wrap; }
+      .lcr-context { margin: 0; padding: 10px; border-radius: 8px; background: var(--dsw-alias-bg-base, #17181c); border: 1px solid var(--dsw-alias-border-l2, #34353d); white-space: pre-wrap; font-family: inherit; font-size: 12px; max-height: 420px; overflow: auto; }
+      .lcr-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 8px; overflow-x: auto; }
+      .lcr-bar { flex: 0 0 48px; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+      .lcr-bar__track { width: 100%; flex: 1; display: flex; align-items: flex-end; background: var(--dsw-alias-bg-base, #17181c); border-radius: 4px; }
+      .lcr-bar__fill { width: 100%; background: color-mix(in oklab, var(--dsw-alias-brand-primary, #4f8cff) 55%, transparent); border-radius: 4px 4px 0 0; min-height: 3px; }
+      .lcr-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+      .lcr-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 60; padding: 20px; }
+      .lcr-modal__box { background: var(--dsw-alias-bg-layer-1, #202127); border: 1px solid var(--dsw-alias-border-l1, #2c2d33); border-radius: 10px; padding: 18px; max-width: 440px; width: 100%; }
+      .lcr-modal__title { margin: 0 0 6px; font-size: 15px; }
+      .lcr-modal__body { margin: 0 0 14px; color: var(--dsw-alias-label-secondary, #a0a0aa); }
+      .lcr-modal__actions { display: flex; justify-content: flex-end; gap: 8px; }
+      @media (prefers-reduced-motion: reduce) { .lcr-root * { transition: none !important; } }
+      @media (forced-colors: active) { .lcr-card, .lcr-stat, .lcr-result, .lcr-chunk, .lcr-context { border-color: CanvasText; } }
+    `;
+
+    return {
+      inject: ['slots', 'locale'],
+      apply(ctx) {
+        ctx.effect(() => {
+          const style = document.createElement('style');
+          style.id = 'lcr-styles';
+          style.textContent = CSS;
+          document.head.appendChild(style);
+          return () => { style.remove(); };
+        });
+
+        const sidebar = ctx.slots.inject(SIDEBAR_SLOT);
+        sidebar.register({
+          name: SIDEBAR_SLOT,
+          id: PANEL_ID,
+          order: 35,
+          label: () => 'LifeCode RAG',
+          locale: 'lifecode-rag',
+        }, ICON);
+
+        const main = ctx.slots.inject(MAIN_SLOT);
+        main.register({
+          name: MAIN_SLOT,
+          key: PANEL_ID,
+          order: 55,
+          locale: 'lifecode-rag',
+        }, Panel);
+      },
+    };
+  },
+});

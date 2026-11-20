@@ -1,0 +1,11 @@
+{
+ "ok": true,
+ "profile": "real-world-01",
+ "root": {
+  "id": "rt_01M7TMS0TSQ9BS6S8ZZQEKXDE4",
+  "scopeKind": "prj",
+  "scopeId": "prj_01M7TMS0QVWAF5XB8H471KDEG3",
+  "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\eval\\real-world-01\\docs",
+  "pathKey": "c:/xampp/htdocs/plugins-dhs/lifecode-rag/eval/real-world-01/docs"
+ }
+}

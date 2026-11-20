@@ -1,0 +1,91 @@
+{
+ "session": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+ "root": "<USER_HOME>/.dsh/lifecode-rag/profiles/desktop",
+ "cwd": "C:/xampp/htdocs/plugins-dhs/lifecode-rag",
+ "list": {
+  "total": 121,
+  "primeras": [
+   "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\AUTOMATION-POLICIES.md",
+   "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\index.js",
+   "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\bin\\lifecode-rag.mjs"
+  ]
+ },
+ "search": {
+  "modo": "and",
+  "ms": 34,
+  "resultados": [
+   {
+    "sourceId": "src_a26afe7725768150",
+    "chunkKey": "src_a26afe7725768150#4",
+    "uri": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\PROJECT-AWARE-ERROR-CONTRACT.md",
+    "title": "Contrato de errores — Project-Aware RAG (PA0)",
+    "heading": "2. Códigos",
+    "snippet": "… códigos nuevos de la etapa [Project]-[Aware]; no existen en v0.1 …"
+   },
+   {
+    "sourceId": "src_c3f912136c2f1107",
+    "chunkKey": "src_c3f912136c2f1107#32",
+    "uri": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\PROJECT-AWARE-ARCHITECTURE.md",
+    "title": "Arquitectura Project-Aware RAG — PA0",
+    "heading": "18.5 Ciclo de vida y convivencia con v0.2",
+    "snippet": "un perfil [Project]-[Aware] nuevo no recibe un almacén legado vacío y …"
+   },
+   {
+    "sourceId": "src_c3f912136c2f1107",
+    "chunkKey": "src_c3f912136c2f1107#35",
+    "uri": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\PROJECT-AWARE-ARCHITECTURE.md",
+    "title": "Arquitectura Project-Aware RAG — PA0",
+    "heading": "19. Hardening de calidad (2026-11-18)",
+    "snippet": "… M6.7 — sincronización periódica controlada El programador [Project]-[Aware] vive en `lib …"
+   }
+  ]
+ },
+ "get": {
+  "ref": "src_a26afe7725768150",
+  "uri": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\PROJECT-AWARE-ERROR-CONTRACT.md",
+  "title": "Contrato de errores — Project-Aware RAG (PA0)",
+  "mime": "text/markdown",
+  "chunks": [
+   {
+    "heading": "Contrato de errores — Project-Aware RAG (PA0)",
+    "text": "# Contrato de errores — Project-Aware RAG (PA0)\n\n**Estado:** implementado y verificado en PA1–PA4 (probado local). Actualizado en PA4 con la semántica\n**fail-closed** de la revocación durante una operación y con los códigos de raíces, recuperación y\noperaciones interrumpidas.\n**Regla transversal:** un error de seguridad, permisos o integridad **nunca** se convierte en un resultado\nvacío aparentemente exitoso. Si no se puede demostrar que la consulta es válida y está autorizada, se falla\nen cerrado con el código correspondiente.\n\n## 1. Familias\n\n| Familia | Qué significa | ¿Reintentable? |\n|---|---|---|\n| **Selección** | No hay proyecto resoluble o hay ambigüedad | Tras acción humana, sí |\n| **Autorización** | El proyecto/ámbito no está permitido | No sin cambio de grants o selección |\n| **Integridad** | Un almacén o el registro no son fiables | No; requiere intervención |\n| **Infraestructura** | Falta el fichero, el perfil o el acceso | Sí, si se restaura el recurso |\n| **Sincronización** | Una raíz no se puede observar de forma completa | Sí, en la siguiente pasada |\n\n## 2. Códigos\n\n"
+   },
+   {
+    "heading": "1. Familias",
+    "text": "|\n| **Sincronización** | Una raíz no se puede observar de forma completa | Sí, en la siguiente pasada |\n\n## 2. Códigos\n\n| Código | Familia | Cuándo | `details` mínimos | Efecto |\n|---|---|---|---|---|\n| `scope-unresolved` | Selección | No hay selección y el cwd no coincide con una raíz registrada | `session_id`, `cwd` | Ninguna consulta; no se abre ningún almacén |\n| `scope-ambiguous` | Selección | El cwd coincide con más de una raíz registrada | `session_id`, `candidates[]` | No se elige una; se pide selección explícita |\n| `scope-forbidden` | Autorización | Proyecto archivado, selección revocada o ámbito no permitido | `session_id`, `project_id?`, `reason` | No se abre el almacén |\n| `scope-too-many` | Autorización | Tras verificar grants, hay más de 8 ámbitos | `project_id`, `libraries[]`, `limit: 8` | No se trunca ni se ignora ninguna; no se abre ninguna biblioteca |\n| `path-excluded` | Autorización | Ruta dentro de una exclusión (Skill Center, almacén propio, `.git`, etc.) | `path`, `reason` | Se rechaza la operación completa |\n| `hardlink-refused` | Autorización | Fichero con más de un enlace duro | `path`, `nlink` | Se rechaza ese fichero; la operación informa |\n"
+   },
+   {
+    "heading": "2. Códigos",
+    "text": "| Autorización | Fichero con más de un enlace duro | `path`, `nlink` | Se rechaza ese fichero; la operación informa |\n| `path-escape` | Autorización | symlink/junction/reparse que sale de la raíz | `path`, `target?` | Se rechaza |\n| `root-overlap` | Autorización | Raíz solapada (padre/hijo) con otra autorizada del perfil, o duplicada global | `path`, `conflictsWith{scopeKind,scopeId,path,relation}` | No se registra la raíz |\n| `root-symlink` | Autorización | La raíz es un enlace, junction o reparse point, o su ruta canónica no coincide con la registrada | `path`, `linkTarget?`, `canonical`, `reason` | No se registra la raíz |\n| `root-changed` | Integridad | El destino real de una raíz registrada cambió (sustitución por junction/symlink, reparse del proveedor) | `path`, `expected?`, `actual` | Se falla en cerrado antes de usar la raíz |\n| `registry-unavailable` | Infraestructura | No existe el registro del perfil o no se puede abrir | `profile_id`, `path?` | Ninguna operación |\n| `registry-corrupt` | Integridad | `integrity_check` falla, `path_key` duplicado, cadena de auditoría rota | `profile_id`, `check`, `detail` | No se escribe; se informa |\n"
+   },
+   {
+    "heading": "2. Códigos",
+    "text": "falla, `path_key` duplicado, cadena de auditoría rota | `profile_id`, `check`, `detail` | No se escribe; se informa |\n| `scope-store-unavailable` | Infraestructura | Falta el `rag.sqlite3` de un ámbito, está ocupado por otra conexión o sigue migrando | `scope_id`, `scope_kind`, `reason`, `state`, `retryable` | Falla la operación completa: no se entrega un subconjunto que parezca exhaustivo |\n| `scope-store-corrupt` | Integridad | Metadatos incoherentes, `schema_version` futura, `store_state` no `ready`, `integrity_check` o `foreign_key_check` fallan | `scope_id`, `scope_kind`, `check`, `findings?` | No se lee ni se entrega contenido; no se repara solo |\n| `recovery-verification-failed` | Integridad | Una recuperación no pudo verificar recuentos, hashes, FTS5, vectores o auditoría | `scope_id`, `stage`, `check`, `detail` | El almacén en cuarentena queda intacto; no se sustituye |\n| `operation-uncertain` | Integridad | Una operación destructiva quedó `started` (resultado desconocido) o se intenta confirmar con pasos sin completar | `operationId`, `kind`, `operations[]`/`steps[]` | No se repite el efecto; exige reconciliación explícita |\n"
+   },
+   {
+    "heading": "2. Códigos",
+    "text": "completar | `operationId`, `kind`, `operations[]`/`steps[]` | No se repite el efecto; exige reconciliación explícita |\n| `session-invalid` | Selección | `Session.id` ausente o no válido | `session_id?` | No se resuelve |\n| `session-expired` | Selección | La sesión terminó y se conserva la fila `expired` | `session_id`, `project_id` | Se exige nueva selección |\n| `grant-revoked` | Autorización | El grant estaba vigente al iniciar la operación y se revocó durante ella | `project_id`, `scopes[]`, `reason`, `guarantee` | La operación falla en cerrado: no se entrega ningún resultado de ningún ámbito |\n| `sync-root-unavailable` | Sincronización | La raíz no existe, no es accesible o no se puede recorrer por completo | `root_id`, `path`, `code` | No se marca `missing`; se registra `unreadable` |\n\n`session-invalid`, `session-expired`, `registry-*` y `scope-store-*` son códigos nuevos de la etapa\nProject-Aware; no existen en v0.1/v0.2 y no se añaden a la superficie pública congelada.\n\n"
+   },
+   {
+    "heading": "2. Códigos",
+    "text": "códigos nuevos de la etapa\nProject-Aware; no existen en v0.1/v0.2 y no se añaden a la superficie pública congelada.\n\n**Distinción de sesión:** `session-invalid` = no hay identidad utilizable, o la identidad fue capturada en\notro perfil (`reason: 'profile-mismatch'`, comprobado por el adaptador antes de abrir el registro);\n`session-expired` = la fila existe en estado `expired`; una selección `invalidated`\n(proyecto archivado, grant/raíz revocada, cambio de perfil, clonación) se informa como `scope-forbidden` con\n`reason`, nunca como `session-invalid`. Un `session_id` sin fila y sin atadura de perfil es indistinguible de\nuna sesión nueva: no es inválido; resuelve por `cwd` o falla `scope-unresolved`. No se reutiliza una fila\n`expired`/`invalidated`: se exige una selección nueva.\n\n"
+   },
+   {
+    "heading": "2. Códigos",
+    "text": "por `cwd` o falla `scope-unresolved`. No se reutiliza una fila\n`expired`/`invalidated`: se exige una selección nueva.\n\n**Revocación durante una operación (semántica única, PA4):** la autorización se fija al inicio como\n**instantánea**, y cada ámbito se revalida antes de abrirse y antes de devolver nada. Si un ámbito pierde la\nautorización durante la operación —grant revocado, sesión expirada o invalidada, proyecto archivado,\nselección cambiada— la operación **falla en cerrado** con `grant-revoked`, `session-expired` o\n`scope-forbidden` y **no entrega ningún resultado**, ni siquiera el parcial de los ámbitos que sí seguían\nautorizados. Motivo: el sobre público de v0.1 (`search`→`{results, mode, elapsedMs}`) no tiene campo donde\ndeclarar `partial`, y devolver un subconjunto sin declararlo lo haría pasar por exhaustivo (§3, prohibición 3\nde §4). El ámbito afectado y la garantía aplicada viajan en `details.scopes` y `details.guarantee`.\n\n"
+   },
+   {
+    "heading": "2. Códigos",
+    "text": "(§3, prohibición 3\nde §4). El ámbito afectado y la garantía aplicada viajan en `details.scopes` y `details.guarantee`.\n\nUn almacén que se abre con `create: true` porque el proyecto aún no existía es la única creación automática:\nla ausencia de una **biblioteca** nunca se convierte en una biblioteca vacía ni en creación silenciosa; se\ninforma `scope-store-unavailable` con `state: 'missing'` y `retryable: false`.\n\n## 3. Clasificación de resultado y visibilidad\n\n- **Fallo total:** error propagado; sin resultados parciales. Es el único desenlace posible en v0.1 cuando\n un ámbito autorizado no se puede consultar o pierde la autorización a mitad.\n- **Fallo parcial:** no existe en el sobre público de v0.1. `search` devuelve exactamente\n `{results, mode, elapsedMs}`; `context` devuelve `{text, citations, tokens, truncated, considered}`. No hay\n campo `partial`/`errors` y PA4 **no lo añade**. Internamente el orquestador sigue acumulando el error de\n cada ámbito para auditoría y diagnóstico, pero la operación no devuelve resultados cuando uno falla.\n- **Denegación:** `scope-forbidden`, `path-excluded`, `grant-revoked`; se audita como `denied`.\n"
+   },
+   {
+    "heading": "3. Clasificación de resultado y visibilidad",
+    "text": "cuando uno falla.\n- **Denegación:** `scope-forbidden`, `path-excluded`, `grant-revoked`; se audita como `denied`.\n- **Estado observado, no error:** que una fuente o una raíz esté `missing` es un estado, no un error de la\n operación. La ausencia de un **almacén de biblioteca** sí es un error de operación (§2).\n- **Propuesta para v0.3 (no implementada, no autorizada):** añadir al sobre de `search` un campo\n `partial: {scopes[], errors[]}` y convertir el fallo total en fallo parcial declarado. Requiere evolución\n del contrato público congelado; queda documentada en `eval/pa4/PA4-DECISIONS.md` (D-PA4-F-01).\n\n## 4. Prohibiciones explícitas\n\n1. Convertir `scope-*` en lista vacía.\n2. Devolver resultados de otro proyecto como \"recuperación parcial\".\n3. Truncar bibliotecas hasta 8 sin decirlo.\n4. Reintentar con un proyecto distinto cuando el seleccionado falla.\n5. Reparar automáticamente un registro o almacén corrupto.\n6. Tratar una lectura fallida como fuente desaparecida (`missing` solo con observación completa).\n\n## 5. Correspondencia futura (no implementada)\n\n"
+   },
+   {
+    "heading": "4. Prohibiciones explícitas",
+    "text": "como fuente desaparecida (`missing` solo con observación completa).\n\n## 5. Correspondencia futura (no implementada)\n\n- En la API v0.3, cada familia tendrá un estado HTTP estable (`400` selección, `403` autorización,\n `409`/`422` integridad, `503` infraestructura); se definirá en el contrato de API.\n- En las herramientas, el error llegará como fallo con `code` en `details`, sin cambiar el sobre actual de\n v0.1 (que no se toca).\n- La UI mostrará el código y un texto humano; nunca un \"sin resultados\" cuando hubo un error.\n\n## 6. Verificación ejecutada (PA2–PA4)\n\n- Prueba por código: se fuerza la condición y se comprueba `code`, `details` y que no se abrió ningún almacén\n cuando el error es de selección/autorización.\n- Prueba de cierre en falso: una biblioteca corrupta, ausente o revocada a mitad hace fallar `search`,\n `context` y `get` sin devolver los resultados del proyecto como si fueran la respuesta completa\n (`lifecode-rag/tests/partial-results.test.mjs`, `lifecode-rag/tests/revocation.test.mjs`).\n- Prueba de no borrado: detectar `missing` no reduce `sources`/`chunks`/`vectors`/auditoría; la recuperación\n conserva el original en cuarentena y valida antes de sustituir\n (`lifecode-rag/tests/recovery.test.mjs`).\n- Prueba de operación incierta: una fila `started` bloquea con `operation-uncertain` y la reconciliación sólo\n cierra la fila (`lifecode-rag/tests/partial-results.test.mjs`)."
+   }
+  ]
+ }
+}

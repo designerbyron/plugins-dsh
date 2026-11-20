@@ -1,0 +1,51 @@
+# HASHES — HOST + SUBAGENT AUDIT 01
+# acto: HERMES-LCRAG-HOST-AND-SUBAGENT-AUDIT-01
+# generado: 2026-11-19T18:09:12Z
+# rutas relativas a lifecode-rag/ ; verificar: sha256sum -c eval/host-subagent-audit-01/HASHES.txt
+# HASHES.txt no se incluye a si mismo
+
+## A. Entregables
+b8566b8e3464df299304d9faa10fa8dc548a3052ebb4c05a71f66256d4fcbffb *eval/host-subagent-audit-01/ARCHITECTURE-OPTIONS.md
+4d907fefdc7ee0aafb8e8e1b914977e4a66d50827ad82abf272036f2f41772c4 *eval/host-subagent-audit-01/EXECUTIVE-REPORT.md
+01e9b7ccb86454f7e2b30be59d1744a412ac6af8c91883e2fd73cd1ba7fb4b2b *eval/host-subagent-audit-01/HOST-POST-REDESIGN-VERIFICATION.md
+64b8210abedae327772bce141c82dc5ceda0bb2a542ab7fa11ffae3d0c27b8f3 *eval/host-subagent-audit-01/RAG-TOOL-AVAILABILITY-MATRIX.md
+470eeeb7ef34444a699366dedd1c47b109751a2de7933f66600677eeca9b348c *eval/host-subagent-audit-01/RECOMMENDATION.md
+a0f4c28ef3458872fefc3e30b5331ce984b3d234f82e9bf3077d719b6113e3be *eval/host-subagent-audit-01/SECURITY-THREAT-MODEL.md
+5028f4face0a56ae3fc00321db038f1f6f64034ddc63d4c707931d5b9a803910 *eval/host-subagent-audit-01/SUBAGENT-AUTHORIZATION-ANALYSIS.md
+d8100aea0d22bb55d16960d5f2da6b91a7cf2ad1fa7fbcfcbc933a619fa6d676 *eval/host-subagent-audit-01/SUBAGENT-PROVIDER-INVENTORY.md
+3b0f3ab6b6d5292c51653ed63d9951fee4e240ee56bc0377f2becb159b19a57c *eval/host-subagent-audit-01/SYNTHETIC-TEST-RESULTS.md
+e5df76ffe0dcdbd418bde0fc2e4f87179995af4a8ea33a19c5ba7d62bb7c3039 *eval/host-subagent-audit-01/VIEW-COUNT-RECONCILIATION.md
+
+## B. Capturas del host (propietario)
+c77aeac907d656e52c4ce3d766ba559b110520446673c672330ba9b3bcca5f96 *eval/host-subagent-audit-01/screens-host/01-project.png
+77b17c22afa1bdba1b2c941dee1675bcb8f74f445ee9a9a55e375c0860d047a2 *eval/host-subagent-audit-01/screens-host/02-libraries.png
+78e6ee458984909cd02b332d7f44caf18691d7974e5d5f0100d3673f6899182f *eval/host-subagent-audit-01/screens-host/03-sources.png
+8605f7091d7e37e2dcff599442ba6c2c6d39a666675c85b0c9b5b32a1c0e68ff *eval/host-subagent-audit-01/screens-host/04-search.png
+e97e684d47151d838ff6cf25687adfd17651c31cea68e20ce2d3838804bb291b *eval/host-subagent-audit-01/screens-host/05-context.png
+3de735b56ab2f6dbdd7825b705469a60fbb47ad3254964970b1bde650990a394 *eval/host-subagent-audit-01/screens-host/06-operations.png
+11286074f0099f59c8c6c083237795294c9de0031bfefa0177d470ad95d9edfa *eval/host-subagent-audit-01/screens-host/07-diagnostics.png
+be8208f38d37c643f3483c3b1dbb7a1ec62e3c76f7ecc0d19bcc9ba74f9c64b4 *eval/host-subagent-audit-01/screens-host/08-connection.png
+6ab4e4bb659ae0365d3c9af19ec40914d6a678d182cda66f01c60ca67bfb2be2 *eval/host-subagent-audit-01/screens-host/09-history.png
+
+## C. Extractos del host citados
+b84f837bf5d3dec13e567cab5d60df6f3f066c33019defca94dbbbba82061071 *eval/host-subagent-audit-01/evidence-host/approval-README.md
+c6d3e1ef67250b39dd08321829994e9642af9600ddca267923c52c612e7f3902 *eval/host-subagent-audit-01/evidence-host/base-patch.yml
+23a88c7cccc553057296b5d445a11447fac9cc59e7147c21382b36a3a5fef962 *eval/host-subagent-audit-01/evidence-host/child-agent.ts
+9a7e05e28841363c3a13be7bd3903f1baf1a346e0587679cadb350336906a1e2 *eval/host-subagent-audit-01/evidence-host/fork-README.md
+1cf72e6c109d4aca71446a83983ef0334901750719e5eb2c38bedfd937d8c69c *eval/host-subagent-audit-01/evidence-host/spawn-README.md
+9fff746d3ff70432842247705cf390df57622283d18bea9c49feee2efd2be7d5 *eval/host-subagent-audit-01/evidence-host/subagent-README.md
+11795b676043a3a4e6c1f6bbe43d6bf127b43bcbc41e886a0ebb4affc870afa7 *eval/host-subagent-audit-01/evidence-host/tools-README.md
+9ecd67726f63fa63f9cf6af14ff358d318a44c39f7cfd3c6058265dce548abc9 *eval/host-subagent-audit-01/evidence-host/tool-subagent-README.md
+7311a56b7d953214fc027eb5cc02bba7d6aad26fd8f698834de4d742d80b70a5 *eval/host-subagent-audit-01/evidence-host/web-patch.yml
+
+## D. Produccion del plugin (sin cambios en este acto)
+ac1b65fd4e28d07810790bdafba91649d94fd2a67a70597eeedfe46dcc3072e8 *client.js
+6776c7af031e8d84a49d56ae976e56a2c520def8bd908f90280de241f1dea0eb *tests/client.test.mjs
+e43ff1a7a296d07c3f4648ab56e1a821adb9a1697edf9c8db4d5b2ecf665804f *package.json
+71ad4ffaa4239a0a3c15a254e47d973eb98caf83b0887b68ac5c5bf6b83081ef *index.js
+
+## E. Documentos de referencia
+aa7fe63598146360ed4dad8a9c736491336da08f543968a25199f34ed718de30 *docs/PA-UI-0-ACCEPTANCE.md
+bae5139187138aaa5805ee89140ec9edd1326ee9a1c39bc36b62987151b4d19b *docs/PA-UI-0-GAPS.md
+934224310e10006d0ab3dbc2fec18b5a418a9e7c5e0f68f2570ee544e468c68a *docs/PA-UI-0-API-CONTRACT.md
+0bb29725ed796c105c38be8463da3a72ad1a34f9132669bc91764ae164e35911 *docs/PA-UI-0.4-ROUTE-B-EVALUATION.md

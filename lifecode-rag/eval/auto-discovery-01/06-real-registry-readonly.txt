@@ -1,0 +1,68 @@
+﻿{
+ "readOnly": true,
+ "generatedAt": "2026-11-19T20:06:18.722Z",
+ "projects": [
+  {
+   "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "name": "LifeCode RAG",
+   "status": "active"
+  }
+ ],
+ "roots": [
+  {
+   "id": "rt_01M7RBSRD4G6977PYBNPM8WGW5",
+   "scope_kind": "prj",
+   "scope_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag",
+   "state": "authorized"
+  }
+ ],
+ "grants": [],
+ "sessions": [
+  {
+   "session_id": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+   "project_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "state": "active",
+   "selection_source": "explicit",
+   "selected_by": "human",
+   "revision": 1
+  }
+ ],
+ "auditTail": [
+  {
+   "seq": 42,
+   "action": "scope.resolve",
+   "outcome": "denied",
+   "target": "C:\\xampp\\htdocs\\plugins-dhs"
+  },
+  {
+   "seq": 41,
+   "action": "scope.resolve",
+   "outcome": "ok",
+   "target": "prj_01M7RBSRD33M26HGBEFW51WPP6"
+  },
+  {
+   "seq": 40,
+   "action": "scope.resolve",
+   "outcome": "ok",
+   "target": "prj_01M7RBSRD33M26HGBEFW51WPP6"
+  },
+  {
+   "seq": 39,
+   "action": "scope.resolve",
+   "outcome": "ok",
+   "target": "prj_01M7RBSRD33M26HGBEFW51WPP6"
+  },
+  {
+   "seq": 38,
+   "action": "scope.resolve",
+   "outcome": "ok",
+   "target": "prj_01M7RBSRD33M26HGBEFW51WPP6"
+  }
+ ],
+ "counts": {
+  "projects": 1,
+  "roots": 1,
+  "sessions": 1
+ }
+}

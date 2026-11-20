@@ -1,0 +1,27 @@
+# HASHES — REAL WORLD ENABLEMENT 01
+# generado: 2026-11-19T19:36:34Z
+# verificar: sha256sum -c eval/real-world-01/HASHES.txt
+93791893e14127d3f3dd964af32dd60e1674f21ae6917a83d1b97fcc4cedb960 *eval/real-world-01/DAILY-USE.md
+c6c9c9b44338ca279e30fefb48900eb0127a6cecbab480834cf3f3f15786034a *eval/real-world-01/isolation.mjs
+05a9e323d572334cb273e5dd83b450aa09419631014d8b08c67752438387aef8 *eval/real-world-01/PANEL-STATE.md
+9c255b83c46b6b0b9456218981808084b097051ea86a0da34fba500df90c7d96 *eval/real-world-01/probe.mjs
+18a65e84fb73bbf8f5acad81b884e81d5b2885353bae1e44bb0c1f3348f073ec *eval/real-world-01/project-id.txt
+abfeebc68889b9d50d89b0522c38a83278e36ec2a6c0b2d777492cc46cc89ed4 *eval/real-world-01/RESULTS.md
+ee3e7c067f221e7486b8fbc89db4c5f931c8a37988a0747dcb260a43207760c6 *eval/real-world-01/root.json
+0698b023a33ec510498ba2a3104d71ee4ed4e59d48667d83cec0ae969653fade *eval/real-world-01/run-acceptance.mjs
+c7e386dc230cab0aa530cc4ee215c1154b7226674fb854e16e227d425ec5523a *eval/real-world-01/SUBAGENT-PROTECTION.md
+00907e337a21ee051ab9de0b3d5bb776d8f6cb16c66507ecaca1eee65eb0efd6 *eval/real-world-01/ingest.log
+cdcae7589d79bf6e5c5e7d1a5bfb0bef0a36e36fb70c46b3ac452aa1d9b6ed0b *eval/real-world-01/verify.log
+f6f64e656f012c2468bd46015cb62b0abb80d9925ea410e1b3d3569c4e2c2dab *eval/real-world-01/isolation.log
+
+## Documentos de prueba
+2667514a2cbf2cf664ad2ba6296cf497caa38dc164c4a2550416b7da0ac61277 *eval/real-world-01/docs/borrador-temporal.md
+dc1489017f63a5db640d4ae2c06729d0149b4ec5055c7f59fe3ce2e00244b066 *eval/real-world-01/docs/guia-turno.md
+4a4bee8f3d25da4b0dd87b7dc0fbab1c25fea23c6134f04152543304cf504e4a *eval/real-world-01/docs/politica-reembolsos.md
+
+## Produccion
+24bc044ddc4cc23896122aaebe95d929ee0d6ca9f2f63d90a54fd40672098861 *bin/lifecode-rag.mjs
+3b0ee00ab018a109f6c23dee422a7e7b0116805a7fe315603f0dcc4e7017bfc0 *lib/ingest.mjs
+190ca8e2ed9073ca2795d134e146d4df54f2ee76aa06fc43daed13fd38d61749 *tests/cli-registry.test.mjs
+89f10ed62172e1fbbb9b9b842dba5670b4e9c49ae31b3ee14403afba0824ba17 *tests/ingest.test.mjs
+ba1036d6819d4bf248a48cbfd23397e4de47a9609c6b220d3ea7b5debca11735 *README.md

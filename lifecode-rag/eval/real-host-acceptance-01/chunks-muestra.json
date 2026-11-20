@@ -1,0 +1,21 @@
+{
+ "sourceId": "src_c3f912136c2f1107",
+ "chunks": 37,
+ "muestra": [
+  {
+   "heading": "Arquitectura Project-Aware RAG — PA0",
+   "bytes": 1108,
+   "inicio": "# Arquitectura Project-Aware RAG — PA0 **Estado:** especificación cerrada de PA0. **Nada "
+  },
+  {
+   "heading": "1. Decisiones que fija esta arquitectura",
+   "bytes": 952,
+   "inicio": "| | O-PAR-4 | **Un registro por perfil** | Registro y ámbitos bajo la raíz de datos del pe"
+  },
+  {
+   "heading": "2. Modelo",
+   "bytes": 1186,
+   "inicio": "del proyecto + auditoría propia ———— lib_<ULID>/rag.sqlite3 conocimiento de la biblioteca"
+  }
+ ]
+}

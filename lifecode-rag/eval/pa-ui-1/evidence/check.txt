@@ -1,0 +1,1 @@
+✓ 7 herramientas, sin dependencias de @deepseek-ai/*, manifiesto y parche correctos (G3: exports["./client"] resoluble, cliente con la API de slots vigente)

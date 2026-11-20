@@ -1,0 +1,59 @@
+# HASHES — K1 END-TO-END
+# acto: HERMES-LCRAG-K1-END-TO-END-01
+# generado: 2026-11-19T06:39:22Z
+# rutas relativas a lifecode-rag/ ; verificar con: sha256sum -c eval/pa-ui-1/evidence/HASHES.txt
+# HASHES.txt no se incluye a si mismo
+
+## A. Ficheros modificados (estado final)
+e43ff1a7a296d07c3f4648ab56e1a821adb9a1697edf9c8db4d5b2ecf665804f *package.json
+b9f37f029b47ea77cfcf20d36e2bf8f6ca19f68984d2aec53a07260b1ceab9ef *client.js
+5d200cc623e1ffc7b4a736ac7bd476ded4e8e09e295922bd9206133999c2302c *tests/client.test.mjs
+9ef00251c25d1f8e0e81623b668c70dc04ed2d1bc74237251b53c3f7dccf4206 *tools/check.mjs
+aa7fe63598146360ed4dad8a9c736491336da08f543968a25199f34ed718de30 *docs/PA-UI-0-ACCEPTANCE.md
+
+## B. Copias antes/despues
+73b0bd1f0d4422ad34ddab7fcf8cc67f1991d897b4acb83ef9d6e84da4a279f8 *eval/pa-ui-1/evidence/before/check.mjs.txt
+80c27a543333cd4afbbb892864d196459534bbe21b9535c1be11846f64056d5b *eval/pa-ui-1/evidence/before/client.js.txt
+bdee5c71d86a2357ad9dfc17eb6477d468b6b25dfae5aba5e31d05cf4f566e2a *eval/pa-ui-1/evidence/before/client.test.mjs.txt
+a6447caeaa554ca7e145a71cf8d79c5a314187c3e2c9c78f83ee6626c204cf9a *eval/pa-ui-1/evidence/before/package.json
+d32a4912f6b75b8b97c4b7e82790fd3067bf759a96d867265a07932ccdd547f9 *eval/pa-ui-1/evidence/before/PA-UI-0-ACCEPTANCE.md
+9ef00251c25d1f8e0e81623b668c70dc04ed2d1bc74237251b53c3f7dccf4206 *eval/pa-ui-1/evidence/after/check.mjs.txt
+b9f37f029b47ea77cfcf20d36e2bf8f6ca19f68984d2aec53a07260b1ceab9ef *eval/pa-ui-1/evidence/after/client.js.txt
+5d200cc623e1ffc7b4a736ac7bd476ded4e8e09e295922bd9206133999c2302c *eval/pa-ui-1/evidence/after/client.test.mjs.txt
+e43ff1a7a296d07c3f4648ab56e1a821adb9a1697edf9c8db4d5b2ecf665804f *eval/pa-ui-1/evidence/after/package.json
+aa7fe63598146360ed4dad8a9c736491336da08f543968a25199f34ed718de30 *eval/pa-ui-1/evidence/after/PA-UI-0-ACCEPTANCE.md
+
+## C. Evidencia (documentos y diffs)
+9ef00251c25d1f8e0e81623b668c70dc04ed2d1bc74237251b53c3f7dccf4206 *eval/pa-ui-1/evidence/after/check.mjs.txt
+b9f37f029b47ea77cfcf20d36e2bf8f6ca19f68984d2aec53a07260b1ceab9ef *eval/pa-ui-1/evidence/after/client.js.txt
+5d200cc623e1ffc7b4a736ac7bd476ded4e8e09e295922bd9206133999c2302c *eval/pa-ui-1/evidence/after/client.test.mjs.txt
+aa7fe63598146360ed4dad8a9c736491336da08f543968a25199f34ed718de30 *eval/pa-ui-1/evidence/after/PA-UI-0-ACCEPTANCE.md
+73b0bd1f0d4422ad34ddab7fcf8cc67f1991d897b4acb83ef9d6e84da4a279f8 *eval/pa-ui-1/evidence/before/check.mjs.txt
+80c27a543333cd4afbbb892864d196459534bbe21b9535c1be11846f64056d5b *eval/pa-ui-1/evidence/before/client.js.txt
+bdee5c71d86a2357ad9dfc17eb6477d468b6b25dfae5aba5e31d05cf4f566e2a *eval/pa-ui-1/evidence/before/client.test.mjs.txt
+d32a4912f6b75b8b97c4b7e82790fd3067bf759a96d867265a07932ccdd547f9 *eval/pa-ui-1/evidence/before/PA-UI-0-ACCEPTANCE.md
+e850349374c90433a4b64375d754c15def64c0d6115fb1a13aff3a266d2ba2ae *eval/pa-ui-1/evidence/CAMBIOS.md
+02b5bb81ef6aa340483095974b3ad790db8b9795006676d2332ea04e24e971b8 *eval/pa-ui-1/evidence/CAPTURAS.md
+fd5a516b70e14a6cbf4291a576c2f3d9e50b23715aec0c50f770c4f002dd7fec *eval/pa-ui-1/evidence/check.txt
+f9271ba72b826c6a5c6c7036085fc3d1fb44ed936abdd39a28b9baaf025ebbdb *eval/pa-ui-1/evidence/CRITERIOS.md
+9e9e413e46b58302628aa1ce9c7055012c0bd97c8fe720eb90033b416d63769c *eval/pa-ui-1/evidence/DEFECTOS-CORREGIDOS.md
+d13daf4c5fe33aaa892998c012284eb6cdc22bf90183f25e07d520336ed06e3b *eval/pa-ui-1/evidence/diffs/check.mjs.diff
+b0cf1737b9e04e154cc3bd52dce5f4c384bd2f4e8b54521829d5b9b5c4f6b0e6 *eval/pa-ui-1/evidence/diffs/client.js.diff
+0f1ab2fab230e75462faa4dcecc85cd9c0216ab8ff8d619d5d6551eda06313ff *eval/pa-ui-1/evidence/diffs/client.test.mjs.diff
+36a2a3073874c8e3c6bf96ed6cc986432805de96896869e2ed96b684b054bee3 *eval/pa-ui-1/evidence/diffs/package.json.diff
+dee57da3d519840e3962188ac69ae6427df020b3d445be32def65da3fa9a05bb *eval/pa-ui-1/evidence/diffs/PA-UI-0-ACCEPTANCE.md.diff
+aabddf9dc018e39e31a54795a3435a7893c4cfd8aa9dbc7e51dc204840e995f0 *eval/pa-ui-1/evidence/G3-AMENDMENT.md
+7b1f81f1429d68a496db6ff0504ffd51489e8f96a5e32ce7624a300794e41769 *eval/pa-ui-1/evidence/hermetic.txt
+9ff7d7d851074508f93ef8ca0c35e45c6d900338e59517d78816d5a190f4820e *eval/pa-ui-1/evidence/INFORME-EJECUTIVO.md
+aad5ec459cd51ffa74bcb650b022e62f57948b63ef025ed0a16e4c6bf5a61268 *eval/pa-ui-1/evidence/node-test.txt
+53bf2f857c7c33d21b8198a0c9b983c90a45a35ebd985baaf496cb3f55d8d900 *eval/pa-ui-1/evidence/PENDIENTES-Y-BLOQUEOS.md
+93050566a6fe3977598c588b959775874aa023184866c0770daf5dfc57f930c5 *eval/pa-ui-1/evidence/PRUEBAS.md
+8bfe98cf28a4bc552392b1790da119d09aaf200aabffeb426e48a433796f45fa *eval/pa-ui-1/evidence/README.md
+ac8bb1ccc254db74079c66203c2fc65fd8df3c9da4867625081004a08739f87b *eval/pa-ui-1/evidence/SIN-ACCESO-REAL.md
+ea8e187d072cf17844146199ca2ca9c98dffc6988aabb27ff037521a9989ee03 *eval/pa-ui-1/evidence/TRAZABILIDAD.md
+
+## D. Documentos de referencia (deben seguir intactos)
+934224310e10006d0ab3dbc2fec18b5a418a9e7c5e0f68f2570ee544e468c68a *docs/PA-UI-0-API-CONTRACT.md
+bae5139187138aaa5805ee89140ec9edd1326ee9a1c39bc36b62987151b4d19b *docs/PA-UI-0-GAPS.md
+0bb29725ed796c105c38be8463da3a72ad1a34f9132669bc91764ae164e35911 *docs/PA-UI-0.4-ROUTE-B-EVALUATION.md
+a58db7d6cac0756e2711c5ef556111dc7d38cec206420021e2bc42e42b4068f1 *docs/CONTRATO-v0.1.md

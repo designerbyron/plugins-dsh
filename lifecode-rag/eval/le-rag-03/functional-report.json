@@ -1,0 +1,98 @@
+{
+ "ok": true,
+ "failures": [],
+ "query": "proyecto aware",
+ "limit": 8,
+ "fragment": [
+  {
+   "chunkKey": "src_c3f912136c2f1107#4",
+   "sourceId": "src_c3f912136c2f1107",
+   "score": 1
+  },
+  {
+   "chunkKey": "src_75c662b254ce07a7#0",
+   "sourceId": "src_75c662b254ce07a7",
+   "score": 0.983
+  },
+  {
+   "chunkKey": "src_14c5c4442767eddf#0",
+   "sourceId": "src_14c5c4442767eddf",
+   "score": 0.978
+  },
+  {
+   "chunkKey": "src_c3f912136c2f1107#0",
+   "sourceId": "src_c3f912136c2f1107",
+   "score": 0.977
+  },
+  {
+   "chunkKey": "src_14c5c4442767eddf#11",
+   "sourceId": "src_14c5c4442767eddf",
+   "score": 0.902
+  },
+  {
+   "chunkKey": "src_0d795f1b78b3b139#18",
+   "sourceId": "src_0d795f1b78b3b139",
+   "score": 0.842
+  },
+  {
+   "chunkKey": "src_0d795f1b78b3b139#6",
+   "sourceId": "src_0d795f1b78b3b139",
+   "score": 0.801
+  },
+  {
+   "chunkKey": "src_c3f912136c2f1107#2",
+   "sourceId": "src_c3f912136c2f1107",
+   "score": 0.797
+  }
+ ],
+ "source": [
+  {
+   "chunkKey": "src_c3f912136c2f1107#4",
+   "sourceId": "src_c3f912136c2f1107",
+   "score": 1
+  },
+  {
+   "chunkKey": "src_75c662b254ce07a7#0",
+   "sourceId": "src_75c662b254ce07a7",
+   "score": 0.983
+  },
+  {
+   "chunkKey": "src_14c5c4442767eddf#0",
+   "sourceId": "src_14c5c4442767eddf",
+   "score": 0.978
+  },
+  {
+   "chunkKey": "src_0d795f1b78b3b139#18",
+   "sourceId": "src_0d795f1b78b3b139",
+   "score": 0.842
+  },
+  {
+   "chunkKey": "src_a26afe7725768150#0",
+   "sourceId": "src_a26afe7725768150",
+   "score": 0.759
+  },
+  {
+   "chunkKey": "src_7d095b40d1cbd9dc#0",
+   "sourceId": "src_7d095b40d1cbd9dc",
+   "score": 0.657
+  },
+  {
+   "chunkKey": "src_07038869210c21e9#3",
+   "sourceId": "src_07038869210c21e9",
+   "score": 0.266
+  },
+  {
+   "chunkKey": "src_195c1e4a5e907c1b#25",
+   "sourceId": "src_195c1e4a5e907c1b",
+   "score": 0.253
+  }
+ ],
+ "distinctSources": {
+  "fragment": 4,
+  "source": 8
+ },
+ "configParity": {
+  "resolver": "source",
+  "diagnose": "source"
+ }
+}

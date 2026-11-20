@@ -1,0 +1,23 @@
+# HASHES — PRODUCT READINESS 01
+# acto: auditoria funcional y aceptacion de las siete herramientas
+# generado: 2026-11-19T19:08:52Z
+# verificar: sha256sum -c eval/product-readiness-01/HASHES.txt
+38128d6d01a2f8aee23cc2c84e7510668b0506876e4b6b3c5af703d6f289f372 *eval/product-readiness-01/CANDIDATE-REPORT.md
+85ba8d2752592c06da5374c4b245dc87bc4da1b24c1ee6525869c699a7f15c61 *eval/product-readiness-01/hermetic.log
+04f3e63784664ce5de355a5d86f229eafc879aa7a7dae748d004f0b02806a448 *eval/product-readiness-01/PANEL-DATA-PATH.md
+495e48efa59b8cb022551f2547d1c4b65df0e1c9797575f8d4209135dbc3c5e7 *eval/product-readiness-01/probe-forget.mjs
+6c1f3f705a07e6480aec517f75e1eb81cbb81bd431f9ad8f002acfc2d9e50cef *eval/product-readiness-01/PROMISE-MATRIX.md
+0d76a70d43ad4c281875d3d729eb496556649a6be69a999e0f7a7626fedde8c2 *eval/product-readiness-01/SECURITY-GATES.md
+855478bddea0031485754bcb3528ab1303b8590a9769af33417e8d7de2743d86 *eval/product-readiness-01/smoke-tools.log
+7f0a221707eb94832aa2fb49c3711bc05dd1fecf1fd8dae414c963cde5c47ab5 *eval/product-readiness-01/smoke-tools.mjs
+83c360fae09876ef4d71afa81a3f1da39e599b8b44a7cd046ae5a667e5c8c58a *eval/product-readiness-01/SUBAGENT-AUTHORIZATION.md
+c32e1376ece610e63d3bdd370a97e14bef9c3814c133f0d8e280a2828a37dace *eval/product-readiness-01/TEST-MATRIX.md
+472c78c42266f4133a1ea5704c3e41b02d4f15e60f8bf20bd81a4dac00adfd02 *eval/product-readiness-01/TOOLS-ACCEPTANCE.md
+
+## Produccion
+22e93cb527d00705acd5dc79d6040e44573567cbaf6165c96d6ebec2d09871c4 *README.md
+3b0ee00ab018a109f6c23dee422a7e7b0116805a7fe315603f0dcc4e7017bfc0 *lib/ingest.mjs
+89f10ed62172e1fbbb9b9b842dba5670b4e9c49ae31b3ee14403afba0824ba17 *tests/ingest.test.mjs
+054c221bc56bb0b61f440587c1b7b54f1d4a61fc2cb270be4f4f6e7abf0740aa *lib/tools.mjs
+ac1b65fd4e28d07810790bdafba91649d94fd2a67a70597eeedfe46dcc3072e8 *client.js
+e43ff1a7a296d07c3f4648ab56e1a821adb9a1697edf9c8db4d5b2ecf665804f *package.json

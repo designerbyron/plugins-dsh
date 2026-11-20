@@ -1,0 +1,138 @@
+{
+ "trusted": [
+  {
+   "pathKey": "c:/xampp/htdocs/plugins-dhs",
+   "readAuthorization": true
+  }
+ ],
+ "proyectos": [
+  {
+   "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "name": "LifeCode RAG"
+  },
+  {
+   "id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+   "name": "plugins-dhs"
+  }
+ ],
+ "raices": [
+  {
+   "scope_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag"
+  },
+  {
+   "scope_id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+   "path": "C:\\xampp\\htdocs\\plugins-dhs"
+  }
+ ],
+ "sesiones": [
+  {
+   "session_id": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+   "project_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "selection_source": "explicit"
+  }
+ ],
+ "casos": [
+  {
+   "caso": "A · plugins-dhs, sesión nueva sin selección",
+   "cwd": "C:/xampp/htdocs/plugins-dhs",
+   "session": "session-nueva-plugins-dhs",
+   "ok": true,
+   "origen": "cwd",
+   "proyecto": "plugins-dhs",
+   "projectId": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+   "almacen": [
+    {
+     "id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+     "existe": false,
+     "dir": "scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2"
+    }
+   ]
+  },
+  {
+   "caso": "B · lifecode-rag (raíz del proyecto), sesión nueva",
+   "cwd": "C:/xampp/htdocs/plugins-dhs/lifecode-rag",
+   "session": "session-nueva-lifecode-rag",
+   "ok": true,
+   "origen": "cwd",
+   "proyecto": "LifeCode RAG",
+   "projectId": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "almacen": [
+    {
+     "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+     "existe": true,
+     "dir": "scopes/prj_01M7RBSRD33M26HGBEFW51WPP6"
+    }
+   ]
+  },
+  {
+   "caso": "C · hermano saas-corporative, sesión nueva",
+   "cwd": "C:/xampp/htdocs/saas-corporative",
+   "session": "session-nueva-hermano",
+   "ok": false,
+   "code": "scope-unresolved",
+   "mensaje": "el proyecto abierto en Harness no está autorizado para lectura",
+   "detalles": {
+    "session_id": "session-nueva-hermano",
+    "cwd": "C:/xampp/htdocs/saas-corporative",
+    "reason": "project-not-authorized",
+    "project": {
+     "id": "6dc30cb1-77ed-4b43-8f60-6955b21dfaff",
+     "path": "C:\\xampp\\htdocs\\saas-corporative",
+     "title": "saas-corporative"
+    },
+    "command": "node bin/lifecode-rag.mjs trust add --path \"C:\\xampp\\htdocs\\saas-corporative\""
+   }
+  },
+  {
+   "caso": "D · plugins-dhs, sesión con selección a LifeCode RAG",
+   "cwd": "C:/xampp/htdocs/plugins-dhs",
+   "session": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+   "ok": false,
+   "code": "scope-ambiguous",
+   "mensaje": "el directorio de trabajo no corresponde a la selección explícita",
+   "detalles": {
+    "session_id": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+    "selected_project_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+    "candidates": [
+     {
+      "project_id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+      "path": "C:\\xampp\\htdocs\\plugins-dhs"
+     }
+    ]
+   }
+  },
+  {
+   "caso": "E · raíz del proyecto, MISMA sesión con selección",
+   "cwd": "C:/xampp/htdocs/plugins-dhs/lifecode-rag",
+   "session": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+   "ok": true,
+   "origen": "explicit",
+   "proyecto": "LifeCode RAG",
+   "projectId": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "almacen": [
+    {
+     "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+     "existe": true,
+     "dir": "scopes/prj_01M7RBSRD33M26HGBEFW51WPP6"
+    }
+   ]
+  },
+  {
+   "caso": "F · plugins-dhs, segunda sesión nueva (¿hereda?)",
+   "cwd": "C:/xampp/htdocs/plugins-dhs",
+   "session": "session-nueva-plugins-dhs-2",
+   "ok": true,
+   "origen": "cwd",
+   "proyecto": "plugins-dhs",
+   "projectId": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+   "almacen": [
+    {
+     "id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+     "existe": false,
+     "dir": "scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2"
+    }
+   ]
+  }
+ ]
+}

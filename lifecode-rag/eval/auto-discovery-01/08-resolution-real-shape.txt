@@ -1,0 +1,75 @@
+﻿{
+ "sourceProfile": "<USER_HOME>/.dsh/lifecode-rag/profiles/desktop",
+ "tempProfile": "C:\\Users\\<USER>\\AppData\\Local\\Temp\\lcr-realshape-pkYPxV\\perfil",
+ "log": [
+  {
+   "step": "trust",
+   "roots": [
+    {
+     "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag",
+     "state": "authorized"
+    }
+   ]
+  },
+  {
+   "step": "scan",
+   "projects": [
+    {
+     "name": "plugins-dhs",
+     "type": "git",
+     "depth": 0
+    },
+    {
+     "name": "lifecode-rag",
+     "type": "node",
+     "depth": 1
+    },
+    {
+     "name": "lifecode-skill-center",
+     "type": "node",
+     "depth": 1
+    },
+    {
+     "name": "skill-compiler",
+     "type": "node",
+     "depth": 1
+    },
+    {
+     "name": "demo",
+     "type": "web",
+     "depth": 2
+    }
+   ]
+  },
+  {
+   "step": "resolve",
+   "projectId": "prj_01M7TPRYE10EGSJE10KP0FD63R",
+   "projectName": "plugins-dhs",
+   "source": "cwd",
+   "scopes": [
+    {
+     "kind": "prj",
+     "name": "plugins-dhs",
+     "roots": [
+      "C:\\xampp\\htdocs\\plugins-dhs"
+     ]
+    }
+   ]
+  },
+  {
+   "step": "search",
+   "mode": "empty",
+   "results": 0,
+   "elapsedMs": 1
+  },
+  {
+   "step": "list",
+   "total": 0,
+   "rows": 0
+  },
+  {
+   "step": "store-of-discovered-project",
+   "exists": false
+  }
+ ]
+}

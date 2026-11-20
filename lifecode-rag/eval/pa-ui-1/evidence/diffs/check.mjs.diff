@@ -1,0 +1,42 @@
+--- eval/pa-ui-1/evidence/before/check.mjs.txt	2026-11-17 19:34:43.278000600 -0600
++++ eval/pa-ui-1/evidence/after/check.mjs.txt	2026-11-19 00:32:06.972266400 -0600
+@@ -3,7 +3,7 @@
+  * Se ejecuta con `node tools/check.mjs`; sale con código 1 si algo no cumple.
+  */
+ 
+-import { readdirSync, readFileSync, statSync } from 'node:fs';
++import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+ import { join, relative as relativePath } from 'node:path';
+ import { fileURLToPath } from 'node:url';
+ 
+@@ -51,6 +51,24 @@
+ }
+ if (manifest.dsh?.bundle?.patch !== './cordis.patch.yml') problems.push('package.json: falta dsh.bundle.patch');
+ 
++// G3 (K1): el bundle del cliente tiene que ser **resoluble**. `exports["./client"]` es requisito de
++// carga; `dsh.client.inject` es orden de activación y no se exige (enmienda documental de G3).
++const clientExport = manifest.exports?.['./client'];
++const clientRel = typeof clientExport === 'string' ? clientExport : clientExport?.default;
++if (typeof clientRel !== 'string') problems.push('package.json: falta exports["./client"] (G3)');
++if (manifest.exports?.['.'] !== './index.js') problems.push('package.json: exports["."] debe apuntar a ./index.js');
++if (manifest.dsh?.client?.platform !== 'web') problems.push('package.json: dsh.client.platform debe ser "web"');
++if (manifest.dsh?.client?.inject !== undefined) problems.push('package.json: dsh.client.inject no es requisito de carga y no se declara');
++if (typeof clientRel === 'string') {
++  if (!existsSync(join(ROOT, clientRel))) problems.push(`package.json: ${clientRel} no existe`);
++  else {
++    const clientSource = readFileSync(join(ROOT, clientRel), 'utf8');
++    if (!clientSource.includes(`id: '${manifest.name}'`)) problems.push('client.js: el id del loader no coincide con el nombre del paquete');
++    if (/ctx\.slots\.inject\(\s*[A-Z_]+\s*\)\s*;/.test(clientSource)) problems.push('client.js: usa la API de slots obsoleta inject(slot)');
++    if (!clientSource.includes('ctx.slots.inject(SIDEBAR_SLOT, () =>')) problems.push('client.js: la fila no se registra con inject(slot, cb)');
++  }
++}
++
+ const patch = readFileSync(join(ROOT, 'cordis.patch.yml'), 'utf8');
+ if (!/id:\s*lifecode-rag/.test(patch) || !/name:\s*'@local\/lifecode-rag'/.test(patch)) {
+   problems.push('cordis.patch.yml: no inserta la fila esperada');
+@@ -74,4 +92,4 @@
+   for (const problem of problems) console.error(`  - ${problem}`);
+   process.exit(1);
+ }
+-console.log(`✓ ${definitions.length} herramientas, sin dependencias de @deepseek-ai/*, manifiesto y parche correctos`);
++console.log(`✓ ${definitions.length} herramientas, sin dependencias de @deepseek-ai/*, manifiesto y parche correctos (G3: exports["./client"] resoluble, cliente con la API de slots vigente)`);

@@ -1,0 +1,33 @@
+Prueba real en DSH — estado y autorización pendiente (2026-11-19)
+
+ANTES (sesión actual, host con el código cargado al arrancar a las 13:48):
+  lifecode_rag_search("project-aware")
+  => Error: el directorio de trabajo no está dentro de ninguna raíz autorizada (scope-unresolved)
+     cwd: C:\xampp\htdocs\plugins-dhs
+
+Por qué sigue fallando en ESTA sesión:
+  a) El host carga el código del plugin al arrancar; los módulos nuevos
+     (discovery.mjs, trusted-roots.mjs) no están en el proceso vivo. Requiere reiniciar DSH.
+  b) Aunque reinicie, la sesión no tiene selección y el workspace no es confiable.
+     Para el caso real hay que confiar el workspace UNA vez:
+
+       node bin/lifecode-rag.mjs trust add --path C:\xampp\htdocs\plugins-dhs --read true
+
+     Alcance exacto de esa orden:
+       - escribe meta.trusted_roots en el registro del perfil desktop (212 992 B, intacto hasta ahora);
+       - autoriza el REGISTRO de lectura de los proyectos contenidos (plugins-dhs, lifecode-rag,
+         lifecode-skill-center, skill-compiler…);
+       - NO indexa, NO borra, NO mueve raíces existentes, NO recrea almacenes;
+       - la raíz existente C:\xampp\htdocs\plugins-dhs\lifecode-rag se conserva y el proyecto
+         "LifeCode RAG" mantiene id y almacén (121/964/964).
+
+Después de reiniciar DSH y confiar el workspace, la misma sesión debe resolver por cwd:
+  proyecto plugins-dhs (git) → ámbito propio (vacío) → search devuelve 0 resultados sin error;
+  y para el proyecto LifeCode RAG sigue haciendo falta que el cwd esté en su raíz.
+
+ENSAYO EQUIVALENTE YA EJECUTADO (sin tocar el perfil real): 08-resolution-real-shape.txt
+  copia temporal del perfil desktop + trust del workspace + resolución por cwd
+  => proyecto "plugins-dhs" (source: cwd), search mode: empty, 0 resultados, sin crear almacén.
+
+DECISIÓN HUMANA NECESARIA: ejecutar `trust add` sobre el perfil real y reiniciar DSH.
+No se ejecutó: la orden exige presentar el alcance antes de tocar el perfil real.

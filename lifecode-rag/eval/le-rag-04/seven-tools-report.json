@@ -1,0 +1,75 @@
+{
+ "ok": true,
+ "config": {
+  "diversity": "fragment",
+  "limit": 8
+ },
+ "dataRoot": "<USER_HOME>/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/lcr-pa-copy",
+ "ragRootDefault": "C:\\Users\\<USER>\\AppData\\Local\\hermes\\profiles\\byron-saas-corporative\\cache\\scratch\\lcr-pa-copy\\profiles\\desktop",
+ "steps": [
+  {
+   "step": "audit-antes",
+   "filas": 145
+  },
+  {
+   "step": "list",
+   "total": 121,
+   "filas": 5,
+   "primera": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\AUTOMATION-POLICIES.md"
+  },
+  {
+   "step": "search",
+   "resultados": 5,
+   "fuentes": 4,
+   "primera": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\PROJECT-AWARE-ARCHITECTURE.md"
+  },
+  {
+   "step": "context",
+   "citas": 6,
+   "tokens": 1775
+  },
+  {
+   "step": "get",
+   "uri": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\docs\\AUTOMATION-POLICIES.md",
+   "fragmentos": 10
+  },
+  {
+   "step": "ingest",
+   "ingeridas": 1,
+   "fragmentos": 1,
+   "errores": 0
+  },
+  {
+   "step": "ingest-duplicado",
+   "omitidas": 1,
+   "motivo": "unchanged"
+  },
+  {
+   "step": "reindex",
+   "claves": [
+    "operation",
+    "rebuiltChunks"
+   ]
+  },
+  {
+   "step": "forget",
+   "borrada": "src_2e95418cc2a5b1c4",
+   "sigueVisible": false
+  },
+  {
+   "step": "get-inexistente",
+   "ok": false,
+   "code": "source-not-found"
+  },
+  {
+   "step": "aislamiento-sesion-ajena",
+   "ok": true,
+   "filas": 50
+  },
+  {
+   "step": "audit-despues",
+   "filas": 149,
+   "delta": 4
+  }
+ ]
+}

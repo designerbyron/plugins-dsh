@@ -1,0 +1,46 @@
+{
+  "outDir": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\eval\\remediation-redesign-01\\preview",
+  "views": 10,
+  "written": [
+    {
+      "file": "project.html",
+      "bytes": 29449
+    },
+    {
+      "file": "libraries.html",
+      "bytes": 28472
+    },
+    {
+      "file": "sources.html",
+      "bytes": 47985
+    },
+    {
+      "file": "source.html",
+      "bytes": 29541
+    },
+    {
+      "file": "search.html",
+      "bytes": 31274
+    },
+    {
+      "file": "context.html",
+      "bytes": 29635
+    },
+    {
+      "file": "operations.html",
+      "bytes": 29779
+    },
+    {
+      "file": "diagnostics.html",
+      "bytes": 29659
+    },
+    {
+      "file": "connection.html",
+      "bytes": 28247
+    },
+    {
+      "file": "history.html",
+      "bytes": 27986
+    }
+  ]
+}

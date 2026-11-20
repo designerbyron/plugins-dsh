@@ -1,0 +1,151 @@
+{
+ "snapshot": "<USER_HOME>/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/lcr-host-snapshot",
+ "proyectos": [
+  {
+   "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "name": "LifeCode RAG",
+   "status": "active",
+   "created_at": "1795040272803.0"
+  }
+ ],
+ "raices": [
+  {
+   "id": "rt_01M7RBSRD4G6977PYBNPM8WGW5",
+   "scope_kind": "prj",
+   "scope_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag",
+   "path_key": "c:/xampp/htdocs/plugins-dhs/lifecode-rag",
+   "state": "authorized",
+   "added_by": "human"
+  }
+ ],
+ "sesiones": [
+  {
+   "session_id": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+   "project_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "state": "active",
+   "selection_source": "explicit",
+   "selected_by": "human",
+   "revision": 1,
+   "updated_at": "1795040714751.0"
+  }
+ ],
+ "auditoriaRegistro": 41,
+ "almacen": {
+  "sources": 121,
+  "chunks": 964,
+  "vectors": 964,
+  "audit": 141,
+  "indexRevision": "133",
+  "quickCheck": [
+   "ok"
+  ]
+ },
+ "herramientasEnAuditoria": [
+  {
+   "tool": "lifecode_rag_ingest",
+   "action": "ingest",
+   "outcome": "ok",
+   "n": 133
+  },
+  {
+   "tool": "lifecode_rag_sync",
+   "action": "sync.run",
+   "outcome": "ok",
+   "n": 6
+  },
+  {
+   "tool": "lifecode_rag_sync",
+   "action": "sync.run",
+   "outcome": "skipped",
+   "n": 2
+  }
+ ],
+ "ultimaAuditoria": [
+  {
+   "seq": 141,
+   "at": 1795043069763,
+   "tool": "lifecode_rag_sync",
+   "action": "sync.run",
+   "outcome": "ok"
+  },
+  {
+   "seq": 140,
+   "at": 1795042949012,
+   "tool": "lifecode_rag_sync",
+   "action": "sync.run",
+   "outcome": "ok"
+  },
+  {
+   "seq": 139,
+   "at": 1795042929040,
+   "tool": "lifecode_rag_sync",
+   "action": "sync.run",
+   "outcome": "ok"
+  }
+ ],
+ "busqueda": {
+  "consulta": "proyecto",
+  "hits": 5,
+  "resultados": [
+   {
+    "sourceId": "src_c3f912136c2f1107",
+    "uri": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+    "title": "Arquitectura Project-Aware RAG — PA0",
+    "heading": "16. Estado de implementación (PA1 + PA2 + PA3)",
+    "score": -2.905,
+    "snippet": " … de las raíces del [proyecto] | | `search` | [proyecto] + bibliotecas concedidas | no | agrega por … "
+   },
+   {
+    "sourceId": "src_fee873de0e1e4c53",
+    "uri": "tests/roots-structure.test.mjs",
+    "title": "roots-structure.test.mjs",
+    "heading": null,
+    "score": -2.903,
+    "snippet": " … normalizeKey('C:\\\\datos\\\\[proyecto]') }]; const duplicate = classifyRootRegistration( { path: 'C:\\\\DATOS\\\\[PROYECTO]\\\\', key … "
+   },
+   {
+    "sourceId": "src_46fdaaf8229a2e0e",
+    "uri": "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
+    "title": "Contrato de sesión y selección de proyecto (PA0)",
+    "heading": "3. Resolución del ámbito",
+    "score": -2.814,
+    "snippet": "Si la selección apunta a un [proyecto] cuyo estado ya no es … "
+   },
+   {
+    "sourceId": "src_c3f912136c2f1107",
+    "uri": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+    "title": "Arquitectura Project-Aware RAG — PA0",
+    "heading": "2. Modelo",
+    "score": -2.773,
+    "snippet": "del [proyecto] + auditoría propia ———— lib_<ULID>/rag.sqlite3 conocimiento de la biblioteca … "
+   },
+   {
+    "sourceId": "src_46fdaaf8229a2e0e",
+    "uri": "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
+    "title": "Contrato de sesión y selección de proyecto (PA0)",
+    "heading": "2. Ciclo de vida",
+    "score": -2.75,
+    "snippet": " … con [proyecto] archivado o eliminado lógicamente → `invalidated` con motivo | `invalidated` | | **[Proyecto] archivado … "
+   }
+  ]
+ },
+ "recuperacion": {
+  "ref": "src_c3f912136c2f1107",
+  "uri": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+  "title": "Arquitectura Project-Aware RAG — PA0",
+  "mime": "text/markdown",
+  "bytes": 37656,
+  "chunks": null,
+  "hasText": false
+ },
+ "contexto": {
+  "citas": 1,
+  "tokens": 289,
+  "estimadoDelTexto": 288,
+  "truncado": false,
+  "fuentesCitadas": [
+   "docs/PROJECT-AWARE-ARCHITECTURE.md"
+  ]
+ }
+}

@@ -1,0 +1,72 @@
+# HASHES — REMEDIATION + REDESIGN 01
+# acto: HERMES-LCRAG-REMEDIATION-REDESIGN-01 (+ V-07 tras revision en host)
+# generado: 2026-11-19T17:51:21Z
+# rutas relativas a lifecode-rag/ ; verificar: sha256sum -c eval/remediation-redesign-01/HASHES.txt
+# HASHES.txt no se incluye a si mismo
+
+## A. Entregables y evidencia
+b61689dee50e2c010ab9079ab7ff6e665df29bfc74a4f4cda01f70b9d094a26b *eval/remediation-redesign-01/ACCESSIBILITY-RESULTS.md
+aefc4fa5c647201e6219c10b605f30c8ef5a68df6e48393e04024ceefe9c5520 *eval/remediation-redesign-01/BEFORE-AFTER-INDEX.md
+e7d73633be3860ef4c775146f37f7638f22cf082f10c54dbd813887c13796af9 *eval/remediation-redesign-01/DEFECT-RESOLUTION-MATRIX.md
+9b5da087b509b5e64c543cb7cf00dfdf00d161eed33ee1cd2761cd3f0a4f6f87 *eval/remediation-redesign-01/DESIGN-SYSTEM.md
+fbfcf9af62459ed75213d4edfdfb605430e485230d8811d187b145b38586189c *eval/remediation-redesign-01/EXECUTIVE-REPORT.md
+eb4e38e8e528f5e41958014ff325de5225ba7b90e250cce37287ae2ca47db86f *eval/remediation-redesign-01/PHASE-A-FUNCTIONAL-RESULTS.md
+f1cf3682f46582d5b1e1267aef9bb17ddad4ead3899853f0478ba05b5e7eee52 *eval/remediation-redesign-01/PHASE-B-VISUAL-RESULTS.md
+f0dd6182dd62980d6f125d7ced42da9aec0198214d13092d3740c66a0f4e83ea *eval/remediation-redesign-01/RESPONSIVE-RESULTS.md
+3fb10fabd3b4e70a8c1cea50636a913d4876deead6a053a3f42cd3e751ccf920 *eval/remediation-redesign-01/SECURITY-INVARIANTS.md
+e5ad253d52ac4fce675b2d2be44c7e3323ea6a1f465660d0f4f0e08f32fafdeb *eval/remediation-redesign-01/TEST-RESULTS.md
+b9f37f029b47ea77cfcf20d36e2bf8f6ca19f68984d2aec53a07260b1ceab9ef *eval/remediation-redesign-01/before/client.js.snapshot.txt
+5d200cc623e1ffc7b4a736ac7bd476ded4e8e09e295922bd9206133999c2302c *eval/remediation-redesign-01/before/client.test.mjs.snapshot.txt
+fd5a516b70e14a6cbf4291a576c2f3d9e50b23715aec0c50f770c4f002dd7fec *eval/remediation-redesign-01/logs/check.txt
+291f2ba02d4abaf0851a2b8cb58e44be47e9a0624cbde63c4c1d35a74a142c50 *eval/remediation-redesign-01/logs/client.txt
+6ead6fd932e8b1eece559af2b686e3ddcd0d06a291420b196a1bb6b773b11403 *eval/remediation-redesign-01/logs/hermetic.txt
+c86ce27a2c4ce7b374dae76af7f2866221777129490b8c5b8f6a1c2a292fd741 *eval/remediation-redesign-01/logs/render.txt
+18076f69b3d249e00349862a9f04331323c2ec05a199eed6b3e4f59c70a82fc6 *eval/remediation-redesign-01/logs/suite.txt
+24c9371c29748fb43b5b57975dc23039baf27e651ac89b124b21ff4d3e0696e3 *eval/remediation-redesign-01/preview/connection.html
+562ca5e5b10586ce41a642c28d903129805ad20717a023873d562673188f45fc *eval/remediation-redesign-01/preview/context.html
+15372021d9143f767e62ce348d851d64eea838a1439f8ed09658b915efb637d7 *eval/remediation-redesign-01/preview/diagnostics.html
+02cd852143534ccbaabbb8ee2165d4c38eaf82c794151a399d541dd72a246976 *eval/remediation-redesign-01/preview/history.html
+6d7b0d7a8e03a1fc4115e8ff30cb878f2f0a55ee1a150745af6abd4602adb1db *eval/remediation-redesign-01/preview/libraries.html
+629874bff38905bcc0d7f3b894385fcd78dd248b189ccbaab0f030994c764c7f *eval/remediation-redesign-01/preview/operations.html
+cbe4f75096a4d18a5a5a0795bd6a651f0d75427c7052324282e9d9c235697b08 *eval/remediation-redesign-01/preview/project.html
+a024865c8ac7575bdaaaf6535aeff20481290e7ce528c8a1ccb653cdcf7b287f *eval/remediation-redesign-01/preview/search.html
+bd9cb306418632d904e5562d361acc1ffbc977227fbc9a226470431ede469875 *eval/remediation-redesign-01/preview/source.html
+4b661c7d6d54e31659ad500d7ad005d4cd477985f318b5f6a32057d197874ff0 *eval/remediation-redesign-01/preview/sources.html
+fde62a52b2218b3266399c02e2b011f5693a21281771f124b9e7da905251fc21 *eval/remediation-redesign-01/screens-after/connection-1280.png
+6b68db0d579b5f93df80fee10ab08967b54f363383c88a1e0f65c776b7d8fd35 *eval/remediation-redesign-01/screens-after/context-1280.png
+d2077e1a9cc3735fb0f63a68d5f3a7ba5dac0a3a27e26570266c5aac95b33e58 *eval/remediation-redesign-01/screens-after/diagnostics-1280.png
+6d394ad0c487fc30cef6056a788994b792e550fc6f4d84a109a1e5dc063a0f07 *eval/remediation-redesign-01/screens-after/history-1280.png
+9b8a6384f1ad53e34bf4ee10f409dbf45914f6155e61785e37590b30f4ab96eb *eval/remediation-redesign-01/screens-after/libraries-1280.png
+32e45b4f3d909e9917616a49858f9b2b7e2310e71b9143d0858096a2a5d26d2a *eval/remediation-redesign-01/screens-after/operations-1280.png
+09d90de8a5f63fe078c4306ed90705b4cd38ceac81821eda0a8f8bd946568822 *eval/remediation-redesign-01/screens-after/operations-390.png
+ea9b4a05901d59dece7d450ebcdc59307ae15f193fb97bb76f3387259ddf88ae *eval/remediation-redesign-01/screens-after/project-1280.png
+7de0a16262c04accc55b1c56ec54d9bcc84ae97c23302181dea8cbaaf72d92b4 *eval/remediation-redesign-01/screens-after/project-390.png
+1ad0b698776df7c61282fbde781ef2476c985f5d3640357058a517a4b6e2dbc5 *eval/remediation-redesign-01/screens-after/search-1280.png
+1bbcd7e7f4b34622283f18276d68421364d322ecda60062ac3e6b1b652465599 *eval/remediation-redesign-01/screens-after/search-390.png
+6d535d81b728e011aeb874ae6b0e8608ee7f9bf83efc7485fdead0de6a309243 *eval/remediation-redesign-01/screens-after/source-1280.png
+2a47a1a962813a05694ee7970e88cd836084cc2884d2d76a0fd69a072ad0f343 *eval/remediation-redesign-01/screens-after/sources-1280.png
+3ea38449610380ee1b0285090b89ce2b2a7ccf941601c02d1b29a4dc49f49204 *eval/remediation-redesign-01/screens-after/sources-390.png
+1534cb76027eb9eadce85e877cbf285f9106b76028bd46bb742924231482107a *eval/remediation-redesign-01/screens-before/01-project.png
+62889c2e249b4c2b380a1b02f39dc48b1ed6a8173c9cab8b3de4a022ffd17e2f *eval/remediation-redesign-01/screens-before/02-libraries.png
+412d3add3c0a28d43d507e556252bd331497f3d27d0cf060135a6e362ac022b8 *eval/remediation-redesign-01/screens-before/03-sources.png
+802e84ca651e86f7a2c641fbf7b9ac7d402f2e584b5c691c9fbe4eec697f5242 *eval/remediation-redesign-01/screens-before/04-search.png
+479b189ef825c521d6eed97ad6f3d401964c8053fd1acb621f84f1acef8f1fb4 *eval/remediation-redesign-01/screens-before/05-context.png
+34ced8cbc83f1bf18eeef185d75160309d456d99187309bfeb1825e1b26000c4 *eval/remediation-redesign-01/screens-before/06-operations.png
+fca2e1bc7af6a6f675c74cc73f9c347233227160565c8eec2693dbab6c06fabf *eval/remediation-redesign-01/screens-before/07-diagnostics.png
+098f1f04d07145fd04235031122d9cbe5f4741e788102f52c0c7b669f444e8a9 *eval/remediation-redesign-01/screens-before/08-connection.png
+2b8e9d778ee1b85e928e4abc535fdbc4803839038c5eba6a50eb39437f74c774 *eval/remediation-redesign-01/screens-before/09-history.png
+e99bdd4c76e75fc9f5d19386dbef65c224e6bc6136de0d813c91799c040f6510 *eval/remediation-redesign-01/screens-before/10-fleet-reference.png
+ed605d9ceddf7553b0d4db7d8ed8772012864a1639e23d49d26dddfb1e47d029 *eval/remediation-redesign-01/tools/render-html.mjs
+
+## B. Produccion modificada en este acto
+ac1b65fd4e28d07810790bdafba91649d94fd2a67a70597eeedfe46dcc3072e8 *client.js
+6776c7af031e8d84a49d56ae976e56a2c520def8bd908f90280de241f1dea0eb *tests/client.test.mjs
+
+## C. Sin cambios en este acto (verificacion de no regresion)
+e43ff1a7a296d07c3f4648ab56e1a821adb9a1697edf9c8db4d5b2ecf665804f *package.json
+71ad4ffaa4239a0a3c15a254e47d973eb98caf83b0887b68ac5c5bf6b83081ef *index.js
+9ef00251c25d1f8e0e81623b668c70dc04ed2d1bc74237251b53c3f7dccf4206 *tools/check.mjs
+4213e48c2f1a0922dda430ceb1fc819141b82959e5a8c218148c64a6472d6368 *tools/hermetic.mjs
+aa7fe63598146360ed4dad8a9c736491336da08f543968a25199f34ed718de30 *docs/PA-UI-0-ACCEPTANCE.md
+934224310e10006d0ab3dbc2fec18b5a418a9e7c5e0f68f2570ee544e468c68a *docs/PA-UI-0-API-CONTRACT.md
+bae5139187138aaa5805ee89140ec9edd1326ee9a1c39bc36b62987151b4d19b *docs/PA-UI-0-GAPS.md

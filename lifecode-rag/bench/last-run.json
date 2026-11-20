@@ -1,0 +1,66 @@
+{
+ "environment": {
+  "node": "v24.21.0",
+  "platform": "win32",
+  "arch": "x64",
+  "cpus": 16
+ },
+ "fixture": {
+  "sources": 30,
+  "chunks": 300,
+  "query": "alpha",
+  "limit": 8
+ },
+ "results": [
+  {
+   "label": "fts",
+   "iterations": 30,
+   "warmup": 5,
+   "ms": {
+    "p50": 0.306,
+    "p95": 0.462,
+    "mean": 0.328
+   }
+  },
+  {
+   "label": "hybrid:fragment",
+   "iterations": 30,
+   "warmup": 5,
+   "ms": {
+    "p50": 0.464,
+    "p95": 0.85,
+    "mean": 0.509
+   }
+  },
+  {
+   "label": "hybrid:source",
+   "iterations": 30,
+   "warmup": 5,
+   "ms": {
+    "p50": 0.443,
+    "p95": 0.741,
+    "mean": 0.462
+   }
+  },
+  {
+   "label": "config:resolve",
+   "iterations": 30,
+   "warmup": 5,
+   "ms": {
+    "p50": 0.046,
+    "p95": 0.073,
+    "mean": 0.049
+   }
+  },
+  {
+   "label": "events:reduce100",
+   "iterations": 30,
+   "warmup": 5,
+   "ms": {
+    "p50": 0.036,
+    "p95": 0.132,
+    "mean": 0.048
+   }
+  }
+ ]
+}

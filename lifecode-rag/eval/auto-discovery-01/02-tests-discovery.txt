@@ -1,0 +1,24 @@
+﻿✔ descubre Git, Laravel, Node/Vue/Nuxt, .NET y Python por sus indicadores (10.9465ms)
+✔ no desciende a node_modules ni descubre secretos (4.0156ms)
+✔ el registro es idempotente y no duplica raíces ni proyectos (32.7569ms)
+✔ reconoce un proyecto ya registrado y conserva su identidad y su almacén (61.8268ms)
+✔ descubrir y registrar no crea el almacén del proyecto (20.9372ms)
+✔ resuelve por cwd registrando el proyecto del workspace confiable (30.2714ms)
+✔ con raíces anidadas gana la más específica (42.6329ms)
+✔ fuera del workspace confiable no hay descubrimiento ni búsqueda global (30.5364ms)
+✔ sin autorización de lectura no se registra nada (26.5359ms)
+✔ un enlace dentro del workspace no amplía el ámbito (2.3344ms)
+✔ la selección explícita prevalece sobre la resolución automática (34.9777ms)
+✔ sesiones distintas resuelven proyectos distintos y no comparten ámbitos (36.9562ms)
+✔ la confianza y los proyectos registrados sobreviven a reabrir el registro (31.0676ms)
+✔ las siete herramientas funcionan con un proyecto descubierto sin selección manual (84.3861ms)
+✔ una sesión no ve el proyecto de otra aunque ambas estén bajo el mismo workspace (120.2717ms)
+✔ la CLI de confianza es idempotente y no autoriza lectura si se pide --read false (18.4572ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 679.3551

@@ -1,0 +1,1221 @@
+--- eval/pa-ui-1/evidence/before/client.js.txt	2026-11-18 18:37:29.904542300 -0600
++++ eval/pa-ui-1/evidence/after/client.js.txt	2026-11-19 00:34:54.360322400 -0600
+@@ -1,7 +1,11 @@
+-/* LifeCode RAG — Workspace nativo (pestaña del host).
++/* LifeCode RAG — mitad cliente (pestaña del host).
+  *
+  * Módulo de cliente Cordis: React llega por el cargador del host, no por imports de
+- * `@deepseek-ai/*`. La API es la misma que usan las herramientas; la interfaz no tiene privilegios.
++ * `@deepseek-ai/*`. La interfaz no tiene privilegios: no autoriza, no decide y no escribe.
++ *
++ * K1 (2026-11-19): el panel montado es el Project-Aware en **modo sintético** (fixtures). El código
++ * heredado del Workspace v0.2 se conserva en este mismo fichero, pero queda inalcanzable: su capa de
++ * red falla cerrada mientras `DATA_MODE` no sea 'live', y 'live' no está habilitado.
+  */
+ 
+ window.__ModuleLoader__.load({
+@@ -15,10 +19,21 @@
+     const PANEL_ID = 'lifecode-rag';
+     const SIDEBAR_SLOT = 'sidebar.panellist';
+     const MAIN_SLOT = 'main';
++    // Modo de datos del panel. 'fixture' = datos sintéticos, sin red. 'live' no está habilitado:
++    // habilitarlo exige la integración de sesión que hoy no existe (PA01 BLOCKED). No hay ningún
++    // control en la interfaz que cambie este valor.
++    const DATA_MODE = 'fixture';
+ 
+     /* ------------------------------------------------------------------ API */
+ 
+     async function request(path, options = {}) {
++      if (DATA_MODE !== 'live') {
++        // K1: en modo sintético no se habla con ninguna API, ni con la heredada v0.2. Si algo
++        // invocara esta capa, falla cerrado antes de tocar la red.
++        const blocked = new Error('fixture-mode: sin acceso a la API del panel');
++        blocked.code = 'fixture-mode';
++        throw blocked;
++      }
+       const method = options.method || 'GET';
+       const headers = { accept: 'application/json' };
+       if (options.body !== undefined) {
+@@ -718,33 +733,1172 @@
+       @media (forced-colors: active) { .lcr-card, .lcr-stat, .lcr-result, .lcr-chunk, .lcr-context { border-color: CanvasText; } }
+     `;
+ 
++    /* ==========================================================================
++       K1 — panel Project-Aware EN MODO SINTÉTICO.
++
++       Reglas que este bloque respeta:
++        - Cero red: los datos salen de fixtures deterministas; las operaciones son simuladas.
++        - Cero polling: no hay temporizadores. Si algún día existe 'live', el refresco deberá usar
++          `usePanelInfo` (panel activo), no `document.visibilityState`.
++        - Cero escritura: nada toca el registro, los almacenes ni el perfil.
++        - La UI no decide autorización: sólo pinta el estado que le dan.
++       ====================================================================== */
++
++    const NS = 'lifecode-rag';
++    const SYNTHETIC_BANNER = 'SYNTHETIC DATA MODE — NO REAL RAG DATA ACCESS';
++    const PA_BASE_AT = 1763000000000;
++    const PA_PAGE_LIMIT = 50;
++    const PA_INGEST_PATHS = [
++      'sintetico/nuevo/acta-de-reunion.md',
++      'sintetico/nuevo/decision-de-arquitectura.md',
++      'sintetico/nuevo/guia-de-operacion.md',
++      // Caso de error deliberado del fixture: permite ejercitar el estado de error sin tocar nada real.
++      'sintetico/nuevo/informe-escaneado.pdf',
++    ];
++
++    const PA_DICT = {
++      es: {
++        'app.title': 'LifeCode RAG',
++        'app.subtitle': 'Proyecto activo, bibliotecas, fuentes y recuperación — en modo sintético',
++        'app.reset': 'Reiniciar datos sintéticos',
++        'banner.hint': 'Datos de ejemplo. No hay conexión con el RAG real.',
++        'a11y.tabs': 'Secciones del panel',
++        'a11y.banner': 'Aviso de modo sintético',
++        'nav.project': 'Proyecto',
++        'nav.libraries': 'Bibliotecas',
++        'nav.sources': 'Fuentes',
++        'nav.search': 'Búsqueda',
++        'nav.context': 'Contexto',
++        'nav.operations': 'Operaciones',
++        'nav.diagnostics': 'Diagnóstico',
++        'nav.connection': 'Conexión',
++        'nav.history': 'Historial',
++        'common.none': '—',
++        'common.total': 'Total',
++        'common.previous': 'Anterior',
++        'common.next': 'Siguiente',
++        'common.page': 'Página {page} de {pages}',
++        'common.back': 'Volver',
++        'common.open': 'Abrir',
++        'common.source': 'Fuente',
++        'common.chunks': 'Fragmentos',
++        'common.bytes': 'Bytes',
++        'common.updated': 'Actualizado',
++        'common.indexed': 'Indexado',
++        'common.collection': 'Colección',
++        'common.status': 'Estado',
++        'common.actions': 'Acciones',
++        'common.value': 'Valor',
++        'common.name': 'Nombre',
++        'common.uri': 'URI',
++        'common.store': 'Almacén',
++        'common.roots': 'Raíces',
++        'common.permission': 'Permiso',
++        'common.granted': 'Concedido',
++        'common.simulated': 'Simulado',
++        'project.title': 'Proyecto activo',
++        'project.candidates': 'Proyectos candidatos',
++        'project.project': 'Proyecto',
++        'project.selection': 'Selección',
++        'project.source': 'Origen',
++        'project.source.explicit': 'explícita',
++        'project.source.cwd': 'directorio de trabajo',
++        'project.revision': 'Revisión',
++        'project.scopes': 'Ámbitos efectivos',
++        'project.service': 'Servicio',
++        'project.current': 'actual',
++        'project.select': 'Seleccionar',
++        'project.gap09': 'GAP-09: la selección todavía no protege contra dos pestañas (última escritura gana).',
++        'libraries.title': 'Bibliotecas autorizadas',
++        'libraries.readonly': 'Sólo lectura: la API visual no concede ni revoca bibliotecas.',
++        'libraries.empty': 'No hay bibliotecas concedidas para este proyecto.',
++        'libraries.gap': 'Una biblioteca revocada desaparece de esta lista; su causa se explica en el proyecto.',
++        'sources.title': 'Fuentes del proyecto',
++        'sources.empty': 'Este proyecto no tiene fuentes indexadas en el fixture.',
++        'sources.showing': 'Mostrando {shown} de {total}',
++        'sources.filter': 'La vista muestra el fixture; no hay ingesta real.',
++        'source.title': 'Detalle de fuente',
++        'source.notFound': 'La fuente ya no está en el fixture.',
++        'source.chunksShown': 'Se muestran {shown} de {total} fragmentos.',
++        'source.gap05': 'GAP-05: esta versión no pagina fragmentos; el detalle se limita a los primeros.',
++        'source.meta': 'Metadatos',
++        'search.title': 'Búsqueda',
++        'search.placeholder': 'Texto a buscar en el fixture',
++        'search.run': 'Buscar',
++        'search.limit': 'Resultados',
++        'search.mode': 'Modo',
++        'search.elapsed': 'Duración',
++        'search.results': 'Resultados con procedencia',
++        'search.scope': 'Ámbito',
++        'search.noResults': 'Sin resultados para esa consulta en el fixture.',
++        'search.hint': 'La búsqueda se ejecuta sobre datos sintéticos; no consulta el motor.',
++        'search.openContext': 'Construir contexto con estos resultados',
++        'context.title': 'Contexto recuperado',
++        'context.build': 'Construir contexto',
++        'context.empty': 'Ejecuta una búsqueda y construye el contexto con sus resultados.',
++        'context.tokens': 'Tokens estimados',
++        'context.truncated': 'Truncado',
++        'context.considered': 'Fragmentos considerados',
++        'context.citations': 'Citas',
++        'context.failClosed': 'Con un almacén ilegible, la operación falla en cerrado: no se sirve contexto parcial.',
++        'context.text': 'Texto que se serviría al modelo',
++        'operations.title': 'Operaciones simuladas',
++        'operations.ingest': 'Ingesta simulada',
++        'operations.ingestHint': 'Añade una fuente de ejemplo al fixture. No lee ni escribe ficheros.',
++        'operations.reindex': 'Reindexación simulada',
++        'operations.reindexHint': 'Recorre las fuentes del fixture y cuenta fragmentos. No abre ningún almacén.',
++        'operations.journal': 'Registro de operaciones simuladas',
++        'operations.empty': 'Todavía no se ejecutó ninguna operación simulada.',
++        'operations.noWrite': 'Las operaciones de esta vista no escriben en el RAG ni en el registro de auditoría.',
++        'operations.error': 'No se pudo completar la operación simulada',
++        'operations.errorCode': 'Código',
++        'operations.clearError': 'Descartar aviso',
++        'notice.ingestError': 'La ingesta simulada falló: formato no soportado en el fixture.',
++        'operations.affected': 'Fuentes afectadas',
++        'operations.at': 'Momento',
++        'operations.kind': 'Tipo',
++        'diagnostics.title': 'Diagnóstico',
++        'diagnostics.integrity': 'Integridad',
++        'diagnostics.registry': 'Registro',
++        'diagnostics.stores': 'Almacenes',
++        'diagnostics.auditHead': 'Cabeza de auditoría',
++        'diagnostics.scopes': 'Ámbitos',
++        'diagnostics.versions': 'Versiones',
++        'diagnostics.api': 'API',
++        'diagnostics.host': 'Anfitrión',
++        'diagnostics.gap06': 'GAP-06: el diagnóstico multi-ámbito está limitado; se compone por ámbito.',
++        'diagnostics.gap10': 'GAP-10: no hay detalle por embedding; sólo estado global.',
++        'diagnostics.gap07': 'GAP-07: las lecturas del panel todavía no se auditan (ui.read no implementado).',
++        'diagnostics.notAvailable': 'no disponible',
++        'connection.title': 'Conexión y disponibilidad',
++        'connection.service': 'Servicio',
++        'connection.registry': 'Registro',
++        'connection.storeRoot': 'Raíz de almacenes',
++        'connection.api': 'API Project-Aware',
++        'connection.legacy': 'API heredada v0.2',
++        'connection.notMounted': 'no montada',
++        'connection.mode': 'Modo de datos',
++        'connection.notice': 'No hay conexión real: el panel no habla con ninguna API y no puede activarla.',
++        'history.title': 'Historial de operaciones',
++        'history.unavailable': 'No disponible en esta versión',
++        'history.why': 'El contrato pa-ui/0.1.0-draft no expone un listado de auditoría. /diagnostics sólo devuelve la cabeza de la cadena.',
++        'history.route': 'No se inventa una ruta: la vista queda deshabilitada hasta que exista contrato.',
++        'history.simulated': 'Las operaciones simuladas de esta sesión se registran en la vista Operaciones, no aquí.',
++        'notice.sameProject': 'Ese proyecto ya está seleccionado; no hubo cambios.',
++        'notice.selected': 'Selección simulada: la revisión subió y el cambio quedó anotado en Operaciones.',
++        'notice.ingest': 'Ingesta simulada completada: una fuente añadida al fixture.',
++        'notice.reindex': 'Reindexación simulada completada: no se escribió nada.',
++        'notice.reset': 'Datos sintéticos reiniciados.',
++        'notice.searchEmpty': 'La búsqueda no devolvió resultados en el fixture.',
++      },
++      en: {
++        'app.title': 'LifeCode RAG',
++        'app.subtitle': 'Active project, libraries, sources and retrieval — in synthetic mode',
++        'app.reset': 'Reset synthetic data',
++        'banner.hint': 'Sample data. No connection to the real RAG.',
++        'a11y.tabs': 'Panel sections',
++        'a11y.banner': 'Synthetic mode notice',
++        'nav.project': 'Project',
++        'nav.libraries': 'Libraries',
++        'nav.sources': 'Sources',
++        'nav.search': 'Search',
++        'nav.context': 'Context',
++        'nav.operations': 'Operations',
++        'nav.diagnostics': 'Diagnostics',
++        'nav.connection': 'Connection',
++        'nav.history': 'History',
++        'common.none': '—',
++        'common.total': 'Total',
++        'common.previous': 'Previous',
++        'common.next': 'Next',
++        'common.page': 'Page {page} of {pages}',
++        'common.back': 'Back',
++        'common.open': 'Open',
++        'common.source': 'Source',
++        'common.chunks': 'Chunks',
++        'common.bytes': 'Bytes',
++        'common.updated': 'Updated',
++        'common.indexed': 'Indexed',
++        'common.collection': 'Collection',
++        'common.status': 'Status',
++        'common.actions': 'Actions',
++        'common.value': 'Value',
++        'common.name': 'Name',
++        'common.uri': 'URI',
++        'common.store': 'Store',
++        'common.roots': 'Roots',
++        'common.permission': 'Permission',
++        'common.granted': 'Granted',
++        'common.simulated': 'Simulated',
++        'project.title': 'Active project',
++        'project.candidates': 'Candidate projects',
++        'project.project': 'Project',
++        'project.selection': 'Selection',
++        'project.source': 'Origin',
++        'project.source.explicit': 'explicit',
++        'project.source.cwd': 'working directory',
++        'project.revision': 'Revision',
++        'project.scopes': 'Effective scopes',
++        'project.service': 'Service',
++        'project.current': 'current',
++        'project.select': 'Select',
++        'project.gap09': 'GAP-09: selection does not protect against two tabs yet (last write wins).',
++        'libraries.title': 'Authorized libraries',
++        'libraries.readonly': 'Read-only: the visual API neither grants nor revokes libraries.',
++        'libraries.empty': 'No libraries granted for this project.',
++        'libraries.gap': 'A revoked library disappears from this list; the cause is explained in the project view.',
++        'sources.title': 'Project sources',
++        'sources.empty': 'This project has no indexed sources in the fixture.',
++        'sources.showing': 'Showing {shown} of {total}',
++        'sources.filter': 'This view shows the fixture; there is no real ingestion.',
++        'source.title': 'Source detail',
++        'source.notFound': 'The source is no longer in the fixture.',
++        'source.chunksShown': 'Showing {shown} of {total} chunks.',
++        'source.gap05': 'GAP-05: this version does not paginate chunks; detail is limited to the first ones.',
++        'source.meta': 'Metadata',
++        'search.title': 'Search',
++        'search.placeholder': 'Text to search in the fixture',
++        'search.run': 'Search',
++        'search.limit': 'Results',
++        'search.mode': 'Mode',
++        'search.elapsed': 'Duration',
++        'search.results': 'Results with provenance',
++        'search.scope': 'Scope',
++        'search.noResults': 'No results for that query in the fixture.',
++        'search.hint': 'Search runs over synthetic data; it does not query the engine.',
++        'search.openContext': 'Build context from these results',
++        'context.title': 'Retrieved context',
++        'context.build': 'Build context',
++        'context.empty': 'Run a search and build the context from its results.',
++        'context.tokens': 'Estimated tokens',
++        'context.truncated': 'Truncated',
++        'context.considered': 'Chunks considered',
++        'context.citations': 'Citations',
++        'context.failClosed': 'With an unreadable store, the operation fails closed: no partial context is served.',
++        'context.text': 'Text that would be served to the model',
++        'operations.title': 'Simulated operations',
++        'operations.ingest': 'Simulated ingestion',
++        'operations.ingestHint': 'Adds a sample source to the fixture. It neither reads nor writes files.',
++        'operations.reindex': 'Simulated reindex',
++        'operations.reindexHint': 'Walks the fixture sources and counts chunks. It opens no store.',
++        'operations.journal': 'Simulated operations log',
++        'operations.empty': 'No simulated operation has run yet.',
++        'operations.noWrite': 'Operations in this view write neither to the RAG nor to the audit log.',
++        'operations.error': 'The simulated operation could not be completed',
++        'operations.errorCode': 'Code',
++        'operations.clearError': 'Dismiss notice',
++        'notice.ingestError': 'Simulated ingestion failed: unsupported format in the fixture.',
++        'operations.affected': 'Affected sources',
++        'operations.at': 'Time',
++        'operations.kind': 'Type',
++        'diagnostics.title': 'Diagnostics',
++        'diagnostics.integrity': 'Integrity',
++        'diagnostics.registry': 'Registry',
++        'diagnostics.stores': 'Stores',
++        'diagnostics.auditHead': 'Audit head',
++        'diagnostics.scopes': 'Scopes',
++        'diagnostics.versions': 'Versions',
++        'diagnostics.api': 'API',
++        'diagnostics.host': 'Host',
++        'diagnostics.gap06': 'GAP-06: multi-scope diagnostics are limited; they are composed per scope.',
++        'diagnostics.gap10': 'GAP-10: no per-embedding detail; global state only.',
++        'diagnostics.gap07': 'GAP-07: panel reads are not audited yet (ui.read not implemented).',
++        'diagnostics.notAvailable': 'not available',
++        'connection.title': 'Connection and availability',
++        'connection.service': 'Service',
++        'connection.registry': 'Registry',
++        'connection.storeRoot': 'Store root',
++        'connection.api': 'Project-Aware API',
++        'connection.legacy': 'Legacy v0.2 API',
++        'connection.notMounted': 'not mounted',
++        'connection.mode': 'Data mode',
++        'connection.notice': 'No real connection: the panel talks to no API and cannot enable one.',
++        'history.title': 'Operation history',
++        'history.unavailable': 'Not available in this version',
++        'history.why': 'The pa-ui/0.1.0-draft contract exposes no audit listing. /diagnostics only returns the chain head.',
++        'history.route': 'No route is invented: the view stays disabled until a contract exists.',
++        'history.simulated': 'Simulated operations for this session are logged in the Operations view, not here.',
++        'notice.sameProject': 'That project is already selected; nothing changed.',
++        'notice.selected': 'Simulated selection: the revision went up and the change was logged in Operations.',
++        'notice.ingest': 'Simulated ingestion complete: one source added to the fixture.',
++        'notice.reindex': 'Simulated reindex complete: nothing was written.',
++        'notice.reset': 'Synthetic data reset.',
++        'notice.searchEmpty': 'The search returned no results in the fixture.',
++      },
++    };
++
++    function paNormalizeLang(value) {
++      return String(value ?? '').toLowerCase().startsWith('en') ? 'en' : 'es';
++    }
++
++    function paTranslate(lang, key, vars) {
++      const table = PA_DICT[lang] ?? PA_DICT.es;
++      const text = table[key] ?? PA_DICT.es[key] ?? key;
++      if (vars === undefined) return text;
++      return text.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match));
++    }
++
++    function paReadLanguage(locale) {
++      if (locale === null || locale === undefined) return 'es';
++      try {
++        if (typeof locale.getSnapshot === 'function') {
++          const snapshot = locale.getSnapshot();
++          const value = snapshot?.locale ?? snapshot?.lang ?? snapshot?.id ?? snapshot?.name;
++          if (value !== undefined && value !== null) return paNormalizeLang(value);
++        }
++        if (typeof locale.getLocale === 'function') return paNormalizeLang(locale.getLocale());
++      } catch {
++        /* el locale es presentación: si falla, seguimos en español */
++      }
++      return 'es';
++    }
++
++    /* ----------------------------------------------------------- fixtures */
++
++    function paNum(value) {
++      const text = String(Math.trunc(Number(value) || 0));
++      return text.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
++    }
++
++    function paTime(at) {
++      try {
++        return new Date(at).toISOString().slice(0, 16).replace('T', ' ');
++      } catch {
++        return '—';
++      }
++    }
++
++    function paHash(text) {
++      let hash = 0;
++      for (let i = 0; i < text.length; i += 1) hash = (hash * 31 + text.charCodeAt(i)) % 100000;
++      return hash;
++    }
++
++    function paChunkCount(sourceId) {
++      return 3 + (paHash(sourceId) % 9);
++    }
++
++    function paChunks(source) {
++      const total = source.chunks;
++      const rows = [];
++      for (let ordinal = 0; ordinal < total; ordinal += 1) {
++        rows.push({
++          ordinal,
++          heading: source.title + ' · sección ' + String(ordinal + 1),
++          charStart: ordinal * 1200,
++          charEnd: ordinal * 1200 + 1100,
++          tokenEst: 275,
++          text: 'Fragmento sintético ' + String(ordinal + 1) + ' de «' + source.title + '». Contenido de ejemplo para probar la interfaz: no proviene de ningún documento real ni de ningún almacén.',
++        });
++      }
++      return rows;
++    }
++
++    const PA_DOC_NAMES = [
++      'Política de acceso',
++      'Manual de producto',
++      'Registro de decisiones',
++      'Guía de operación',
++      'Acta de revisión',
++      'Procedimiento de soporte',
++      'Contrato de datos',
++      'Plan de pruebas',
++    ];
++    const PA_COLLECTIONS = ['normativa', 'producto', 'operaciones'];
++
++    function paBuildSources(count) {
++      const rows = [];
++      for (let i = 1; i <= count; i += 1) {
++        const id = 'src_k1fx_' + String(i).padStart(4, '0');
++        const collection = PA_COLLECTIONS[i % PA_COLLECTIONS.length];
++        const title = PA_DOC_NAMES[i % PA_DOC_NAMES.length] + ' ' + String(i).padStart(3, '0');
++        rows.push({
++          id,
++          uri: 'sintetico/' + collection + '/doc-' + String(i).padStart(4, '0') + '.md',
++          title,
++          collection,
++          bytes: 800 + ((i * 37) % 4200),
++          chunks: paChunkCount(id),
++          updatedAt: PA_BASE_AT - i * 3600000,
++          indexedAt: PA_BASE_AT - i * 3500000,
++          mime: 'text/markdown',
++        });
++      }
++      return rows;
++    }
++
++    function paFixtures() {
++      const sources = paBuildSources(121);
++      return {
++        session: {
++          api: 'pa-ui/0.1.0-draft',
++          contract: '0.1.0',
++          session: {
++            id: 'session-k1fx-0001',
++            profileKey: 'k1-fixture',
++            state: 'active',
++            invalidReason: null,
++            expiresAt: null,
++            selection: {
++              state: 'active',
++              projectId: 'prj_k1fx_01',
++              projectName: 'Proyecto Sintético Alfa',
++              source: 'explicit',
++              revision: 3,
++              selectedBy: 'human',
++              selectedAt: PA_BASE_AT - 3600000,
++              candidates: [],
++            },
++          },
++          project: { id: 'prj_k1fx_01', name: 'Proyecto Sintético Alfa', status: 'active' },
++          scopes: [
++            { kind: 'prj', id: 'prj_k1fx_01', name: 'Proyecto Sintético Alfa', roots: 2, store: 'present' },
++            { kind: 'lib', id: 'lib_k1fx_01', name: 'Normativa interna', roots: 1, store: 'present', permission: 'read' },
++            { kind: 'lib', id: 'lib_k1fx_02', name: 'Documentación de producto', roots: 1, store: 'missing', permission: 'read' },
++          ],
++          scopeCount: 3,
++          service: { status: 'degraded', registry: 'ok', storeRoot: 'ready' },
++        },
++        projects: [
++          { id: 'prj_k1fx_01', name: 'Proyecto Sintético Alfa', current: true, rootCount: 2 },
++          { id: 'prj_k1fx_02', name: 'Biblioteca Compartida Beta', current: false, rootCount: 1 },
++        ],
++        libraries: [
++          { id: 'lib_k1fx_01', name: 'Normativa interna', permission: 'read', grantedAt: PA_BASE_AT - 7200000, grantedBy: 'human', store: 'present', roots: 1 },
++          { id: 'lib_k1fx_02', name: 'Documentación de producto', permission: 'read', grantedAt: PA_BASE_AT - 7100000, grantedBy: 'human', store: 'missing', roots: 1 },
++        ],
++        sources,
++        diagnostics: {
++          session: { id: 'session-k1fx-0001', profileKey: 'k1-fixture', state: 'active' },
++          selection: { projectId: 'prj_k1fx_01', source: 'explicit', revision: 3 },
++          scopes: [
++            { kind: 'prj', id: 'prj_k1fx_01', name: 'Proyecto Sintético Alfa', store: 'present', verified: true },
++            { kind: 'lib', id: 'lib_k1fx_01', name: 'Normativa interna', store: 'present', verified: true },
++            { kind: 'lib', id: 'lib_k1fx_02', name: 'Documentación de producto', store: 'missing', verified: false },
++          ],
++          grants: [
++            { libraryId: 'lib_k1fx_01', permission: 'read', grantedAt: PA_BASE_AT - 7200000, state: 'open' },
++            { libraryId: 'lib_k1fx_02', permission: 'read', grantedAt: PA_BASE_AT - 7100000, state: 'open' },
++          ],
++          integrity: { registry: 'ok', stores: 'degraded', auditHead: 42 },
++          versions: { plugin: '1.0.0', contract: '0.1.0', api: 'pa-ui/0.1.0-draft', host: '0.2.2-rc.5' },
++          health: {
++            status: 'degraded',
++            checks: [
++              { id: 'registry', ok: true },
++              { id: 'stores', ok: false },
++              { id: 'audit-chain', ok: true },
++            ],
++          },
++        },
++        health: { api: 'pa-ui/0.1.0-draft', contract: '0.1.0', status: 'degraded', registry: 'ok', legacy: false },
++      };
++    }
++
++    function paInitialState() {
++      const fx = paFixtures();
++      return {
++        view: 'project',
++        session: fx.session,
++        projects: fx.projects,
++        libraries: fx.libraries,
++        sources: fx.sources,
++        sourcePage: { limit: PA_PAGE_LIMIT, offset: 0 },
++        selectedSourceId: null,
++        query: '',
++        limit: 8,
++        ingestPath: PA_INGEST_PATHS[0],
++        results: null,
++        context: null,
++        diagnostics: fx.diagnostics,
++        health: fx.health,
++        journal: [],
++        clock: 0,
++        opSeq: 0,
++        notice: null,
++        lastError: null,
++      };
++    }
++
++    /* ------------------------------------------------------------ búsqueda */
++
++    function paSearchResults(state, query, limit) {
++      const text = String(query ?? '').trim().toLowerCase();
++      if (text === '') return null;
++      const hits = [];
++      state.sources.forEach((source) => {
++        const haystack = (source.title + ' ' + source.uri + ' ' + source.collection).toLowerCase();
++        if (!haystack.includes(text)) return;
++        hits.push({
++          chunkKey: source.id + ':0',
++          sourceId: source.id,
++          uri: source.uri,
++          title: source.title,
++          heading: 'Introducción',
++          ordinal: 0,
++          rrf: 0.031 - hits.length * 0.001,
++          snippet: 'Coincidencia sintética en «' + source.title + '» para «' + String(query).trim() + '».',
++          scopeId: 'prj_k1fx_01',
++          scopeKind: 'prj',
++          scopeName: 'Proyecto Sintético Alfa',
++        });
++      });
++      if (/norm|acces|polit|libr/.test(text) || text.length < 3) {
++        // La procedencia de biblioteca va primero para que se vea aun con el límite por defecto.
++        hits.unshift({
++          chunkKey: 'lib_k1fx_01:0',
++          sourceId: 'src_k1fx_lib_01',
++          uri: 'sintetico/normativa/acceso.md',
++          title: 'Política de acceso (biblioteca)',
++          heading: 'Ámbito de aplicación',
++          ordinal: 0,
++          rrf: 0.019,
++          snippet: 'Resultado sintético de la biblioteca compartida para «' + String(query).trim() + '».',
++          scopeId: 'lib_k1fx_01',
++          scopeKind: 'lib',
++          scopeName: 'Normativa interna',
++        });
++      }
++      const results = hits.slice(0, limit);
++      return {
++        mode: 'hybrid',
++        elapsedMs: 8 + (String(query).length % 11),
++        results,
++        scopes: [
++          { id: 'prj_k1fx_01', kind: 'prj', name: 'Proyecto Sintético Alfa', results: results.filter((r) => r.scopeKind === 'prj').length },
++          { id: 'lib_k1fx_01', kind: 'lib', name: 'Normativa interna', results: results.filter((r) => r.scopeKind === 'lib').length },
++        ],
++      };
++    }
++
++    function paBuildContext(state, results) {
++      if (!results || results.length === 0) return null;
++      const chosen = results.slice(0, 3);
++      const lines = chosen.map((row, index) => '[' + String(index + 1) + '] ' + row.title + ' — ' + row.heading + '\n' + row.snippet);
++      const text = lines.join('\n\n');
++      const citations = chosen.map((row, index) => ({
++        n: index + 1,
++        chunkKey: row.chunkKey,
++        sourceId: row.sourceId,
++        uri: row.uri,
++        title: row.title,
++        heading: row.heading,
++        ordinal: row.ordinal,
++        charStart: 0,
++        charEnd: row.snippet.length,
++      }));
++      return {
++        text,
++        citations,
++        tokens: Math.ceil(text.length / 4),
++        truncated: false,
++        considered: results.length,
++        scopes: [
++          { id: 'prj_k1fx_01', kind: 'prj', name: 'Proyecto Sintético Alfa' },
++          { id: 'lib_k1fx_01', kind: 'lib', name: 'Normativa interna' },
++        ],
++        elapsedMs: 5,
++      };
++    }
++
++    /* ------------------------------------------------------------- reducer */
++
++    function paJournalEntry(state, kind, detail) {
++      const clock = state.clock + 1;
++      const seq = state.opSeq + 1;
++      const entry = {
++        id: 'op-k1fx-' + String(seq).padStart(3, '0'),
++        at: PA_BASE_AT + clock * 60000,
++        kind,
++        detail,
++        status: 'simulated',
++      };
++      return { clock, seq, journal: [entry, ...state.journal] };
++    }
++
++    function paReduce(state, action) {
++      if (!action || typeof action.type !== 'string') return state;
++      switch (action.type) {
++        case 'reset':
++          return paInitialState();
++        case 'nav':
++          return { ...state, view: action.view, notice: null };
++        case 'select-project': {
++          const current = state.session.session.selection;
++          if (!action.projectId || action.projectId === current.projectId) {
++            return { ...state, notice: { code: 'notice.sameProject' } };
++          }
++          const project = state.projects.find((row) => row.id === action.projectId);
++          if (!project) return { ...state, notice: { code: 'notice.sameProject' } };
++          const entry = paJournalEntry(state, 'selection', project.name);
++          return {
++            ...state,
++            session: {
++              ...state.session,
++              session: {
++                ...state.session.session,
++                selection: { ...current, projectId: project.id, projectName: project.name, source: 'explicit', revision: current.revision + 1 },
++              },
++            },
++            projects: state.projects.map((row) => ({ ...row, current: row.id === project.id })),
++            clock: entry.clock,
++            opSeq: entry.seq,
++            journal: entry.journal,
++            notice: { code: 'notice.selected' },
++          };
++        }
++        case 'page': {
++          const maxOffset = Math.max(0, Math.floor((state.sources.length - 1) / state.sourcePage.limit) * state.sourcePage.limit);
++          const offset = Math.min(maxOffset, Math.max(0, Number(action.offset) || 0));
++          return { ...state, sourcePage: { ...state.sourcePage, offset } };
++        }
++        case 'open-source':
++          return { ...state, view: 'source', selectedSourceId: action.id, notice: null };
++        case 'query':
++          return { ...state, query: String(action.value ?? '') };
++        case 'limit':
++          return { ...state, limit: Number(action.value) || 8 };
++        case 'search': {
++          const results = paSearchResults(state, state.query, state.limit);
++          return { ...state, view: 'search', results, context: null, notice: results && results.results.length === 0 ? { code: 'notice.searchEmpty' } : null };
++        }
++        case 'context': {
++          const context = state.results && state.results.results.length > 0 ? paBuildContext(state, state.results.results) : null;
++          return { ...state, view: 'context', context, notice: context ? null : { code: 'notice.searchEmpty' } };
++        }
++        case 'ingest-path':
++          return { ...state, ingestPath: String(action.value ?? PA_INGEST_PATHS[0]) };
++        case 'ingest': {
++          if (String(state.ingestPath).toLowerCase().endsWith('.pdf')) {
++            const failed = paJournalEntry(state, 'ingest', state.ingestPath);
++            return {
++              ...state,
++              clock: failed.clock,
++              opSeq: failed.seq,
++              journal: failed.journal,
++              lastError: { code: 'unsupported-format', path: state.ingestPath },
++              notice: { code: 'notice.ingestError' },
++            };
++          }
++          const entry = paJournalEntry(state, 'ingest', state.ingestPath);
++          const id = 'src_k1fx_ing_' + String(entry.seq).padStart(2, '0');
++          const source = {
++            id,
++            uri: state.ingestPath,
++            title: 'Documento sintético ' + String(entry.seq).padStart(2, '0'),
++            collection: 'operaciones',
++            bytes: 1024 + entry.seq * 16,
++            chunks: paChunkCount(id),
++            updatedAt: PA_BASE_AT + entry.clock * 60000,
++            indexedAt: PA_BASE_AT + entry.clock * 60000,
++            mime: 'text/markdown',
++          };
++          return {
++            ...state,
++            sources: [source, ...state.sources],
++            clock: entry.clock,
++            opSeq: entry.seq,
++            journal: entry.journal,
++            notice: { code: 'notice.ingest' },
++          };
++        }
++        case 'reindex': {
++          const entry = paJournalEntry(state, 'reindex', String(state.sources.length));
++          return {
++            ...state,
++            clock: entry.clock,
++            opSeq: entry.seq,
++            journal: entry.journal,
++            notice: { code: 'notice.reindex' },
++          };
++        }
++        case 'clear-error':
++          return { ...state, lastError: null, notice: null };
++        default:
++          return state;
++      }
++    }
++
++    /* -------------------------------------------------------------- vistas */
++
++    function paChip(text, tone) {
++      return el('span', { className: 'lcr-chip lcr-chip--' + (tone ?? 'neutral') }, text);
++    }
++
++    function paCard(title, children, extra) {
++      return el('section', { className: 'lcr-card' },
++        el('div', { className: 'lcr-card__head' },
++          el('h2', { className: 'lcr-card__title' }, title),
++          extra ?? null),
++        children);
++    }
++
++    function paKv(pairs) {
++      const children = [];
++      pairs.forEach((pair, index) => {
++        children.push(el('dt', { key: 'k' + index }, pair[0]));
++        children.push(el('dd', { key: 'v' + index }, pair[1] === null || pair[1] === undefined || pair[1] === '' ? '—' : pair[1]));
++      });
++      return el('dl', { className: 'lcr-kv' }, ...children);
++    }
++
++    function paTable(caption, cols, rows) {
++      return el('div', { className: 'lcr-scroll' },
++        el('table', { className: 'lcr-table' },
++          el('caption', null, caption),
++          el('thead', null, el('tr', null, ...cols.map((col) => el('th', { key: col, scope: 'col' }, col)))),
++          el('tbody', null, ...rows)));
++    }
++
++    function paEmpty(title, hint) {
++      return el('div', { className: 'lcr-empty' },
++        el('p', { className: 'lcr-empty__title' }, title),
++        hint ? el('p', { className: 'lcr-empty__hint' }, hint) : null);
++    }
++
++    function paNotice(state, t) {
++      if (!state.notice) return null;
++      return el('p', { className: 'lcr-notice' }, t(state.notice.code));
++    }
++
++    function paViewProject(state, t, dispatch) {
++      const selection = state.session.session.selection;
++      const rows = state.projects.map((project) => el('tr', { key: project.id },
++        el('td', null, project.name),
++        el('td', { className: 'lcr-num' }, String(project.rootCount)),
++        el('td', null, project.current ? paChip(t('project.current'), 'ok') : t('common.none')),
++        el('td', null, el('button', {
++          type: 'button',
++          className: 'lcr-btn',
++          disabled: project.current,
++          onClick: () => dispatch({ type: 'select-project', projectId: project.id }),
++        }, t('project.select')))));
++      return el('div', null,
++        paCard(t('project.title'),
++          el('div', null,
++            paKv([
++              [t('project.project'), selection.projectName],
++              [t('project.selection'), selection.state],
++              [t('project.source'), selection.source === 'explicit' ? t('project.source.explicit') : t('project.source.cwd')],
++              [t('project.revision'), String(selection.revision)],
++              [t('project.scopes'), String(state.session.scopeCount)],
++              [t('project.service'), state.session.service.status],
++            ]),
++            el('p', { className: 'lcr-hint' }, t('project.gap09')))),
++        paCard(t('project.candidates'), paTable(t('project.candidates'), [t('project.project'), t('common.roots'), t('common.status'), t('common.actions')], rows)),
++        paNotice(state, t));
++    }
++
++    function paViewLibraries(state, t) {
++      const rows = state.libraries.map((library) => el('tr', { key: library.id },
++        el('td', null, library.name),
++        el('td', null, library.permission),
++        el('td', null, library.store),
++        el('td', { className: 'lcr-num' }, String(library.roots)),
++        el('td', null, paTime(library.grantedAt))));
++      return el('div', null,
++        paCard(t('libraries.title'),
++          el('div', null,
++            el('p', { className: 'lcr-hint' }, t('libraries.readonly')),
++            state.libraries.length === 0
++              ? paEmpty(t('libraries.empty'))
++              : paTable(t('libraries.title'), [t('common.name'), t('common.permission'), t('common.store'), t('common.roots'), t('common.granted')], rows),
++            el('p', { className: 'lcr-hint' }, t('libraries.gap')))));
++    }
++
++    function paViewSources(state, t, dispatch) {
++      const total = state.sources.length;
++      const { limit, offset } = state.sourcePage;
++      const pageRows = state.sources.slice(offset, offset + limit);
++      const pages = Math.max(1, Math.ceil(total / limit));
++      const page = Math.min(pages, Math.floor(offset / limit) + 1);
++      const rows = pageRows.map((source) => el('tr', { key: source.id },
++        el('td', null, source.title),
++        el('td', { className: 'lcr-mono' }, source.uri),
++        el('td', null, source.collection),
++        el('td', { className: 'lcr-num' }, String(source.chunks)),
++        el('td', { className: 'lcr-num' }, paNum(source.bytes)),
++        el('td', null, paTime(source.updatedAt)),
++        el('td', null, el('button', {
++          type: 'button',
++          className: 'lcr-btn',
++          onClick: () => dispatch({ type: 'open-source', id: source.id }),
++        }, t('common.open')))));
++      return el('div', null,
++        paCard(t('sources.title'),
++          el('div', null,
++            el('p', { className: 'lcr-hint' }, t('sources.filter')),
++            el('p', { className: 'lcr-hint' }, t('sources.showing', { shown: pageRows.length, total })),
++            total === 0
++              ? paEmpty(t('sources.empty'))
++              : paTable(t('sources.title'), [t('common.name'), t('common.uri'), t('common.collection'), t('common.chunks'), t('common.bytes'), t('common.updated'), t('common.actions')], rows),
++            el('div', { className: 'lcr-row lcr-row--end' },
++              el('button', { type: 'button', className: 'lcr-btn', disabled: offset === 0, onClick: () => dispatch({ type: 'page', offset: offset - limit }) }, t('common.previous')),
++              el('span', { className: 'lcr-muted' }, t('common.page', { page, pages })),
++              el('button', { type: 'button', className: 'lcr-btn', disabled: offset + limit >= total, onClick: () => dispatch({ type: 'page', offset: offset + limit }) }, t('common.next'))))),
++        paNotice(state, t));
++    }
++
++    function paViewSource(state, t, dispatch) {
++      const source = state.sources.find((row) => row.id === state.selectedSourceId);
++      if (!source) {
++        return paCard(t('source.title'), el('div', null,
++          paEmpty(t('source.notFound')),
++          el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'nav', view: 'sources' }) }, t('common.back'))));
++      }
++      const chunks = paChunks(source);
++      const shown = chunks.slice(0, 8);
++      const rows = shown.map((chunk) => el('tr', { key: chunk.ordinal },
++        el('td', { className: 'lcr-num' }, String(chunk.ordinal)),
++        el('td', null, chunk.heading),
++        el('td', { className: 'lcr-mono' }, chunk.charStart + '..' + chunk.charEnd),
++        el('td', { className: 'lcr-num' }, String(chunk.tokenEst)),
++        el('td', { className: 'lcr-chunk-cell' }, chunk.text)));
++      return el('div', null,
++        paCard(t('source.title'), el('div', null,
++          el('div', { className: 'lcr-row' },
++            el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'nav', view: 'sources' }) }, t('common.back')),
++            el('strong', null, source.title)),
++          paKv([
++            [t('common.uri'), source.uri],
++            [t('common.collection'), source.collection],
++            [t('common.bytes'), paNum(source.bytes)],
++            [t('common.chunks'), String(source.chunks)],
++            [t('common.indexed'), paTime(source.indexedAt)],
++          ]),
++          el('p', { className: 'lcr-hint' }, t('source.chunksShown', { shown: shown.length, total: source.chunks })),
++          el('p', { className: 'lcr-hint' }, t('source.gap05')),
++          paTable(t('common.chunks'), ['#', t('common.name'), 'charStart..charEnd', 'tokens', t('common.value')], rows))));
++    }
++
++    function paViewSearch(state, t, dispatch) {
++      const results = state.results;
++      const rows = results
++        ? results.results.map((row, index) => el('tr', { key: row.chunkKey },
++          el('td', { className: 'lcr-num' }, String(index + 1)),
++          el('td', null, row.title),
++          el('td', null, row.heading),
++          el('td', null, paChip(row.scopeName + ' · ' + row.scopeKind, row.scopeKind === 'lib' ? 'lib' : 'prj')),
++          el('td', null, row.snippet),
++          el('td', { className: 'lcr-num' }, row.rrf.toFixed(3))))
++        : [];
++      return el('div', null,
++        paCard(t('search.title'), el('div', null,
++          el('div', { className: 'lcr-form' },
++            el('input', {
++              type: 'text',
++              className: 'lcr-input',
++              value: state.query,
++              placeholder: t('search.placeholder'),
++              'aria-label': t('search.placeholder'),
++              'data-field': 'query',
++              onChange: (event) => dispatch({ type: 'query', value: event.target.value }),
++            }),
++            el('label', { className: 'lcr-field' }, t('search.limit'),
++              el('select', {
++                className: 'lcr-input',
++                value: String(state.limit),
++                'data-field': 'limit',
++                onChange: (event) => dispatch({ type: 'limit', value: event.target.value }),
++              }, ['8', '20', '50'].map((value) => el('option', { key: value, value }, value)))),
++            el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'search' }) }, t('search.run'))),
++          el('p', { className: 'lcr-hint' }, t('search.hint')),
++          results && results.results.length === 0 ? paEmpty(t('search.noResults')) : null,
++          results && results.results.length > 0
++            ? el('div', null,
++              paKv([
++                [t('search.mode'), results.mode],
++                [t('search.elapsed'), String(results.elapsedMs) + ' ms'],
++              ]),
++              paTable(t('search.results'), ['#', t('common.name'), t('common.value'), t('search.scope'), t('common.detail'), 'rrf'], rows),
++              el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'context' }) }, t('search.openContext')))
++            : null)),
++        paNotice(state, t));
++    }
++
++    function paViewContext(state, t, dispatch) {
++      const context = state.context;
++      const rows = context
++        ? context.citations.map((citation) => el('tr', { key: citation.n },
++          el('td', { className: 'lcr-num' }, String(citation.n)),
++          el('td', null, citation.title),
++          el('td', { className: 'lcr-mono' }, citation.uri),
++          el('td', null, citation.heading),
++          el('td', { className: 'lcr-num' }, String(citation.ordinal)),
++          el('td', { className: 'lcr-mono' }, citation.charStart + '..' + citation.charEnd)))
++        : [];
++      return el('div', null,
++        paCard(t('context.title'), el('div', null,
++          el('div', { className: 'lcr-row lcr-row--end' },
++            el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'context' }) }, t('context.build'))),
++          context === null
++            ? paEmpty(t('context.empty'))
++            : el('div', null,
++              paKv([
++                [t('context.tokens'), String(context.tokens)],
++                [t('context.truncated'), context.truncated ? t('common.yes') : 'no'],
++                [t('context.considered'), String(context.considered)],
++              ]),
++              el('h3', { className: 'lcr-subtitle' }, t('context.text')),
++              el('pre', { className: 'lcr-context' }, context.text),
++              el('h3', { className: 'lcr-subtitle' }, t('context.citations')),
++              paTable(t('context.citations'), ['#', t('common.name'), t('common.uri'), t('common.value'), 'ordinal', 'offsets'], rows),
++              el('p', { className: 'lcr-hint' }, t('context.failClosed'))))),
++        paNotice(state, t));
++    }
++
++    function paViewOperations(state, t, dispatch) {
++      const rows = state.journal.map((entry) => el('tr', { key: entry.id },
++        el('td', { className: 'lcr-mono' }, entry.id),
++        el('td', null, paTime(entry.at)),
++        el('td', null, entry.kind),
++        el('td', null, entry.detail),
++        el('td', null, paChip(t('common.simulated'), 'warn'))));
++      return el('div', null,
++        paCard(t('operations.title'), el('div', null,
++          el('p', { className: 'lcr-hint' }, t('operations.noWrite')),
++          state.lastError ? el('div', { className: 'lcr-error' },
++            el('p', { className: 'lcr-error__title' }, t('operations.error')),
++            el('p', { className: 'lcr-hint' }, t('operations.errorCode') + ': ' + state.lastError.code + ' · ' + state.lastError.path),
++            el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'clear-error' }) }, t('operations.clearError'))) : null,
++          el('div', { className: 'lcr-grid' },
++            paCard(t('operations.ingest'), el('div', null,
++              el('p', { className: 'lcr-hint' }, t('operations.ingestHint')),
++              el('label', { className: 'lcr-field' }, t('common.uri'),
++                el('select', {
++                  className: 'lcr-input',
++                  value: state.ingestPath,
++                  'data-field': 'ingest-path',
++                  onChange: (event) => dispatch({ type: 'ingest-path', value: event.target.value }),
++                }, PA_INGEST_PATHS.map((value) => el('option', { key: value, value }, value)))),
++              el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'ingest' }) }, t('operations.ingest')))),
++            paCard(t('operations.reindex'), el('div', null,
++              el('p', { className: 'lcr-hint' }, t('operations.reindexHint')),
++              el('p', { className: 'lcr-hint' }, t('operations.affected') + ': ' + String(state.sources.length)),
++              el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'reindex' }) }, t('operations.reindex'))))))),
++        paCard(t('operations.journal'),
++          state.journal.length === 0
++            ? paEmpty(t('operations.empty'))
++            : paTable(t('operations.journal'), ['id', t('operations.at'), t('operations.kind'), t('common.detail'), t('common.status')], rows)),
++        paNotice(state, t));
++    }
++
++    function paViewDiagnostics(state, t) {
++      const diagnostics = state.diagnostics;
++      const scopeRows = diagnostics.scopes.map((scope) => el('tr', { key: scope.id },
++        el('td', null, scope.kind),
++        el('td', { className: 'lcr-mono' }, scope.id),
++        el('td', null, scope.name),
++        el('td', null, scope.store),
++        el('td', null, scope.verified ? t('common.yes') : 'no')));
++      const integrity = paKv([
++        [t('diagnostics.registry'), diagnostics.integrity.registry],
++        [t('diagnostics.stores'), diagnostics.integrity.stores],
++        [t('diagnostics.auditHead'), String(diagnostics.integrity.auditHead)],
++      ]);
++      const versions = paKv([
++        ['plugin', diagnostics.versions.plugin],
++        ['contract', diagnostics.versions.contract],
++        [t('diagnostics.api'), diagnostics.versions.api],
++        [t('diagnostics.host'), diagnostics.versions.host],
++      ]);
++      return el('div', null,
++        paCard(t('diagnostics.title'), integrity),
++        paCard(t('diagnostics.scopes'), paTable(t('diagnostics.scopes'), ['kind', 'id', t('common.name'), t('common.store'), 'verified'], scopeRows)),
++        paCard(t('diagnostics.versions'), el('div', null, versions,
++          el('p', { className: 'lcr-hint' }, t('diagnostics.gap06')),
++          el('p', { className: 'lcr-hint' }, t('diagnostics.gap10')),
++          el('p', { className: 'lcr-hint' }, t('diagnostics.gap07')))));
++    }
++
++    function paViewConnection(state, t) {
++      const health = state.health;
++      return el('div', null,
++        paCard(t('connection.title'), el('div', null,
++          paKv([
++            [t('connection.service'), health.status],
++            [t('connection.registry'), health.registry],
++            [t('connection.storeRoot'), state.session.service.storeRoot],
++            [t('connection.api'), t('connection.notMounted')],
++            [t('connection.legacy'), health.legacy ? 'legacy' : 'no'],
++            [t('connection.mode'), DATA_MODE],
++          ]),
++          el('p', { className: 'lcr-hint' }, t('connection.notice')))));
++    }
++
++    function paViewHistory(state, t) {
++      return paCard(t('history.title'), el('div', null,
++        paEmpty(t('history.unavailable'), t('history.why')),
++        el('p', { className: 'lcr-hint' }, t('history.route')),
++        el('p', { className: 'lcr-hint' }, t('history.simulated'))));
++    }
++
++    const PA_VIEWS = [
++      { id: 'project', key: 'nav.project' },
++      { id: 'libraries', key: 'nav.libraries' },
++      { id: 'sources', key: 'nav.sources' },
++      { id: 'search', key: 'nav.search' },
++      { id: 'context', key: 'nav.context' },
++      { id: 'operations', key: 'nav.operations' },
++      { id: 'diagnostics', key: 'nav.diagnostics' },
++      { id: 'connection', key: 'nav.connection' },
++      { id: 'history', key: 'nav.history' },
++    ];
++
++    function paRenderView(state, t, dispatch) {
++      switch (state.view) {
++        case 'libraries': return paViewLibraries(state, t);
++        case 'sources': return paViewSources(state, t, dispatch);
++        case 'source': return paViewSource(state, t, dispatch);
++        case 'search': return paViewSearch(state, t, dispatch);
++        case 'context': return paViewContext(state, t, dispatch);
++        case 'operations': return paViewOperations(state, t, dispatch);
++        case 'diagnostics': return paViewDiagnostics(state, t);
++        case 'connection': return paViewConnection(state, t);
++        case 'history': return paViewHistory(state, t);
++        default: return paViewProject(state, t, dispatch);
++      }
++    }
++
++    function PaPanel(props) {
++      const [state, setState] = useState(() => paInitialState());
++      const t = props && typeof props.t === 'function' ? props.t : (key, vars) => paTranslate('es', key, vars);
++      const dispatch = (action) => setState((previous) => paReduce(previous, action));
++      const activeId = state.view === 'source' ? 'sources' : state.view;
++      const onKeyDown = (event) => {
++        if (!event || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
++        if (typeof event.preventDefault === 'function') event.preventDefault();
++        const ids = PA_VIEWS.map((view) => view.id);
++        const current = ids.indexOf(activeId);
++        const delta = event.key === 'ArrowRight' ? 1 : -1;
++        const next = ids[(current + delta + ids.length) % ids.length];
++        dispatch({ type: 'nav', view: next });
++      };
++      return el('div', { className: 'lcr-root', 'data-data-mode': DATA_MODE },
++        el('div', { className: 'lcr-banner', role: 'status', 'aria-atomic': 'true', 'aria-label': t('a11y.banner') },
++          el('strong', null, SYNTHETIC_BANNER),
++          el('span', { className: 'lcr-banner__hint' }, t('banner.hint'))),
++        el('header', { className: 'lcr-head' },
++          el('div', null,
++            el('h1', { className: 'lcr-head__title' }, t('app.title')),
++            el('p', { className: 'lcr-head__sub' }, t('app.subtitle'))),
++          el('button', { type: 'button', className: 'lcr-btn', onClick: () => dispatch({ type: 'reset' }) }, t('app.reset'))),
++        el('div', { className: 'lcr-tabs', role: 'tablist', 'aria-label': t('a11y.tabs'), onKeyDown },
++          ...PA_VIEWS.map((view) => el('button', {
++            key: view.id,
++            type: 'button',
++            role: 'tab',
++            id: 'lcr-tab-' + view.id,
++            className: 'lcr-tab' + (activeId === view.id ? ' lcr-tab--active' : ''),
++            'aria-selected': activeId === view.id ? 'true' : 'false',
++            'aria-controls': 'lcr-panel-' + view.id,
++            tabIndex: activeId === view.id ? 0 : -1,
++            onClick: () => dispatch({ type: 'nav', view: view.id }),
++          }, t(view.key)))),
++        el('div', {
++          className: 'lcr-body',
++          role: 'tabpanel',
++          id: 'lcr-panel-' + activeId,
++          'aria-labelledby': 'lcr-tab-' + activeId,
++          'data-view': state.view,
++        }, paRenderView(state, t, dispatch)));
++    }
++
++    const CSS_PA = `
++      .lcr-banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid color-mix(in oklab, var(--dsw-alias-state-warn-primary, #d6a100) 55%, transparent); border-radius: 8px; background: color-mix(in oklab, var(--dsw-alias-state-warn-primary, #d6a100) 12%, transparent); font-size: 12px; }
++      .lcr-banner strong { letter-spacing: 0.02em; }
++      .lcr-banner__hint { color: var(--dsw-alias-label-secondary, #a0a0aa); }
++      .lcr-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
++      .lcr-head__title { margin: 0; font-size: 18px; }
++      .lcr-head__sub { margin: 2px 0 0; color: var(--dsw-alias-label-secondary, #a0a0aa); font-size: 12px; }
++      .lcr-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--dsw-alias-border-l1, #2c2d33); margin-bottom: 12px; }
++      .lcr-tab { appearance: none; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--dsw-alias-label-secondary, #a0a0aa); padding: 8px 10px; font: inherit; font-size: 12px; cursor: pointer; }
++      .lcr-tab:hover { color: var(--dsw-alias-label-primary, #e8e8ea); }
++      .lcr-tab--active { color: var(--dsw-alias-label-primary, #e8e8ea); border-bottom-color: var(--dsw-alias-brand-primary, #4f8cff); }
++      .lcr-tab:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary, #4f8cff); outline-offset: 2px; }
++      .lcr-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
++      .lcr-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
++      .lcr-card__title { margin: 0; font-size: 14px; }
++      .lcr-subtitle { margin: 12px 0 6px; font-size: 13px; }
++      .lcr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
++      .lcr-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
++      .lcr-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dsw-alias-label-secondary, #a0a0aa); }
++      .lcr-input { appearance: none; border: 1px solid var(--dsw-alias-border-l1, #2c2d33); border-radius: 6px; background: var(--dsw-alias-bg-base, #17181c); color: inherit; padding: 6px 8px; font: inherit; font-size: 12px; min-width: 0; }
++      .lcr-scroll { overflow-x: auto; min-width: 0; }
++      .lcr-chunk-cell { max-width: 420px; white-space: pre-wrap; overflow-wrap: anywhere; }
++      .lcr-chip { display: inline-block; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l2, #34353d); font-size: 11px; }
++      .lcr-chip--ok { border-color: color-mix(in oklab, var(--dsw-alias-state-success-primary, #2fbf71) 55%, transparent); }
++      .lcr-chip--warn { border-color: color-mix(in oklab, var(--dsw-alias-state-warn-primary, #d6a100) 55%, transparent); }
++      .lcr-notice { margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--dsw-alias-border-l1, #2c2d33); font-size: 12px; }
++      .lcr-error { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid color-mix(in oklab, var(--dsw-alias-state-error-primary, #e5484d) 55%, transparent); font-size: 12px; }
++      .lcr-error__title { margin: 0 0 4px; font-weight: 600; }
++      .lcr-field > .lcr-input { min-width: 120px; }
++      @media (max-width: 720px) {
++        .lcr-head { flex-direction: column; }
++        .lcr-tabs { overflow-x: auto; flex-wrap: nowrap; }
++        .lcr-tab { flex: 0 0 auto; }
++        .lcr-grid { grid-template-columns: 1fr; }
++        .lcr-chunk-cell { max-width: 220px; }
++      }
++      @media (prefers-reduced-motion: reduce) { .lcr-root * { transition: none !important; } }
++      @media (forced-colors: active) { .lcr-card, .lcr-banner, .lcr-notice, .lcr-empty { border-color: CanvasText; } }
++    `;
++
+     return {
+       inject: ['slots', 'locale'],
+       apply(ctx) {
+         ctx.effect(() => {
+           const style = document.createElement('style');
+           style.id = 'lcr-styles';
+-          style.textContent = CSS;
++          style.textContent = CSS + CSS_PA;
+           document.head.appendChild(style);
+           return () => { style.remove(); };
+         });
+ 
+-        const sidebar = ctx.slots.inject(SIDEBAR_SLOT);
+-        sidebar.register({
++        // Locales: diccionarios inline (ES/EN con paridad de claves). El registro se deshace al
++        // descargar el plugin, no se acumula al remontar.
++        const locale = ctx.locale ?? ctx.get?.('locale') ?? null;
++        if (locale !== null && locale !== undefined && typeof locale.register === 'function') {
++          ctx.effect(() => {
++            const dispose = locale.register(NS, PA_DICT);
++            return typeof dispose === 'function' ? dispose : undefined;
++          });
++        }
++
++        // Slots con la API vigente del anfitrión: `inject(slot, cb)`. El registro vive dentro del
++        // callback y su disposer lo administra el anfitrión; la forma antigua `inject(slot)` +
++        // `.register(...)` devolvía un disposer y reventaba con TypeError.
++        ctx.slots.inject(SIDEBAR_SLOT, () => ctx.slots.register({
+           name: SIDEBAR_SLOT,
+           id: PANEL_ID,
+           order: 35,
+-          label: () => 'LifeCode RAG',
+-          locale: 'lifecode-rag',
+-        }, ICON);
++          label: () => paTranslate(paReadLanguage(locale), 'app.title'),
++          locale: NS,
++        }, ICON));
+ 
+-        const main = ctx.slots.inject(MAIN_SLOT);
+-        main.register({
++        ctx.slots.inject(MAIN_SLOT, () => ctx.slots.register({
+           name: MAIN_SLOT,
+           key: PANEL_ID,
+           order: 55,
+-          locale: 'lifecode-rag',
+-        }, Panel);
++          locale: NS,
++        }, PaPanel));
++      },
++      // Superficie de pruebas: el anfitrión la ignora. Permite ejercitar el contrato del módulo
++      // (slots, reducer, vistas, guarda de red) sin React y sin host.
++      __test: {
++        DATA_MODE,
++        SYNTHETIC_BANNER,
++        PA_DICT,
++        PA_VIEWS,
++        PaPanel,
++        paInitialState,
++        paReduce,
++        paRenderView,
++        paTranslate,
++        paReadLanguage,
++        paChunks,
++        paBuildSources,
++        requestLegacy: request,
+       },
+     };
+   },

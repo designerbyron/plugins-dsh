@@ -1,0 +1,1333 @@
+﻿{
+ "profile": "desktop",
+ "root": "C:\\xampp\\htdocs",
+ "rootKey": "c:/xampp/htdocs",
+ "projects": [
+  {
+   "path": "C:\\xampp\\htdocs\\atomicbusiness",
+   "pathKey": "c:/xampp/htdocs/atomicbusiness",
+   "name": "atomicbusiness",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily",
+   "name": "BusinessAppsFamily",
+   "manifestName": null,
+   "type": "rust",
+   "indicators": [
+    "Cargo.toml",
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\businesssuite",
+   "pathKey": "c:/xampp/htdocs/businesssuite",
+   "name": "businesssuite",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\carlosdiaz",
+   "pathKey": "c:/xampp/htdocs/carlosdiaz",
+   "name": "carlosdiaz",
+   "manifestName": "carlosdiazconstruction",
+   "type": "node",
+   "indicators": [
+    "composer.json",
+    "package.json",
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard",
+   "pathKey": "c:/xampp/htdocs/dashboard",
+   "name": "dashboard",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\defb-probe-2026-11-17",
+   "pathKey": "c:/xampp/htdocs/defb-probe-2026-11-17",
+   "name": "defb-probe-2026-11-17",
+   "manifestName": "defb-probe",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\duranspainting",
+   "pathKey": "c:/xampp/htdocs/duranspainting",
+   "name": "duranspainting",
+   "manifestName": "duranspainting",
+   "type": "node",
+   "indicators": [
+    "composer.json",
+    "package.json",
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\edgartreelawnservices",
+   "pathKey": "c:/xampp/htdocs/edgartreelawnservices",
+   "name": "edgartreelawnservices",
+   "manifestName": "edgartreelawnservices",
+   "type": "node",
+   "indicators": [
+    "composer.json",
+    "package.json",
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\h4-probe-2026-11-07",
+   "pathKey": "c:/xampp/htdocs/h4-probe-2026-11-07",
+   "name": "h4-probe-2026-11-07",
+   "manifestName": "@local/h4-probe",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\h54-probe-2026-11-07",
+   "pathKey": "c:/xampp/htdocs/h54-probe-2026-11-07",
+   "name": "h54-probe-2026-11-07",
+   "manifestName": "@local/h54-probe",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\headerbrandsChatSystem",
+   "pathKey": "c:/xampp/htdocs/headerbrandschatsystem",
+   "name": "headerbrandsChatSystem",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\LegalForm",
+   "pathKey": "c:/xampp/htdocs/legalform",
+   "name": "LegalForm",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git",
+    "index.html"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\nexusbusinesssuite",
+   "pathKey": "c:/xampp/htdocs/nexusbusinesssuite",
+   "name": "nexusbusinesssuite",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs",
+   "name": "plugins-dhs",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs-auto",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs-auto",
+   "name": "plugins-dhs-auto",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs-integracion",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs-integracion",
+   "name": "plugins-dhs-integracion",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dsh-lsc-pack",
+   "pathKey": "c:/xampp/htdocs/plugins-dsh-lsc-pack",
+   "name": "plugins-dsh-lsc-pack",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative",
+   "pathKey": "c:/xampp/htdocs/saas-corporative",
+   "name": "saas-corporative",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-release",
+   "name": "saas-corporative-release",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-theme-01",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-theme-01",
+   "name": "saas-corporative-theme-01",
+   "manifestName": "web",
+   "type": "nuxt",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json",
+    ".git"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\_mcp-probe-01",
+   "pathKey": "c:/xampp/htdocs/_mcp-probe-01",
+   "name": "_mcp-probe-01",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 1
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily\\prototype",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily/prototype",
+   "name": "prototype",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\businesssuite\\mockups",
+   "pathKey": "c:/xampp/htdocs/businesssuite/mockups",
+   "name": "mockups",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\de",
+   "pathKey": "c:/xampp/htdocs/dashboard/de",
+   "name": "de",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\es",
+   "pathKey": "c:/xampp/htdocs/dashboard/es",
+   "name": "es",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\fr",
+   "pathKey": "c:/xampp/htdocs/dashboard/fr",
+   "name": "fr",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\hu",
+   "pathKey": "c:/xampp/htdocs/dashboard/hu",
+   "name": "hu",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\it",
+   "pathKey": "c:/xampp/htdocs/dashboard/it",
+   "name": "it",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\jp",
+   "pathKey": "c:/xampp/htdocs/dashboard/jp",
+   "name": "jp",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\pl",
+   "pathKey": "c:/xampp/htdocs/dashboard/pl",
+   "name": "pl",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\pt_br",
+   "pathKey": "c:/xampp/htdocs/dashboard/pt_br",
+   "name": "pt_br",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\ro",
+   "pathKey": "c:/xampp/htdocs/dashboard/ro",
+   "name": "ro",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\ru",
+   "pathKey": "c:/xampp/htdocs/dashboard/ru",
+   "name": "ru",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\tr",
+   "pathKey": "c:/xampp/htdocs/dashboard/tr",
+   "name": "tr",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\ur",
+   "pathKey": "c:/xampp/htdocs/dashboard/ur",
+   "name": "ur",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\zh_cn",
+   "pathKey": "c:/xampp/htdocs/dashboard/zh_cn",
+   "name": "zh_cn",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\dashboard\\zh_tw",
+   "pathKey": "c:/xampp/htdocs/dashboard/zh_tw",
+   "name": "zh_tw",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\LegalForm\\core-rust",
+   "pathKey": "c:/xampp/htdocs/legalform/core-rust",
+   "name": "core-rust",
+   "manifestName": null,
+   "type": "rust",
+   "indicators": [
+    "Cargo.toml"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\LegalForm\\desktop",
+   "pathKey": "c:/xampp/htdocs/legalform/desktop",
+   "name": "desktop",
+   "manifestName": "docuforma",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\depcheck",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/depcheck",
+   "name": "depcheck",
+   "manifestName": "depcheck",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\depcheck-notag",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/depcheck-notag",
+   "name": "depcheck-notag",
+   "manifestName": "depcheck-notag",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\depcheck-rc",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/depcheck-rc",
+   "name": "depcheck-rc",
+   "manifestName": "depcheck-rc",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\depcheck-reg",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/depcheck-reg",
+   "name": "depcheck-reg",
+   "manifestName": "depcheck-reg",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\depcheck2",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/depcheck2",
+   "name": "depcheck2",
+   "manifestName": "depcheck2",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\depcheck3",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/depcheck3",
+   "name": "depcheck3",
+   "manifestName": "depcheck3",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/lifecode-rag",
+   "name": "lifecode-rag",
+   "manifestName": "@local/lifecode-rag",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-skill-center",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/lifecode-skill-center",
+   "name": "lifecode-skill-center",
+   "manifestName": "@local/lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\skill-compiler",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/skill-compiler",
+   "name": "skill-compiler",
+   "manifestName": "@local/skill-compiler",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs-auto\\skill-compiler",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs-auto/skill-compiler",
+   "name": "skill-compiler",
+   "manifestName": "@local/skill-compiler",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs-integracion\\skill-compiler",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs-integracion/skill-compiler",
+   "name": "skill-compiler",
+   "manifestName": "@local/skill-compiler",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dsh-lsc-pack\\lifecode-skill-center",
+   "pathKey": "c:/xampp/htdocs/plugins-dsh-lsc-pack/lifecode-skill-center",
+   "name": "lifecode-skill-center",
+   "manifestName": "dsh-lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dsh-lsc-pack\\skill-compiler",
+   "pathKey": "c:/xampp/htdocs/plugins-dsh-lsc-pack/skill-compiler",
+   "name": "skill-compiler",
+   "manifestName": "@local/skill-compiler",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\.opencode",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/.opencode",
+   "name": ".opencode",
+   "manifestName": null,
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\api",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/api",
+   "name": "api",
+   "manifestName": null,
+   "type": "php",
+   "indicators": [
+    "composer.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\web",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/web",
+   "name": "web",
+   "manifestName": "web",
+   "type": "nuxt",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json",
+    ".git"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release\\api",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-release/api",
+   "name": "api",
+   "manifestName": null,
+   "type": "php",
+   "indicators": [
+    "composer.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release\\web",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-release/web",
+   "name": "web",
+   "manifestName": "web",
+   "type": "nuxt",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-theme-01\\central",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-theme-01/central",
+   "name": "central",
+   "manifestName": "central",
+   "type": "node",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-theme-01\\customer",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-theme-01/customer",
+   "name": "customer",
+   "manifestName": "customer",
+   "type": "node",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07",
+   "name": "upstream-clone-2026-11-07",
+   "manifestName": "@deepseek-ai/dsh-root",
+   "type": "node",
+   "indicators": [
+    "package.json",
+    ".git"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-repo",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-repo",
+   "name": "upstream-repo",
+   "manifestName": null,
+   "type": "git",
+   "indicators": [
+    ".git"
+   ],
+   "depth": 2
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily\\apps\\restaurant-lite",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily/apps/restaurant-lite",
+   "name": "restaurant-lite",
+   "manifestName": "restaurant-lite",
+   "type": "vue",
+   "indicators": [
+    "vite.config.ts",
+    "package.json",
+    "index.html"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily\\crates\\hostd",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily/crates/hostd",
+   "name": "hostd",
+   "manifestName": null,
+   "type": "rust",
+   "indicators": [
+    "Cargo.toml"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily\\crates\\rlite-domain",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily/crates/rlite-domain",
+   "name": "rlite-domain",
+   "manifestName": null,
+   "type": "rust",
+   "indicators": [
+    "Cargo.toml"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily\\crates\\rlite-hostlock",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily/crates/rlite-hostlock",
+   "name": "rlite-hostlock",
+   "manifestName": null,
+   "type": "rust",
+   "indicators": [
+    "Cargo.toml"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily\\crates\\rlite-store",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily/crates/rlite-store",
+   "name": "rlite-store",
+   "manifestName": null,
+   "type": "rust",
+   "indicators": [
+    "Cargo.toml"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\BusinessAppsFamily\\poc\\hostlock",
+   "pathKey": "c:/xampp/htdocs/businessappsfamily/poc/hostlock",
+   "name": "hostlock",
+   "manifestName": null,
+   "type": "rust",
+   "indicators": [
+    "Cargo.toml"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\LegalForm\\desktop\\app",
+   "pathKey": "c:/xampp/htdocs/legalform/desktop/app",
+   "name": "app",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\cmpa\\package",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/cmpa/package",
+   "name": "package",
+   "manifestName": "dsh-lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\cmpb\\package",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/cmpb/package",
+   "name": "package",
+   "manifestName": "dsh-lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\cmpf\\package",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/cmpf/package",
+   "name": "package",
+   "manifestName": "dsh-lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\cmprc\\package",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/cmprc/package",
+   "name": "package",
+   "manifestName": "dsh-lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\loccheck\\package",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/loccheck/package",
+   "name": "package",
+   "manifestName": "dsh-lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\lsc-compat-lab-2026-11-17\\pubcheck\\package",
+   "pathKey": "c:/xampp/htdocs/lsc-compat-lab-2026-11-17/pubcheck/package",
+   "name": "package",
+   "manifestName": "dsh-lifecode-skill-center",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag\\demo",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs/lifecode-rag/demo",
+   "name": "demo",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static",
+   "name": "central-console-static",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\customer-source-bundle",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/customer-source-bundle",
+   "name": "customer-source-bundle",
+   "manifestName": "customer",
+   "type": "nuxt",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\tools\\central_manager",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/tools/central_manager",
+   "name": "central_manager",
+   "manifestName": null,
+   "type": "python",
+   "indicators": [
+    "requirements.txt"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\tools\\tenant_manager",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/tools/tenant_manager",
+   "name": "tenant_manager",
+   "manifestName": null,
+   "type": "python",
+   "indicators": [
+    "requirements.txt"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\web\\central",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/web/central",
+   "name": "central",
+   "manifestName": "central",
+   "type": "node",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\web\\customer",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/web/customer",
+   "name": "customer",
+   "manifestName": "customer",
+   "type": "node",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release\\tools\\central_manager",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-release/tools/central_manager",
+   "name": "central_manager",
+   "manifestName": null,
+   "type": "python",
+   "indicators": [
+    "requirements.txt"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release\\tools\\tenant_manager",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-release/tools/tenant_manager",
+   "name": "tenant_manager",
+   "manifestName": null,
+   "type": "python",
+   "indicators": [
+    "requirements.txt"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release\\web\\central",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-release/web/central",
+   "name": "central",
+   "manifestName": "central",
+   "type": "node",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release\\web\\customer",
+   "pathKey": "c:/xampp/htdocs/saas-corporative-release/web/customer",
+   "name": "customer",
+   "manifestName": "customer",
+   "type": "node",
+   "indicators": [
+    "nuxt.config.ts",
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\prototipo\\h3-probe",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/prototipo/h3-probe",
+   "name": "h3-probe",
+   "manifestName": "@local/h3-probe",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\benchmarks",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/benchmarks",
+   "name": "benchmarks",
+   "manifestName": "@deepseek-ai/dsh-benchmarks",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\website",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/website",
+   "name": "website",
+   "manifestName": "@deepseek-ai/website",
+   "type": "vue",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 3
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\activity",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/activity",
+   "name": "activity",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\agreements",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/agreements",
+   "name": "agreements",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\alerts",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/alerts",
+   "name": "alerts",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\brands",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/brands",
+   "name": "brands",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\customers",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/customers",
+   "name": "customers",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\deliveries",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/deliveries",
+   "name": "deliveries",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\delivery-templates",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/delivery-templates",
+   "name": "delivery-templates",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\deployments",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/deployments",
+   "name": "deployments",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\home",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/home",
+   "name": "home",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\login",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/login",
+   "name": "login",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\onboardings",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/onboardings",
+   "name": "onboardings",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\packages",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/packages",
+   "name": "packages",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\plans",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/plans",
+   "name": "plans",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\products",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/products",
+   "name": "products",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\profile",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/profile",
+   "name": "profile",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\system-health",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/system-health",
+   "name": "system-health",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\hostinger-release\\central-console-static\\tenant-requests",
+   "pathKey": "c:/xampp/htdocs/saas-corporative/hostinger-release/central-console-static/tenant-requests",
+   "name": "tenant-requests",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\home\\profiles\\desktop",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/home/profiles/desktop",
+   "name": "desktop",
+   "manifestName": "dsh-profile-desktop",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\.github\\review-ownership",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/.github/review-ownership",
+   "name": "review-ownership",
+   "manifestName": null,
+   "type": "python",
+   "indicators": [
+    "requirements.txt"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\apps\\cli",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/apps/cli",
+   "name": "cli",
+   "manifestName": "@deepseek-ai/dsh",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\apps\\desktop",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/apps/desktop",
+   "name": "desktop",
+   "manifestName": "@deepseek-ai/dsh-desktop",
+   "type": "react",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\apps\\desktop-host",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/apps/desktop-host",
+   "name": "desktop-host",
+   "manifestName": "@deepseek-ai/dsh-desktop-host",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\apps\\plugin-market-generator",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/apps/plugin-market-generator",
+   "name": "plugin-market-generator",
+   "manifestName": "@deepseek-ai/dsh-plugin-market-generator",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\apps\\web",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/apps/web",
+   "name": "web",
+   "manifestName": "@deepseek-ai/dsh-web-frontend",
+   "type": "react",
+   "indicators": [
+    "vite.config.ts",
+    "package.json",
+    "index.html"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\native\\system",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/native/system",
+   "name": "system",
+   "manifestName": "@deepseek-ai/node-addon-system-workspace",
+   "type": "node",
+   "indicators": [
+    "package.json"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\python\\sdk",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/python/sdk",
+   "name": "sdk",
+   "manifestName": null,
+   "type": "python",
+   "indicators": [
+    "pyproject.toml"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\python\\sdk-runtime",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/python/sdk-runtime",
+   "name": "sdk-runtime",
+   "manifestName": "dsh-python-runtime-closure",
+   "type": "node",
+   "indicators": [
+    "package.json",
+    "pyproject.toml"
+   ],
+   "depth": 4
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\skill-compiler-lab-2026-11-05\\upstream-clone-2026-11-07\\website\\.dist",
+   "pathKey": "c:/xampp/htdocs/skill-compiler-lab-2026-11-05/upstream-clone-2026-11-07/website/.dist",
+   "name": ".dist",
+   "manifestName": null,
+   "type": "web",
+   "indicators": [
+    "index.html"
+   ],
+   "depth": 4
+  }
+ ],
+ "skipped": [
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-theme-01\\node_modules",
+   "reason": "symlink"
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release\\web\\dist",
+   "reason": "symlink"
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative-release-build\\web\\dist",
+   "reason": "symlink"
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\web\\central\\dist",
+   "reason": "symlink"
+  },
+  {
+   "path": "C:\\xampp\\htdocs\\saas-corporative\\web\\customer\\dist",
+   "reason": "symlink"
+  }
+ ],
+ "truncated": false,
+ "visited": 2487
+}

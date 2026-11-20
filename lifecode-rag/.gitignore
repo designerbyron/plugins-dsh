@@ -1,0 +1,17 @@
+# LifeCode RAG · artefactos locales que no se versionan
+node_modules/
+*.log
+*.tmp
+*.tmp-*
+
+# Almacenes SQLite locales y sus sidecars (nunca se versionan)
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+.store/
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -1,0 +1,6 @@
+arquitectura.md
+recuperacion-hibrida.md
+seguridad.md
+observabilidad.md
+operacion.md
+herramientas.md

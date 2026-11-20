@@ -1,0 +1,48 @@
+{
+    "name":  "@local/lifecode-rag",
+    "version":  "1.0.0",
+    "private":  true,
+    "type":  "module",
+    "main":  "index.js",
+    "description":  "LifeCode RAG ? recuperaci?n local, independiente y auditable para el ecosistema LifeCode",
+    "engines":  {
+                    "node":  "\u003e=22.5.0",
+                    "dsh":  "\u003e=0.2.2-rc.3 \u003c0.3.0"
+                },
+    "dsh":  {
+                "manifestVersion":  1,
+                "bundle":  {
+                               "patch":  "./cordis.patch.yml"
+                           },
+                "client":  {
+                               "platform":  "web",
+                               "immediately":  true
+                           }
+            },
+    "icon":  "./icon.svg",
+    "files":  [
+                  "index.js",
+                  "client.js",
+                  "lib/",
+                  "bin/",
+                  "docs/",
+                  "icon.svg",
+                  "cordis.patch.yml"
+              ],
+    "exports":  {
+                    ".":  "./index.js",
+                    "./client":  "./client.js",
+                    "./package.json":  "./package.json",
+                    "./lib/*":  "./lib/*.mjs"
+                },
+    "scripts":  {
+                    "test":  "node --test",
+                    "test:hermetic":  "node tools/hermetic.mjs",
+                    "check":  "node tools/check.mjs",
+                    "bench":  "node tools/benchmark.mjs",
+                    "bench:harness":  "node tools/harness.mjs",
+                    "demo":  "node demo/server.mjs",
+                    "screenshots":  "node tools/screenshots.mjs"
+                }
+}
+

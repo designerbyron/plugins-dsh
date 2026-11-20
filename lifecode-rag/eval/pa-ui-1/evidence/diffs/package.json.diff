@@ -1,0 +1,22 @@
+--- eval/pa-ui-1/evidence/before/package.json	2026-11-18 18:37:37.112503600 -0600
++++ eval/pa-ui-1/evidence/after/package.json	2026-11-19 00:29:33.062011400 -0600
+@@ -29,6 +29,12 @@
+                   "icon.svg",
+                   "cordis.patch.yml"
+               ],
++    "exports":  {
++                    ".":  "./index.js",
++                    "./client":  "./client.js",
++                    "./package.json":  "./package.json",
++                    "./lib/*":  "./lib/*.mjs"
++                },
+     "scripts":  {
+                     "test":  "node --test",
+                     "test:hermetic":  "node tools/hermetic.mjs",
+@@ -38,5 +44,5 @@
+                     "demo":  "node demo/server.mjs",
+                     "screenshots":  "node tools/screenshots.mjs"
+                 }
+-}
++}
+ 

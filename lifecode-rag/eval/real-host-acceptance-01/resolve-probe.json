@@ -1,0 +1,98 @@
+{
+ "entrada": {
+  "cwd": "C:/xampp/htdocs/plugins-dhs",
+  "sessionId": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+  "workspacesAbiertos": 7,
+  "openProjects": 7,
+  "trustedRoots": 1
+ },
+ "workspaces": [
+  {
+   "id": "6dc30cb1-77ed-4b43-8f60-6955b21dfaff",
+   "path": "C:\\xampp\\htdocs\\saas-corporative",
+   "title": "saas-corporative",
+   "sesiones": 22,
+   "contieneSesion": false
+  },
+  {
+   "id": "66756d2a-1da0-47a9-ae9b-07ceb46383ae",
+   "path": "C:\\xampp\\htdocs\\plugins-dhs",
+   "title": "plugins-dhs",
+   "sesiones": 7,
+   "contieneSesion": true
+  },
+  {
+   "id": "4bc1009d-5bed-45c3-a151-57c23611088a",
+   "path": "C:\\xampp\\htdocs\\duranspainting",
+   "title": "duranspainting",
+   "sesiones": 2,
+   "contieneSesion": false
+  },
+  {
+   "id": "f187268b-993f-4149-a5da-37523f02fa21",
+   "path": "C:\\xampp\\htdocs\\nexusbusinesssuite",
+   "title": "nexusbusinesssuite",
+   "sesiones": 37,
+   "contieneSesion": false
+  },
+  {
+   "id": "e0e09746-691a-4bc9-b850-08c511d8d4d3",
+   "path": "C:\\xampp\\htdocs\\edgartreelawnservices",
+   "title": "edgartreelawnservices",
+   "sesiones": 1,
+   "contieneSesion": false
+  },
+  {
+   "id": "35f9ab98-4b47-40d9-8586-faa4e00124ba",
+   "path": "C:\\xampp\\htdocs\\carlosdiaz",
+   "title": "carlosdiaz",
+   "sesiones": 1,
+   "contieneSesion": false
+  },
+  {
+   "id": "8abad0f4-9751-4221-a169-cde2766976f0",
+   "path": "C:\\xampp\\htdocs\\businesssuite",
+   "title": "businesssuite",
+   "sesiones": 1,
+   "contieneSesion": false
+  }
+ ],
+ "trusted": [
+  {
+   "pathKey": "c:/xampp/htdocs/plugins-dhs",
+   "state": "trusted",
+   "readAuthorization": true
+  }
+ ],
+ "resolucion": {
+  "ok": true,
+  "proyecto": null,
+  "sesion": null,
+  "origen": null,
+  "scopes": [
+   {
+    "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+    "kind": "prj"
+   }
+  ],
+  "boundary": null,
+  "raw": {
+   "sessionId": "session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188",
+   "projectId": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+   "projectName": "LifeCode RAG",
+   "source": "explicit",
+   "revision": 1,
+   "scopes": [
+    {
+     "kind": "prj",
+     "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+     "name": "LifeCode RAG",
+     "roots": [
+      "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag"
+     ]
+    }
+   ],
+   "scopeCount": 1
+  }
+ }
+}

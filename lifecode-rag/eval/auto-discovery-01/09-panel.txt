@@ -1,0 +1,23 @@
+Panel Project-Aware — estado tras los cambios (2026-11-19)
+
+1) Registro en el cliente (inspección en vivo, solo lectura)
+   cordis_inspect_query client Slots.listSubTree { root: "sidebar.panellist" }
+   ocupantes: WC/plugins (0), WC/schedules (10), dsh-context (20),
+              WC/lifecode-skill-center (30), WC/lifecode-rag (35, active=true)
+   => el panel RAG sí está registrado en la barra lateral del host vivo.
+
+2) Qué se cambió en client.js (sólo etiquetas, sin datos reales nuevos)
+   - Banner: "SYNTHETIC DATA MODE — DEMO: ESTA VISTA NO LEE EL PROYECTO REAL"
+   - Pista: "Fixture de demostración: no representa el proyecto real. Las herramientas del
+     agente (lifecode_rag_*) sí trabajan con datos reales."
+   - Píldora de datos: "Demo (fixtures)"
+   - Proyecto de ejemplo: "Fixture de demostración (no real)"
+   Motivo: no presentar un proyecto sintético como proyecto activo real; el panel no puede leer
+   el registro real porque DSH no ofrece autenticación por sesión (PA-UI-0, BLOCKED).
+
+3) Pruebas del cliente
+   node --test tests/client.test.mjs  =>  46/46 PASS (ver 03-tests-client.txt)
+
+4) Límite declarado
+   El panel NO muestra datos reales del proyecto. Las herramientas del agente sí (ver 08-*).
+   No se añadió ninguna API HTTP sin autenticación.

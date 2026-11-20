@@ -1,0 +1,14 @@
+﻿{
+ "generatedAt": "2026-11-19T20:06:18.771Z",
+ "readOnly": true,
+ "store": "<USER_HOME>/.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7RBSRD33M26HGBEFW51WPP6/rag.sqlite3",
+ "sources": 121,
+ "chunks": 964,
+ "vectors": 964,
+ "auditRows": 141,
+ "expected": {
+  "sources": 121,
+  "chunks": 964,
+  "vectors": 964
+ }
+}

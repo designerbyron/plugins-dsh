@@ -1,0 +1,35 @@
+# HASHES — REAL HOST ACCEPTANCE 01 (incluye coexistencia)
+# generado: 2026-11-19T20:45:19Z
+# verificar: sha256sum -c eval/real-host-acceptance-01/HASHES.txt
+a0f7fea33efa725bf7d356b36792d1294c04ffe5be3dce3edbea8658b7002cf0 *eval/real-host-acceptance-01/ACCEPTANCE-RUN.md
+691012bf6e2c4cc6cea3576fbf100792a579fa63053d551b0e46bad66b3b3a6e *eval/real-host-acceptance-01/after.files.tsv
+1b43b1a564469a71d7a070d499d63446318bff54ba57e74940dc3de729940302 *eval/real-host-acceptance-01/after.sha256
+df317e43d7d26b8d315197841c2a974bd9c9f3cd5d633c428c8f644544310e9e *eval/real-host-acceptance-01/baseline-1423.files.tsv
+6822add7e47486bbc829d58a6c822a2297bfb910015c5f5dbf5b02e2ea0ce790 *eval/real-host-acceptance-01/baseline-1423.sha256
+691012bf6e2c4cc6cea3576fbf100792a579fa63053d551b0e46bad66b3b3a6e *eval/real-host-acceptance-01/before.files.tsv
+1b43b1a564469a71d7a070d499d63446318bff54ba57e74940dc3de729940302 *eval/real-host-acceptance-01/before.sha256
+4daba99d82305ccc30448972dfafb1c8274d6d6d14daf86b3a4bebe19cfd6b21 *eval/real-host-acceptance-01/before-run.json
+8413375b6083e9ca8eeea4064e72c0aa818f795f0406fe4d29973eda1061ad77 *eval/real-host-acceptance-01/before-run.sha256
+2b53ce5f0052a2e0285a853bcfc7f139aab8ca87f11afd1edd643e20357a5779 *eval/real-host-acceptance-01/chunks-muestra.json
+2b1111802290c3909a98800c386289263174053f5629422fe2c782679261ab28 *eval/real-host-acceptance-01/COEXISTENCE.md
+0370a7c2fa152ab44f64b52775d77b1df754f5425b31f649cc3f1c1018b6c1e5 *eval/real-host-acceptance-01/coexistence-probe.json
+5393fb01028f179aa6cc2326354f57b06edeed3c9c7a123da764d84d234f1811 *eval/real-host-acceptance-01/coexistence-probe.mjs
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 *eval/real-host-acceptance-01/diff.files.tsv
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 *eval/real-host-acceptance-01/diff.sha256
+c55ae3a49df0e11d3f00735ce6d90642347e585f6c174bcf60bfacf06ea3838c *eval/real-host-acceptance-01/EXECUTIVE-REPORT.md
+6d19877dfc991371990c6dd414850c46e79f98af47413a19ef9e23b78e3dc3aa *eval/real-host-acceptance-01/inspect-proyecto.json
+117255131632237ad1fbc281b730fc2446101863f1bb5ce3ad9d1333fa90cd56 *eval/real-host-acceptance-01/inspect-readonly.mjs
+b8bc198d2531e94e7fd7a3404435feb6610ee4bc7018a768a9d94303eeadf84a *eval/real-host-acceptance-01/INTEGRITY-VERIFICATION.md
+01eea287b4ae0799e23f8bb3d6332046dc9c99a386d2cb74027c7eebed7a0281 *eval/real-host-acceptance-01/LAYER-VERIFICATION.md
+314c20031e801a05d773832ea227421d707403569c6420164c62e38a88e2d32f *eval/real-host-acceptance-01/MODEL-INVOCATION.md
+68c6991d220fcf6098d9d5ee95e5310c6531f0d43a0a3fc4f2798b87c18c587b *eval/real-host-acceptance-01/owner-acceptance.json
+b3f3d04ea4ed445228720236363a03e263220856aadd2138a5a0675a2dfe7e04 *eval/real-host-acceptance-01/owner-acceptance.mjs
+a34aba531af91de27dcf38f107a6fe525a010d07ae315929d3a776a8baec6989 *eval/real-host-acceptance-01/READ-ONLY-TESTS.md
+548b499f4feac4ce132bf0d22c6030bf6af00777c3d94578b03e89e9fd1d029e *eval/real-host-acceptance-01/resolve-probe.json
+6d03b846a47a93e2e4f20e49b0df5087ace7641ad60b653064f1a9fd9e9c48fa *eval/real-host-acceptance-01/resolve-probe.mjs
+b8e75b8fcd5b80f798cbd052f05ce217076a6ea247d6d1b6b2ccf166810faafb *eval/real-host-acceptance-01/resolve-probe-workspace.json
+f8a6866381104cb73bc31203cc7da2b047073f15bbe20c968cc237b4a0c958fd *eval/real-host-acceptance-01/SESSION-CONTEXT.md
+2f7969becbc3352177cd7b94f4c5714602d38002121997ffcdc52575f387583e *eval/real-host-acceptance-01/TOOL-CATALOG.md
+89c407e0f0090b9d40756fb05c0011dc8fa906b67f0e5e62e3aa19737855df43 *eval/real-host-acceptance-01/tool-path-plugins-dhs.json
+9600dedab93c3ba5286b2aab84a7053f005793a49cebeedcb15639778a9f7881 *eval/real-host-acceptance-01/tool-path-probe.json
+74b1430994a392b6d305d6da42749fb5fd397ca9efbf0b48c6c7232b255adc98 *eval/real-host-acceptance-01/tool-path-probe.mjs

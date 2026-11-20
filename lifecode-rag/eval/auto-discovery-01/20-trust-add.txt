@@ -1,0 +1,49 @@
+﻿# trust add autorizado — 2026-11-19
+comando: node bin/lifecode-rag.mjs trust add --path "C:\xampp\htdocs\plugins-dhs" --read true
+perfil: desktop (C:\Users\<USER>\.dsh\lifecode-rag\profiles\desktop)
+## pre
+registry_pre_sha256=e73d7c9e4a5c45d43c458a7ce6a9aa2c08f954b361edf61f53e59e68e284d3a4
+store_pre_sha256=049891a1313315777229178beaee8fedca3669bbcc6ea6588bc9747c6772315e
+trusted_pre=0
+
+## post (trust list, proceso nuevo)
+{
+ "profile": "desktop",
+ "root": "C:\\Users\\<USER>\\.dsh\\lifecode-rag\\profiles\\desktop",
+ "trusted": 1,
+ "rows": [
+  {
+   "path": "C:\\xampp\\htdocs\\plugins-dhs",
+   "pathKey": "c:/xampp/htdocs/plugins-dhs",
+   "state": "trusted",
+   "readAuthorization": true,
+   "addedAt": 1795119783006,
+   "addedBy": "human"
+  }
+ ]
+}
+#### estado del registro y almacén
+registry_sha256=da683a221fa735f8cf6ab78c7c9a3759fce2e5d9cfb85f54c98b56e712dda686
+projects=1 roots=1 libraries=0 grants=0
+roots_rows=[{"project":"LifeCode RAG","path":"C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag","state":"authorized"}]
+trust=[{"path":"C:\\xampp\\htdocs\\plugins-dhs","pathKey":"c:/xampp/htdocs/plugins-dhs","state":"trusted","readAuthorization":true,"addedAt":1795119783006,"addedBy":"human"}]
+audit_total=44
+audit_last=[{"seq":44,"action":"trust.add","target":"c:/xampp/htdocs/plugins-dhs","outcome":"ok","actor":"human"},{"seq":43,"action":"scope.resolve","target":"C:\\xampp\\htdocs\\plugins-dhs","outcome":"denied","actor":"host"},{"seq":42,"action":"scope.resolve","target":"C:\\xampp\\htdocs\\plugins-dhs","outcome":"denied","actor":"host"}]
+sessions=[{"session_id":"session-c90d50d6-aa3d-4330-a9c8-76b21dc0f188","project_id":"prj_01M7RBSRD33M26HGBEFW51WPP6","state":"active","selection_source":"explicit"}]
+store_sha256=049891a1313315777229178beaee8fedca3669bbcc6ea6588bc9747c6772315e
+sources=121
+chunks=964
+vectors=964
+audit=141
+
+## comprobaciones de las condiciones
+1. perfil desktop exclusivo: SI (profileRoot=...\profiles\desktop).
+2. htdocs u otros proyectos: NO (trusted=1, única ruta plugins-dhs).
+3. raíces autorizadas existentes: intactas (roots=1, LifeCode RAG).
+4. indexación: NO ejecutada.
+5. ingest/forget/reindex: NO ejecutados.
+6. almacén de ámbito: hash idéntico, 121 fuentes / 964 fragmentos / 964 vectores / 141 auditorías.
+7. DSH: no reiniciado.
+8. trust list en proceso nuevo: fila única, persistente.
+9. hermanos: ninguna fila de autorización (businesssuite, carlosdiaz, etc. ausentes).
+10. hashes arriba; auditoría del registro: seq 44 trust.add ok human target c:/xampp/htdocs/plugins-dhs.

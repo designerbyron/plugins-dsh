@@ -1,0 +1,48 @@
+--- eval/pa-ui-1/evidence/before/PA-UI-0-ACCEPTANCE.md	2026-11-18 22:51:12.846442000 -0600
++++ eval/pa-ui-1/evidence/after/PA-UI-0-ACCEPTANCE.md	2026-11-19 00:26:42.590369100 -0600
+@@ -1,10 +1,11 @@
+ # PA-UI-0 — Criterios de aceptación de la API visual Project-Aware
+ 
+ **Proyecto:** LifeCode RAG · **Fase:** PA-UI-0 (diseño) · **Aplica a:** PA-UI-1 (implementación)
+-**Contrato de referencia:** `docs/PA-UI-0-API-CONTRACT.md` (`pa-ui/0.1.0-draft`, revisión 2)
+-**Estado:** PROPOSED — pendiente de aprobación humana · **Fecha:** 2026-11-18 · **Revisiones:** PA-UI-0.1 y PA-UI-0.2
++**Contrato de referencia:** `docs/PA-UI-0-API-CONTRACT.md` (`pa-ui/0.1.0-draft`, revisión 3)
++**Estado:** PROPOSED — pendiente de aprobación humana · **Fecha:** 2026-11-18 · **Revisiones:** PA-UI-0.1, PA-UI-0.2 y K1 (enmienda de G3)
+ **Resultado de la revisión PA-UI-0.1:** `BLOCKED` (PA01/identidad de sesión). Los criterios B-08a–d, C-06, C-07, C-11, C-12 y H-09…H-13 se reescriben para ser deterministas; ver `docs/PA-UI-0.1-REVIEW.md`.
+ **Revisión PA-UI-0.2:** auditoría `ui.read` append-only (H-09…H-13, sin dedupe ni `repeat`), `actor="human"` como origen del canal, y G6 con dos rutas (capacidad del host / aislamiento topológico demostrado). Ambas siguen sin demostración: PA-UI-1 continúa **BLOQUEADA**. Ver `docs/PA-UI-0.2-REVIEW.md`.
++**Revisión K1 (2026-11-19, exclusivamente documental):** se corrige **G3** (§L) para separar la **carga** del bundle (`exports["./client"]`, requisito) del **orden de activación** (`dsh.client.inject`, arista opcional); la referencia al contrato pasa a `revisión 3` para coincidir con su cabecera y con `PA-UI-0.2-REVIEW.md` §3 y §8 (X-R-01). Ningún otro criterio cambia y ningún estado de seguridad se altera: G5, G6, G6b, PA01 y D-UI-03 conservan su estado.
+ 
+ > Este documento define **cómo se demuestra** que PA-UI-1 cumple el contrato. No implementa nada.
+ > Ningún criterio se declara cumplido sin evidencia ejecutada y archivada. Un criterio no ejecutado se reporta como **NO PROBADO**, nunca como PASS.
+@@ -205,7 +206,7 @@
+ |---|---|---|
+ | G1 | Los tres documentos PA-UI-0 aprobados por una persona | firma/registro humano |
+ | G2 | D-UI-01…D-UI-11 resueltas o explícitamente aplazadas | contrato §11 |
+-| G3 | La mitad cliente puede cargarse: `package.json` con `exports["./client"]` y `dsh.client.inject` (GAP-01) | `node tools/check.mjs` extendido o inspección |
++| G3 | La mitad cliente puede cargarse: `package.json` con `exports["./client"]` resoluble (**requisito de carga**) y `dsh.client.platform === "web"`. Las aristas `dsh.client.inject` **no** son requisito de carga: sólo ordenan la activación y se exigen únicamente si el panel consume un slot de otro paquete (GAP-01) | `node tools/check.mjs` extendido: `exports["./client"]` (cadena o `{ "default": "…" }`), `platform === "web"` y, si hay aristas, que el paquete inyectado esté montado |
+ | G4 | El cliente registra slots con la API vigente `ctx.slots.inject(key, cb)` (GAP-01) | prueba de slot en host |
+ | G5 | Identidad de sesión obtenible desde el slot de conversación (patrón skill-center) en una prueba real | prueba en host con captura |
+ | G6 | **Al menos una** de las dos rutas: **(A)** capacidad de sesión del host (verificable, ligada a sesión y emisor, con validación y rechazo de capacidades inválidas/expiradas/de otra sesión); o **(B)** aislamiento topológico **demostrado** con TI-1…TI-7 (contrato §3.6), con evidencia reproducible y revisión humana. La ruta B **reduce superficie, no autentica sesión**. Si ninguna se demuestra, G6 sigue `BLOCKED`. | registro técnico (A) o evidencia TI-1…TI-7 + revisión (B) |
+@@ -217,6 +218,22 @@
+ 
+ Si G3–G6 no se cumplen, PA-UI-1 debe declararse **BLOQUEADO** en su parte de cliente y **PARCIAL** en la de backend, nunca PASS. Hoy G3–G6 **no** se cumplen: PA-UI-0.1 y PA-UI-0.2 cierran en `BLOCKED`.
+ 
++### G3 — precisión de la enmienda K1 (2026-11-19)
++
++G3 distingue cinco cosas que no son la misma, y sólo las dos primeras son requisito de carga:
++
++| Concepto | Qué es | ¿Requisito de carga? |
++|---|---|---|
++| Disponibilidad del bundle | existe un `client.js` construido y servible | condición previa (no basta) |
++| `exports["./client"]` | el manifiesto **resuelve** ese bundle; sin él el compositor del host lanza `client-modules: <paquete> declares dsh.client but exports no "./client" bundle` | **sí** |
++| `dsh.client` | declaración de la mitad de navegador (`platform: "web"`); sin ella el paquete no es fila de cliente | **sí** (declaración) |
++| `dsh.client.inject` | aristas de **orden**: paquetes cuyas fábricas deben llegar antes de materializar esta fila | **no**; sólo si hay dependencia real de slot |
++| Activación e inicialización | registro de slots con la API vigente, locales y disposición de efectos | se mide en **G4**, no en G3 |
++
++La redacción anterior exigía `dsh.client.inject` como condición universal; eso convertía una arista opcional en un requisito y podía dejar el plugin en `pending (waiting for service: …)` al declarar como dependencia un paquete no montado. La evidencia del host (0.2.2-rc.5) y la justificación completa están en `lifecode-rag/eval/pa-ui-1/evidence/G3-AMENDMENT.md`.
++
++G3 acredita que el paquete **puede cargarse**; no acredita que el cliente se monte. Eso se demuestra en G4 y en la prueba visual de la fase.
++
+ ---
+ 
+ ## M. Evidencia obligatoria
