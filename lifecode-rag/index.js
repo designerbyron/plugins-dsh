@@ -20,6 +20,7 @@ import { ragRoot, storePaths } from './lib/paths.mjs';
 import { resolveConfig, resolveDataRoot, resolveProfileKey } from './lib/config-resolve.mjs';
 import { createToolDefinitions } from './lib/tools.mjs';
 import { API_PREFIX, createApiHandler } from './lib/server.mjs';
+import { PA_PREFIX, createPaHandler } from './lib/pa-api.mjs';
 import { createAutomation } from './lib/automation.mjs';
 import { createSyncScheduler } from './lib/sync-scheduler.mjs';
 import { createAutoContext } from './lib/auto-context.mjs';
@@ -27,7 +28,7 @@ import { createAutoContext } from './lib/auto-context.mjs';
 export const name = 'lifecode-rag';
 
 /** Sólo `tools` es imprescindible. `approval`, `workingDirectory`, `webServer`, `timer` se usan si están. */
-export const inject = ['tools'];
+export const inject = ['tools', 'webServer'];
 
 export function apply(ctx) {
   // Dos raíces con propósitos distintos: `ragRoot` sólo guarda la configuración heredada (global al
@@ -67,6 +68,11 @@ export function apply(ctx) {
   // registra cuando el almacén legado existe de verdad.
   const legacyStoreExists = existsSync(storePaths(legacy).database);
   const webServer = ctx.get('webServer');
+  if (webServer) {
+    // LE-RAG-10: el panel lee el almacén del PERFIL (no el legacy). Solo lectura.
+    const paHandler = createPaHandler({ profileRoot: profile, profileKey: resolveProfileKey(process.env), env: process.env });
+    ctx.effect(() => webServer.register({ kind: 'prefix', path: PA_PREFIX, handler: paHandler }));
+  }
   if (webServer && legacyStoreExists) {
     const handler = createApiHandler({ root: legacy, env: process.env });
     ctx.effect(() => webServer.register({ kind: 'prefix', path: API_PREFIX, handler }));

@@ -29,6 +29,7 @@ export const RAG_CODES = Object.freeze([
   'recovery-verification-failed',
   'operation-uncertain',
   'too-large',
+  'response-too-large',
   'too-many-files',
   'binary-file',
   'approval-required',

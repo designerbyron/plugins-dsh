@@ -189,6 +189,12 @@ Envoltorio de respuesta (mismo sobre que la API v0.2, para no introducir un terc
 { "ok": false, "error": { "code": "scope-forbidden", "message": "…", "details": { } } }
 ```
 
+> **Implementación LE-RAG-12.** `lib/pa-api.mjs` produce ese sobre en `writeJson`: el payload de cada ruta
+> viaja dentro de `data` y los fallos dentro de `error`, sin `data` y con el status del código. El cliente
+> (`client.js`) lo desenvuelve en un solo punto (`request`) y trata `ok:false` como fallo **aunque llegue con
+> 200**, para que un defecto del servidor no se degrade a datos vacíos. Un cuerpo que excede el tope no se
+> sirve: se responde `500 response-too-large`.
+
 ### 5.1 Resumen de rutas
 
 | Método | Ruta | Autorización | Escritura | Propósito |
@@ -373,7 +379,39 @@ Semántica idéntica a `lifecode_rag_search` sobre los ámbitos efectivos (`[IMP
 }
 ```
 
-`searchScopes` ya devuelve `scopeId/scopeKind` por fila y un bloque `scopes` (`[IMPLEMENTED]`); la herramienta los elimina por proyección (`[IMPLEMENTED]` `lib/tools.mjs`). La API visual puede exponerlos sin tocar v0.1.
+`scopeId`, `scopeKind` y `scopeName` existen **sólo** en la API visual: la herramienta v0.1 los elimina por proyección (`[IMPLEMENTED]` `lib/tools.mjs`) y el motor de búsqueda de un solo almacén no los devuelve. En la implementación actual (`lib/pa-api.mjs`) **se derivan del único ámbito que el handler abre**: el proyecto autorizado. Por eso `scopeKind` es siempre `"prj"` y `scopeName`/`scopeId` son los del proyecto activo; no hay ámbitos de biblioteca que repartir mientras el handler no abra sus almacenes. No existe una función `searchScopes` en este build: no se documenta como dependencia.
+
+> **Implementación LE-RAG-11 (laboratorio PA).** `lib/pa-api.mjs` sirve `/search` y `/context`
+> **sólo por POST**; `GET` sobre ellas devuelve `405 method-not-allowed` con `details.allow: ["POST"]`.
+> Como la cabecera de sesión de este contrato está `BLOCKED` (PA01), el proyecto se indica con el
+> parámetro `?project=prj_…` en la query del POST: es el único parámetro admitido en esas rutas y
+> cualquier otro produce `400 invalid-argument` `reason: "unknown-parameter"`.
+>
+> El handler abre únicamente el almacén del proyecto activo, así que **todas** las filas llevan
+> `scopeKind: "prj"`, `scopeId` y `scopeName` del proyecto: no inventa ámbitos de biblioteca.
+> Además de `rrf` (peso de fusión, tal como figura arriba) la respuesta incluye `score` normalizado
+> `0..1`, que es el valor que pinta el panel. `uri` se relativiza contra las raíces autorizadas del
+> proyecto: nunca sale una ruta absoluta del disco.
+>
+> Validación estricta del cuerpo (todas las ramas responden `400 invalid-argument` **sin ejecutar** la
+> operación; el error nunca se degrada a una lista de resultados vacía):
+>
+> | Caso | `details` |
+> |---|---|
+> | cuerpo vacío | `reason: "missing-body"` |
+> | JSON inválido | `reason: "invalid-json"` |
+> | cuerpo que no es objeto | `reason: "invalid-body"` |
+> | campo no declarado | `reason: "unknown-field"`, `fields: ["…"]` |
+> | falta `query` | `reason: "missing-field"`, `field: "query"` |
+> | `query` no es texto, vacío o sólo espacios | `reason: "invalid-field"`, `field: "query"` |
+> | `query` de más de 512 caracteres | `reason: "query-too-long"`, `field: "query"`, `max: 512` |
+> | `limit` no entero o menor que 1 | `reason: "invalid-field"`, `field: "limit"` |
+> | `limit` mayor que 50 | `reason: "limit-too-large"`, `field: "limit"`, `max: 50` |
+> | `budgetTokens` no entero o menor que 1 | `reason: "invalid-field"`, `field: "budgetTokens"` |
+> | parámetro de query no declarado | `reason: "unknown-parameter"`, `parameters: ["…"]` |
+>
+> Cuerpo mayor de 1 MiB → `413 too-large`. Las consultas se ejecutan con `record: false`: una lectura
+> no añade eventos de auditoría.
 
 ### 6.8 `POST /context`
 
@@ -382,6 +420,14 @@ Semántica idéntica a `lifecode_rag_search` sobre los ámbitos efectivos (`[IMP
 ```
 
 Salida idéntica a `lifecode_rag_context` (`text`, `citations` con los 9 campos de v0.1, `tokens`, `truncated`, `considered`) **más** `scopes` (procedencia por ámbito) y `elapsedMs`. `[IMPLEMENTED]` `contextScopes` + `assembleContextAsync`; los campos de cita se toman de `CONTRATO-v0.1.md` sin cambios.
+
+> **Implementación LE-RAG-11.** Mismo transporte que `/search`: sólo POST con `{"query","budgetTokens"}`,
+> proyecto por `?project=prj_…`, `GET` → `405`. El `budgetTokens` omitido usa el valor de configuración
+> (`config.context.budgetTokens`, 2000 por defecto). `text` es el texto que se serviría al modelo;
+> `citations[].uri` se relativiza contra las raíces autorizadas (sin rutas absolutas) y cada cita añade
+> `chunkKey`, `sourceId` y `score` a los campos de v0.1. `assembleContextAsync` devuelve `tokens`,
+> `truncated` y `considered` reales: la implementación anterior publicaba `tokensEstimate` (siempre
+> `null`) y omitía `text`, lo que se corrige aquí.
 
 Si alguna biblioteca concedida tiene almacén ilegible, la operación **falla cerrada** con `scope-store-unavailable`/`scope-store-corrupt` (comportamiento PA4-F, `[IMPLEMENTED]`): no se devuelve contexto parcial con datos de otros ámbitos.
 
@@ -441,6 +487,7 @@ Se reutilizan los códigos de `lib/errors.mjs` (`[IMPLEMENTED]`), mapeados a HTT
 | `fts-integrity` | 500 | índice FTS incoherente | «El índice de búsqueda está dañado.» | detalle |
 | `vector-index-incomplete` | 500 | vectores incompletos | «El índice vectorial está incompleto.» | detalle |
 | `too-large` | 413 | petición demasiado grande | «La solicitud es demasiado grande.» | límites internos exactos |
+| `response-too-large` | 500 | la respuesta excedería el tope de 1 MiB y no se sirve | «La respuesta es demasiado grande para servirla.» | tamaño exacto del payload |
 | `approval-required` | 409 | acción destructiva sin aprobación (no aplica a PA-UI-0) | «Esta acción requiere aprobación humana.» | — |
 | `approval-unavailable` | 503 | sin servicio de aprobación | «No se puede pedir aprobación en este entorno.» | — |
 | `egress-denied` | 403 | embedder remoto denegado | «El proveedor de embeddings no está autorizado.» | endpoint del proveedor |
@@ -499,7 +546,7 @@ Clasificación de PA05. Ningún valor de esta tabla se presenta como rendimiento
 
 | Recurso | Valor | Clase | Origen / nota |
 |---|---|---|---|
-| Fuentes por página | 50 por defecto; máximo 200 | CONTRATO | `listSources` (50) y `listProject` (200) `[IMPLEMENTED]`; por encima, `400 invalid-argument` |
+| Fuentes por página | 50 por defecto; máximo 200 | CONTRATO | `listSources` (50) y `listProject` (200) `[IMPLEMENTED]`; por encima, `400 invalid-argument` — en la API PA lo aplica `queryParams` de `lib/pa-api.mjs` (`reason: "limit-too-large"`) |
 | Desplazamiento de fuentes | entero ≥ 0, acotado por `total` | CONTRATO | `LIMIT ? OFFSET ?` `[IMPLEMENTED]` |
 | Resultados de búsqueda | 8 por defecto; máximo 50 | CONTRATO | `CONTRATO-v0.1.md`; `limit: 51` → `400` |
 | Presupuesto de contexto | 2000 tokens por defecto | CONTRATO | `config.context` `[IMPLEMENTED]` |

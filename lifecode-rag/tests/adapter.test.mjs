@@ -8,6 +8,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { apply, inject, name } from '../index.js';
 import { API_PREFIX } from '../lib/server.mjs';
+import { PA_PREFIX } from '../lib/pa-api.mjs';
 import { closeDatabase, openDatabase } from '../lib/db.mjs';
 import { tempRoot } from './helpers.mjs';
 
@@ -32,7 +33,7 @@ test('registra herramientas, API y automatización con un ctx mínimo', () => {
     apply(ctx);
 
     assert.equal(name, 'lifecode-rag');
-    assert.deepEqual(inject, ['tools']);
+    assert.deepEqual(inject, ['tools', 'webServer'], 'PA necesita el servicio webServer');
     assert.equal(tools.length, 7);
     assert.deepEqual(tools.map((tool) => tool.name).sort(), [
       'lifecode_rag_context',
@@ -43,13 +44,16 @@ test('registra herramientas, API y automatización con un ctx mínimo', () => {
       'lifecode_rag_reindex',
       'lifecode_rag_search',
     ]);
-    assert.equal(routes.length, 1);
-    assert.equal(routes[0].kind, 'prefix');
-    assert.equal(routes[0].path, API_PREFIX);
-    assert.equal(typeof routes[0].handler, 'function');
-    assert.equal(cleanups.length, 3, 'API + sincronización + automatización');
+    assert.equal(routes.length, 2, 'API PA (siempre) + API heredada (con almacén legacy)');
+    const paths = routes.map((r) => r.path).sort();
+    assert.deepEqual(paths, [API_PREFIX, PA_PREFIX].sort());
+    for (const route of routes) {
+      assert.equal(route.kind, 'prefix');
+      assert.equal(typeof route.handler, 'function');
+    }
+    assert.equal(cleanups.length, 4, 'PA + API + sincronización + automatización');
     for (const dispose of cleanups) dispose();
-    assert.equal(routes[0].disposed, true);
+    for (const route of routes) assert.equal(route.disposed, true);
   } finally {
     if (previous === undefined) delete process.env.LIFECODE_RAG_ROOT;
     else process.env.LIFECODE_RAG_ROOT = previous;

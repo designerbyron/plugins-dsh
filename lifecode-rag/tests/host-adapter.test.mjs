@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { PA_PREFIX } from '../lib/pa-api.mjs';
 import { apply } from '../index.js';
 import { writeConfig } from '../lib/paths.mjs';
 import { makeEightWorld, fakeExec } from './pa4-helpers.mjs';
@@ -198,8 +199,9 @@ test('un almacén legado ya existente conserva la automatización v0.2', async (
     // Con almacén legado: sincronización + automatización v0.2 + API heredada. Un perfil nuevo no
     // crea el legado (pruebas anteriores: un solo efecto), así que la instalación no introduce un
     // almacén v0.2 implícito.
-    assert.equal(effects.length, 3);
-    assert.equal(routes.length, 1, 'la API heredada sólo se expone si existe el almacén legado');
+    assert.equal(effects.length, 4, 'PA + sincronización + automatización + API heredada');
+    assert.equal(routes.filter((r) => r.path === PA_PREFIX).length, 1, 'la API PA se monta siempre');
+    assert.equal(routes.filter((r) => r.path !== PA_PREFIX).length, 1, 'la API heredada sólo se expone si existe el almacén legado');
   } finally {
     world.cleanup();
   }
@@ -212,8 +214,9 @@ test('la API heredada no se registra en un perfil Project-Aware sin almacén leg
     const webServer = { register(options) { routes.push(options); return () => {}; } };
     const { ctx, effects } = fakeCtx({ webServer });
     await withEnv(world.env, () => apply(ctx));
-    assert.equal(routes.length, 0, 'sin rag.sqlite3 la API mostraría otro almacén que las tools');
-    assert.equal(effects.length, 1, 'sólo el efecto de sincronización');
+    assert.equal(routes.filter((r) => r.path !== PA_PREFIX).length, 0, 'sin rag.sqlite3 no hay API heredada');
+    assert.equal(routes.filter((r) => r.path === PA_PREFIX).length, 1, 'la API PA sí se monta sobre el almacén del perfil');
+    assert.equal(effects.length, 2, 'PA + sincronización');
   } finally {
     world.cleanup();
   }

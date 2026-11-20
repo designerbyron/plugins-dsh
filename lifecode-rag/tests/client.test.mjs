@@ -35,14 +35,16 @@ const ReactStub = {
   useEffect(fn) { runtime.hook(); runtime.effects.push(fn); return undefined; },
 };
 
-function loadModule({ document } = {}) {
+function loadModule({ document, fetch: fetchImpl } = {}) {
   const spies = { fetch: 0, setInterval: 0, setTimeout: 0, requestAnimationFrame: 0 };
   let definition = null;
   const sandbox = {
     window: { __ModuleLoader__: { load: (def) => { definition = def; } } },
     console,
     document,
-    fetch: () => { spies.fetch += 1; throw new Error('fetch prohibido en modo sintético'); },
+    fetch: fetchImpl ?? (() => { spies.fetch += 1; throw new Error('fetch prohibido en modo sintético'); }),
+    AbortController,
+    Buffer,
     setInterval: () => { spies.setInterval += 1; return 0; },
     clearInterval: () => {},
     setTimeout: () => { spies.setTimeout += 1; return 0; },
@@ -209,9 +211,11 @@ test('registra los slots con la API vigente y no con la obsoleta', () => {
   assert.equal(source.includes("const PANEL_ID = 'lifecode-rag'"), true);
 });
 
-test('el modo sintético es fijo y no hay ningún control que lo cambie', () => {
-  assert.equal(source.includes("const DATA_MODE = 'fixture'"), true);
-  assert.equal(/DATA_MODE\s*=\s*'live'/.test(source), false);
+test('el panel arranca en fixture y solo pasa a api si el servidor lo confirma', () => {
+  assert.equal(source.includes("mode: 'fixture'"), true, 'arranca en demostración explícita');
+  assert.equal(source.includes('negotiateMode'), true, 'el modo se negocia con /lifecode-rag/pa/snapshot');
+  assert.equal(/DATA_MODE\s*=\s*'live'/.test(source), false, 'no hay conmutación fija a live');
+  assert.equal(source.includes("responde mode:'api'"), true);
   assert.equal(source.includes('SYNTHETIC DATA MODE — DEMO: ESTA VISTA NO LEE EL PROYECTO REAL'), true);
 });
 
@@ -368,7 +372,7 @@ test('las diez vistas renderizan sin lanzar y con contenido propio', () => {
     const state = paReduce(base, { type: 'nav', view: id });
     const text = textOf(paRenderView(state, t, () => {}));
     assert.ok(text.length > 0, 'vista sin contenido: ' + id);
-    if (id === 'source') assert.equal(text.includes('La fuente ya no está en el fixture'), true);
+    if (id === 'source') assert.equal(text.includes('La fuente ya no está disponible'), true);
   }
 });
 
@@ -502,7 +506,81 @@ test('reset devuelve el estado inicial completo', () => {
   assert.equal(clean.session.session.selection.revision, 3);
 });
 
+test('hydrate pasa el panel a api y sustituye las fuentes por las filas del snapshot', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paInitialState, paReduce } = mod.__test;
+  const snapshot = {
+    mode: 'api',
+    service: 'ok',
+    project: { id: 'prj_01LAB', name: 'Laboratorio LE-RAG-10' },
+    sources: { rows: [
+      { id: 'src_01LABA', uri: 'C:/lab/corpus/guia-soporte.md', title: 'guia-soporte.md', mime: 'text/markdown', bytes: 1024, chunks: 3, indexedAt: '2026-11-19T20:00:00.000Z' },
+      { id: 'src_01LABB', uri: 'C:/lab/corpus/politica-reembolsos.md', title: 'politica-reembolsos.md', mime: 'text/markdown', bytes: 2048, chunks: 4, indexedAt: '2026-11-19T20:01:00.000Z' },
+    ] },
+  };
+  const next = paReduce(paInitialState(), { type: 'hydrate', snapshot });
+  assert.equal(next.mode, 'api');
+  assert.equal(next.sources.length, 2);
+  assert.deepEqual(next.sources.map((row) => row.title), ['guia-soporte.md', 'politica-reembolsos.md']);
+  assert.equal(next.projects[0].id, 'prj_01LAB');
+  assert.equal(next.sourcePage.offset, 0);
+  assert.equal(next.error, null);
+});
+
+test('unavailable deja el panel en down con la razón del servidor', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paInitialState, paReduce } = mod.__test;
+  const next = paReduce(paInitialState(), { type: 'unavailable', reason: 'transport-error' });
+  assert.equal(next.mode, 'down');
+  assert.equal(next.error, 'transport-error');
+});
+
+test('el cliente envía POST con el cuerpo contractual a /search y /context', async () => {
+  const calls = [];
+  const fakeFetch = async (url, init) => {
+    calls.push({ url, init });
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ mode: 'hybrid', elapsedMs: 1, results: [], citations: [], tokens: 0 }),
+    };
+  };
+  const { mod } = loadModule({ document: fakeDocument(), fetch: fakeFetch });
+  const { request, panelState } = mod.__test;
+  panelState.mode = 'api'; // la guarda de red del cliente exige modo api
+  await request('/search', { method: 'POST', body: { query: 'reembolso', limit: 8 } });
+  await request('/context', { method: 'POST', body: { query: 'reembolso', budgetTokens: 2000 } });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].url, '/lifecode-rag/pa/search');
+  assert.equal(calls[0].init.method, 'POST');
+  assert.equal(calls[0].init.headers['content-type'], 'application/json');
+  assert.equal(calls[0].init.headers['x-lifecode-rag'], '1');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { query: 'reembolso', limit: 8 });
+  assert.equal(calls[1].url, '/lifecode-rag/pa/context');
+  assert.equal(calls[1].init.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[1].init.body), { query: 'reembolso', budgetTokens: 2000 });
+});
+
 /* ------------------------------------------------- red, almacenes y temporizadores */
+
+test('el cliente desenvuelve el sobre y trata ok:false como fallo aunque llegue con 200', async () => {
+  const responses = [
+    { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, data: { mode: 'api', results: [] } }) },
+    { ok: true, status: 200, text: async () => JSON.stringify({ ok: false, error: { code: 'response-too-large', message: 'respuesta demasiado grande' } }) },
+  ];
+  const fakeFetch = async () => responses.shift();
+  const { mod } = loadModule({ document: fakeDocument(), fetch: fakeFetch });
+  const { request, panelState } = mod.__test;
+  panelState.mode = 'api';
+  const payload = await request('/snapshot');
+  assert.equal(payload.mode, 'api', 'request devuelve el contenido de data, no el sobre');
+  assert.deepEqual([...payload.results], [], 'las listas llegan tal cual, sin envolver');
+  await assert.rejects(
+    () => request('/snapshot'),
+    (error) => error.code === 'response-too-large' && /demasiado grande/.test(error.message),
+    'un ok:false con 200 sigue siendo un fallo',
+  );
+});
 
 test('ninguna interacción dispara red ni temporizadores', () => {
   const { mod, panel, spies } = mountPanel();

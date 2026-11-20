@@ -16,57 +16,164 @@ window.__ModuleLoader__.load({
     const { useCallback, useEffect, useMemo, useRef, useState } = React;
 
     const API = '/lifecode-rag/api';
+    const PA_API = '/lifecode-rag/pa';
+    const REQUEST_TIMEOUT_MS = 8000;
+    /** Presupuesto de contexto por defecto del contrato §8 (2000 tokens estimados). */
+    const PA_CONTEXT_BUDGET = 2000;
     const PANEL_ID = 'lifecode-rag';
     const SIDEBAR_SLOT = 'sidebar.panellist';
     const MAIN_SLOT = 'main';
     // Modo de datos del panel. 'fixture' = datos sintéticos, sin red. 'live' no está habilitado:
     // habilitarlo exige la integración de sesión que hoy no existe (PA01 BLOCKED). No hay ningún
     // control en la interfaz que cambie este valor.
-    const DATA_MODE = 'fixture';
+    // LE-RAG-10: el modo se negocia con el servidor PA. Arranca en 'fixture' (demostración
+    // explícita) y solo pasa a 'api' si /snapshot responde mode:'api'. Si el servidor falla,
+    // NO se vuelve silenciosamente al fixture: se informa el estado y la razón.
+    const panelState = { mode: 'fixture', reason: 'sin negociar', service: null };
+    let requestSeq = 0;
+    const latestSeq = new Map();
 
     /* ------------------------------------------------------------------ API */
 
     async function request(path, options = {}) {
-      if (DATA_MODE !== 'live') {
-        // K1: en modo sintético no se habla con ninguna API, ni con la heredada v0.2. Si algo
-        // invocara esta capa, falla cerrado antes de tocar la red.
-        const blocked = new Error('fixture-mode: sin acceso a la API del panel');
+      if (panelState.mode !== 'api') {
+        const blocked = new Error('fixture-mode: el panel no está conectado a la API PA');
         blocked.code = 'fixture-mode';
         throw blocked;
       }
+      const base = options.target === 'legacy' ? API : PA_API;
       const method = options.method || 'GET';
       const headers = { accept: 'application/json' };
       if (options.body !== undefined) {
         headers['content-type'] = 'application/json';
         headers['x-lifecode-rag'] = '1';
       }
-      const response = await fetch(API + path, {
-        method,
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      });
-      let data = null;
+      const key = method + ' ' + path;
+      const seq = ++requestSeq;
+      latestSeq.set(key, seq);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      if (options.signal) options.signal.addEventListener('abort', function () { controller.abort(); }, { once: true });
+      let response;
       try {
-        data = await response.json();
-      } catch {
-        data = null;
+        response = await fetch(base + path, {
+          method,
+          headers,
+          body: options.body === undefined ? undefined : JSON.stringify(options.body),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        const aborted = error && error.name === 'AbortError';
+        const failure = new Error(aborted ? 'tiempo de espera agotado' : 'fallo de transporte');
+        failure.code = aborted ? 'timeout' : 'transport-error';
+        throw failure;
+      }
+      clearTimeout(timer);
+      if (latestSeq.get(key) !== seq) {
+        const stale = new Error('respuesta obsoleta descartada');
+        stale.code = 'stale-response';
+        throw stale;
+      }
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+      if (data === null) {
+        const invalid = new Error('respuesta no es JSON válido');
+        invalid.code = 'invalid-json';
+        invalid.status = response.status;
+        throw invalid;
+      }
+      // LE-RAG-12: sobre contractual (§5) — `{ok:true, data}` en éxito, `{ok:false, error}` en fallo.
+      // Un `ok:false` con status 200 también es un fallo: nunca se degrada a datos vacíos.
+      if (data.ok === false && data.error) {
+        const failure = new Error(data.error.message || 'la operación no se completó');
+        failure.code = data.error.code || 'internal';
+        failure.status = response.status;
+        throw failure;
       }
       if (!response.ok) {
-        if (response.status === 404 && !data?.error) {
-          // Un perfil Project-Aware no monta la API del almacén v0.2 (cada proyecto vive en su
-          // propio almacén y la superficie es la de las siete herramientas). Sin este caso el
-          // panel mostraba un «Not Found (http-404)» que parecía un fallo del producto.
-          const unavailable = new Error(
-            'este perfil usa Project-Aware: el panel del almacén v0.2 no está disponible; usa las herramientas lifecode_rag_*',
-          );
+        if (response.status === 404 && !(data && data.error)) {
+          const unavailable = new Error('este perfil usa Project-Aware: el panel del almacén v0.2 no está disponible; usa las herramientas lifecode_rag_*');
           unavailable.code = 'panel-unavailable';
           throw unavailable;
         }
-        const error = new Error(data?.error?.message || `HTTP ${response.status}`);
-        error.code = data?.error?.code || `http-${response.status}`;
-        throw error;
+        const failure = new Error((data.error && data.error.message) || ('HTTP ' + response.status));
+        failure.code = (data.error && data.error.code) || (`http-${response.status}`);
+        failure.status = response.status;
+        throw failure;
       }
-      return data;
+      return data.ok === true && data.data !== undefined ? data.data : data;
+    }
+
+    async function negotiateMode(options) {
+      const project = options && options.project ? options.project : null;
+      const suffix = project ? ('?project=' + encodeURIComponent(project)) : '';
+      try {
+        const response = await fetch(PA_API + '/snapshot' + suffix, { headers: { accept: 'application/json' } });
+        let data = null;
+        try { data = await response.json(); } catch { data = null; }
+        // LE-RAG-12: el sobre §5 envuelve el payload en `data`.
+        const payload = data && data.ok === true && data.data ? data.data : data;
+        if (response.ok && payload && payload.mode === 'api') {
+          panelState.mode = 'api';
+          panelState.reason = 'api';
+          panelState.service = payload.service || 'ok';
+          return panelState;
+        }
+        panelState.mode = 'fixture';
+        panelState.reason = (data && data.error && data.error.code) || ('http-' + response.status);
+        panelState.service = 'down';
+      } catch (error) {
+        panelState.mode = 'fixture';
+        panelState.reason = (error && error.code) || 'transport-error';
+        panelState.service = 'down';
+      }
+      return panelState;
+    }
+
+    // LE-RAG-10: normalización de las respuestas reales de la API PA a las filas que pintan las
+    // vistas. Se usa la URI relativa del snapshot cuando la cita trae un sourceId conocido, para no
+    // exponer rutas absolutas del disco en la interfaz.
+    function paNormalizeSearch(data, sources, fallbackScope) {
+      const rows = Array.isArray(data && data.results) ? data.results : [];
+      const byId = new Map((sources || []).map((row) => [row.id, row]));
+      return {
+        mode: (data && data.mode) || 'api',
+        elapsedMs: data && typeof data.elapsedMs === 'number' ? data.elapsedMs : null,
+        results: rows.map((row) => {
+          const source = byId.get(row.sourceId) || null;
+          return {
+            chunkKey: row.chunkKey,
+            sourceId: row.sourceId,
+            uri: source ? source.uri : (row.uri || ''),
+            title: row.title || (source ? source.title : ''),
+            heading: row.heading || '',
+            ordinal: row.ordinal ?? null,
+            snippet: row.snippet ?? '',
+            score: typeof row.score === 'number' ? row.score : (typeof row.rrf === 'number' ? row.rrf : null),
+            scopeKind: row.scopeKind || 'prj',
+            scopeName: row.scopeName || fallbackScope || '',
+          };
+        }),
+      };
+    }
+
+    function paNormalizeContext(data, sources) {
+      const citations = Array.isArray(data && data.citations) ? data.citations : [];
+      const byId = new Map((sources || []).map((row) => [row.id, row]));
+      return {
+        text: data && typeof data.text === 'string' ? data.text : '',
+        tokens: data && typeof data.tokens === 'number' ? data.tokens
+          : (data && typeof data.tokensEstimate === 'number' ? data.tokensEstimate : null),
+        truncated: data && typeof data.truncated === 'boolean' ? data.truncated : null,
+        considered: data && Number.isFinite(data.considered) ? data.considered
+          : (data && Array.isArray(data.considered) ? data.considered.length : null),
+        citations: citations.map((citation) => {
+          const source = byId.get(citation.sourceId) || null;
+          return { ...citation, uri: source ? source.uri : (citation.uri || '') };
+        }),
+      };
     }
 
     const getSnapshot = () => request('/snapshot');
@@ -591,10 +698,19 @@ window.__ModuleLoader__.load({
 
       const load = useCallback(async () => {
         try {
+          // LE-RAG-10: negociar modo antes de pedir datos. Solo se pinta el fixture si el
+          // servidor PA no confirma 'api'; en ese caso se muestra la razón, nunca una lista vacía.
+          if (panelState.mode !== 'api') await negotiateMode();
+          if (panelState.mode !== 'api') {
+            setSnapshot(null);
+            setError('panel sin conexión con la API PA: ' + panelState.reason);
+            return;
+          }
           setSnapshot(await getSnapshot());
           setError('');
         } catch (failure) {
-          setError(errorText(failure));
+          const text = errorText(failure);
+          setError(text ? text : 'error de transporte');
         }
       }, []);
 
@@ -759,10 +875,12 @@ window.__ModuleLoader__.load({
     const PA_DICT = {
       es: {
         'app.title': 'LifeCode RAG',
-        'app.subtitle': 'Proyecto activo, bibliotecas, fuentes y recuperación — en modo sintético',
+        'app.subtitle': 'Proyecto activo, bibliotecas, fuentes y recuperación',
         'status.client': 'Cliente montado',
         'status.api': 'API no montada',
+        'status.apiOk': 'API montada',
         'status.data': 'Demo (fixtures)',
+        'status.dataApi': 'Datos del proyecto',
         'a11y.status': 'Estado del panel y de la conexión',
         'app.reset': 'Reiniciar datos sintéticos',
         'banner.hint': 'Fixture de demostración: no representa el proyecto real. Las herramientas del agente (lifecode_rag_*) sí trabajan con datos reales.',
@@ -825,24 +943,29 @@ window.__ModuleLoader__.load({
         'libraries.empty': 'No hay bibliotecas concedidas para este proyecto.',
         'libraries.gap': 'Una biblioteca revocada desaparece de esta lista; su causa se explica en el proyecto.',
         'sources.title': 'Fuentes del proyecto',
-        'sources.empty': 'Este proyecto no tiene fuentes indexadas en el fixture.',
+        'sources.empty': 'Este proyecto no tiene fuentes indexadas.',
         'sources.showing': 'Mostrando {shown} de {total}',
-        'sources.filter': 'La vista muestra el fixture; no hay ingesta real.',
+        'sources.filter': 'Sólo lectura: la ingesta se hace con las herramientas del agente, nunca desde el panel.',
         'source.title': 'Detalle de fuente',
-        'source.notFound': 'La fuente ya no está en el fixture.',
+        'source.notFound': 'La fuente ya no está disponible.',
         'source.chunksShown': 'Se muestran {shown} de {total} fragmentos.',
+        'source.chunksPending': 'La API PA todavía no expone el texto de los fragmentos: aquí sólo se muestran los metadatos de la fuente.',
         'source.gap05': 'GAP-05: esta versión no pagina fragmentos; el detalle se limita a los primeros.',
         'source.meta': 'Metadatos',
         'search.title': 'Búsqueda',
-        'search.placeholder': 'Texto a buscar en el fixture',
+        'search.placeholder': 'Texto a buscar en el proyecto',
         'search.run': 'Buscar',
+        'search.running': 'Buscando…',
         'search.limit': 'Resultados',
         'search.mode': 'Modo',
         'search.elapsed': 'Duración',
         'search.results': 'Resultados con procedencia',
         'search.scope': 'Ámbito',
-        'search.noResults': 'Sin resultados para esa consulta en el fixture.',
+        'search.score': 'Puntuación',
+        'search.noResults': 'Sin resultados para esa consulta.',
+        'search.failed': 'La búsqueda falló',
         'search.hint': 'La búsqueda se ejecuta sobre datos sintéticos; no consulta el motor.',
+        'search.hintApi': 'La búsqueda consulta el motor del proyecto activo y devuelve procedencia por fuente.',
         'search.openContext': 'Construir contexto con estos resultados',
         'context.title': 'Contexto recuperado',
         'context.build': 'Construir contexto',
@@ -851,6 +974,7 @@ window.__ModuleLoader__.load({
         'context.truncated': 'Truncado',
         'context.considered': 'Fragmentos considerados',
         'context.citations': 'Citas',
+        'context.failed': 'No se pudo construir el contexto',
         'context.failClosed': 'Con un almacén ilegible, la operación falla en cerrado: no se sirve contexto parcial.',
         'context.text': 'Texto que se serviría al modelo',
         'operations.title': 'Operaciones simuladas',
@@ -861,6 +985,7 @@ window.__ModuleLoader__.load({
         'operations.journal': 'Registro de operaciones simuladas',
         'operations.empty': 'Todavía no se ejecutó ninguna operación simulada.',
         'operations.noWrite': 'Las operaciones de esta vista no escriben en el RAG ni en el registro de auditoría.',
+        'operations.hostOnly': 'Las operaciones de escritura (ingesta, olvido, reindexación) no se ejecutan desde el panel: la API PA responde 403 y exige aprobación del host. Se lanzan con las herramientas lifecode_rag_*.',
         'operations.error': 'No se pudo completar la operación simulada',
         'operations.errorCode': 'Código',
         'operations.clearError': 'Descartar aviso',
@@ -876,6 +1001,7 @@ window.__ModuleLoader__.load({
         'diagnostics.stores': 'Almacenes',
         'diagnostics.auditHead': 'Cabeza de auditoría',
         'diagnostics.scopes': 'Ámbitos',
+        'diagnostics.pendingApi': 'Integridad, auditoría y versiones todavía no se leen de la API PA: esta vista muestra sólo los ámbitos efectivos del proyecto.',
         'diagnostics.versions': 'Versiones',
         'diagnostics.api': 'API',
         'diagnostics.host': 'Anfitrión',
@@ -918,10 +1044,12 @@ window.__ModuleLoader__.load({
       },
       en: {
         'app.title': 'LifeCode RAG',
-        'app.subtitle': 'Active project, libraries, sources and retrieval — in synthetic mode',
+        'app.subtitle': 'Active project, libraries, sources and retrieval',
         'status.client': 'Client mounted',
         'status.api': 'API not mounted',
+        'status.apiOk': 'API mounted',
         'status.data': 'Demo (fixtures)',
+        'status.dataApi': 'Project data',
         'a11y.status': 'Panel and connection status',
         'app.reset': 'Reset synthetic data',
         'banner.hint': 'Demo fixture: not the real project. Agent tools (lifecode_rag_*) do work with real data.',
@@ -984,24 +1112,29 @@ window.__ModuleLoader__.load({
         'libraries.empty': 'No libraries granted for this project.',
         'libraries.gap': 'A revoked library disappears from this list; the cause is explained in the project view.',
         'sources.title': 'Project sources',
-        'sources.empty': 'This project has no indexed sources in the fixture.',
+        'sources.empty': 'This project has no indexed sources.',
         'sources.showing': 'Showing {shown} of {total}',
-        'sources.filter': 'This view shows the fixture; there is no real ingestion.',
+        'sources.filter': 'Read-only: ingestion runs through the agent tools, never from this panel.',
         'source.title': 'Source detail',
-        'source.notFound': 'The source is no longer in the fixture.',
+        'source.notFound': 'The source is no longer available.',
         'source.chunksShown': 'Showing {shown} of {total} chunks.',
+        'source.chunksPending': 'The PA API does not expose chunk text yet: only source metadata is shown here.',
         'source.gap05': 'GAP-05: this version does not paginate chunks; detail is limited to the first ones.',
         'source.meta': 'Metadata',
         'search.title': 'Search',
-        'search.placeholder': 'Text to search in the fixture',
+        'search.placeholder': 'Text to search in the project',
         'search.run': 'Search',
+        'search.running': 'Searching…',
         'search.limit': 'Results',
         'search.mode': 'Mode',
         'search.elapsed': 'Duration',
         'search.results': 'Results with provenance',
         'search.scope': 'Scope',
-        'search.noResults': 'No results for that query in the fixture.',
+        'search.score': 'Score',
+        'search.noResults': 'No results for that query.',
+        'search.failed': 'Search failed',
         'search.hint': 'Search runs over synthetic data; it does not query the engine.',
+        'search.hintApi': 'Search queries the active project engine and reports provenance per source.',
         'search.openContext': 'Build context from these results',
         'context.title': 'Retrieved context',
         'context.build': 'Build context',
@@ -1010,6 +1143,7 @@ window.__ModuleLoader__.load({
         'context.truncated': 'Truncated',
         'context.considered': 'Chunks considered',
         'context.citations': 'Citations',
+        'context.failed': 'Context could not be built',
         'context.failClosed': 'With an unreadable store, the operation fails closed: no partial context is served.',
         'context.text': 'Text that would be served to the model',
         'operations.title': 'Simulated operations',
@@ -1020,6 +1154,7 @@ window.__ModuleLoader__.load({
         'operations.journal': 'Simulated operations log',
         'operations.empty': 'No simulated operation has run yet.',
         'operations.noWrite': 'Operations in this view write neither to the RAG nor to the audit log.',
+        'operations.hostOnly': 'Write operations (ingest, forget, reindex) never run from this panel: the PA API answers 403 and the host must authorize them. They run through the lifecode_rag_* tools.',
         'operations.error': 'The simulated operation could not be completed',
         'operations.errorCode': 'Code',
         'operations.clearError': 'Dismiss notice',
@@ -1035,6 +1170,7 @@ window.__ModuleLoader__.load({
         'diagnostics.stores': 'Stores',
         'diagnostics.auditHead': 'Audit head',
         'diagnostics.scopes': 'Scopes',
+        'diagnostics.pendingApi': 'Integrity, audit and versions are not read from the PA API yet: this view only shows the effective scopes of the project.',
         'diagnostics.versions': 'Versions',
         'diagnostics.api': 'API',
         'diagnostics.host': 'Host',
@@ -1245,6 +1381,7 @@ window.__ModuleLoader__.load({
       const fx = paFixtures();
       return {
         view: 'project',
+        mode: 'fixture',
         session: fx.session,
         projects: fx.projects,
         libraries: fx.libraries,
@@ -1395,6 +1532,81 @@ window.__ModuleLoader__.load({
     function paReduce(state, action) {
       if (!action || typeof action.type !== 'string') return state;
       switch (action.type) {
+        case 'hydrate': {
+          const snapshot = action.snapshot || {};
+          const rows = (snapshot.sources && snapshot.sources.rows) || [];
+          // Las filas vienen de la API: se copia lo que la API entrega y nada más. Heredar campos del
+          // fixture (colección, texto de fragmentos) sería inventar datos sobre un proyecto real.
+          const fuentes = rows.map((r) => ({
+            id: r.id,
+            uri: r.uri,
+            title: r.title,
+            mime: r.mime,
+            bytes: Number(r.bytes) || 0,
+            chunks: Number(r.chunks) || 0,
+            collection: r.collection || null,
+            indexedAt: r.indexedAt ?? null,
+            updatedAt: r.updatedAt ?? r.indexedAt ?? null,
+            api: true,
+          }));
+          const scopesRaw = Array.isArray(snapshot.scopes) ? snapshot.scopes : [];
+          const prjScopes = scopesRaw.filter((scope) => (scope.kind || 'prj') === 'prj');
+          const proyectos = prjScopes.length > 0
+            ? prjScopes.map((scope) => ({
+                id: scope.id,
+                name: scope.name || scope.id,
+                current: Boolean(snapshot.project) && scope.id === snapshot.project.id,
+                rootCount: Number(scope.roots) || 0,
+              }))
+            : (state.projects || []).map((p, index) => (index === 0 && snapshot.project
+                ? { ...p, id: snapshot.project.id, name: snapshot.project.name } : p));
+          const libraries = (Array.isArray(snapshot.libraries) ? snapshot.libraries : []).map((lib, index) => ({
+            id: lib.id || ('lib_' + index),
+            name: lib.name || lib.id || '—',
+            permission: lib.permission || 'read',
+            grantedAt: Number(lib.grantedAt) || 0,
+            grantedBy: lib.grantedBy || null,
+            store: lib.store || (Number(lib.roots) > 0 ? 'present' : 'missing'),
+            roots: Number(lib.roots) || 0,
+          }));
+          const serviceStatus = snapshot.service || 'ok';
+          const selection = state.session.session.selection;
+          return {
+            ...state,
+            mode: 'api',
+            error: null,
+            libraries,
+            projects: proyectos,
+            sources: fuentes,
+            sourcePage: { ...(state.sourcePage || {}), offset: 0 },
+            session: {
+              ...state.session,
+              scopeCount: scopesRaw.length,
+              project: snapshot.project
+                ? { ...(state.session.project || {}), id: snapshot.project.id, name: snapshot.project.name, status: 'active' }
+                : state.session.project,
+              service: { ...(state.session.service || {}), status: serviceStatus },
+              session: {
+                ...state.session.session,
+                selection: snapshot.project
+                  ? { ...selection, projectId: snapshot.project.id, projectName: snapshot.project.name, state: 'active', source: 'explicit' }
+                  : selection,
+              },
+            },
+            diagnostics: scopesRaw.length > 0
+              ? { ...state.diagnostics, scopes: scopesRaw.map((scope) => ({
+                  kind: scope.kind || 'prj',
+                  id: scope.id,
+                  name: scope.name || scope.id,
+                  store: Number(scope.roots) > 0 ? 'present' : 'missing',
+                  verified: true,
+                })) }
+              : state.diagnostics,
+            health: { ...state.health, status: serviceStatus },
+          };
+        }
+        case 'unavailable':
+          return { ...state, mode: 'down', error: action.reason || 'unavailable' };
         case 'reset':
           return paInitialState();
         case 'nav':
@@ -1442,6 +1654,10 @@ window.__ModuleLoader__.load({
           if (text.length > 512) {
             return { ...state, view: 'search', searchInvalid: 'long', notice: { code: 'notice.longQuery' } };
           }
+          // En modo api la búsqueda va al motor del proyecto: el resultado lo trae el efecto.
+          if (state.mode === 'api') {
+            return { ...state, view: 'search', results: null, context: null, searchInvalid: null, searchError: null, notice: null, pending: 'search' };
+          }
           const results = paSearchResults(state, text, state.limit);
           return {
             ...state,
@@ -1452,12 +1668,24 @@ window.__ModuleLoader__.load({
             notice: results && results.results.length === 0 ? { code: 'notice.searchEmpty' } : null,
           };
         }
+        case 'search-ok':
+          return { ...state, pending: null, searchError: null, view: 'search', results: action.results,
+            notice: action.results && action.results.results.length === 0 ? { code: 'notice.searchEmpty' } : null };
+        case 'search-error':
+          return { ...state, pending: null, results: null, searchError: action.reason || 'transport-error' };
         case 'retry-view':
           return { ...state, viewEpoch: (state.viewEpoch ?? 0) + 1, notice: null };
         case 'context': {
+          if (state.mode === 'api') {
+            return { ...state, view: 'context', contextError: null, pending: 'context' };
+          }
           const context = state.results && state.results.results.length > 0 ? paBuildContext(state, state.results.results) : null;
           return { ...state, view: 'context', context, notice: context ? null : { code: 'notice.searchEmpty' } };
         }
+        case 'context-ok':
+          return { ...state, pending: null, contextError: null, view: 'context', context: action.context, notice: null };
+        case 'context-error':
+          return { ...state, pending: null, context: null, contextError: action.reason || 'transport-error' };
         case 'ingest-path':
           return { ...state, ingestPath: String(action.value ?? PA_INGEST_PATHS[0]) };
         case 'ingest': {
@@ -1594,7 +1822,10 @@ window.__ModuleLoader__.load({
             ? t('diagnostics.storesDetail', { missing: missingLibraries, total: state.libraries.length })
             : t('libraries.allPresent')),
           paKpi(t('nav.sources'), paNum(state.sources.length), t('common.page', { page: 1, pages })),
-          paKpi(t('connection.service'), state.session.service.status, t('connection.serviceDetail', { missing: missingStores, total: state.diagnostics.scopes.length }))),
+          paKpi(t('connection.service'), state.session.service.status,
+            missingStores > 0
+              ? t('connection.serviceDetail', { missing: missingStores, total: state.diagnostics.scopes.length })
+              : t('libraries.allPresent'))),
         el('div', { className: 'lcr-pa-split' },
           paCard(t('project.title'), el('div', { className: 'lcr-pa-stack' },
             paKv([
@@ -1669,7 +1900,7 @@ window.__ModuleLoader__.load({
       const rows = pageRows.map((source) => el('tr', { key: source.id },
         el('td', null, source.title),
         el('td', null, el('span', { className: 'lcr-pa-mono lcr-pa-celluri', title: source.uri }, source.uri)),
-        el('td', null, paChip(source.collection, 'lib')),
+        el('td', null, paChip(source.collection || '—', 'lib')),
         el('td', { className: 'lcr-pa-num' }, String(source.chunks)),
         el('td', { className: 'lcr-pa-num' }, paNum(source.bytes)),
         el('td', null, paTime(source.updatedAt)),
@@ -1702,7 +1933,9 @@ window.__ModuleLoader__.load({
           el('div', { className: 'lcr-pa-row' },
             el('button', { type: 'button', className: 'lcr-pa-btn', onClick: back }, t('common.back')))));
       }
-      const chunks = paChunks(source);
+      // Una fuente hidratada desde la API no trae el texto de los fragmentos: no se inventa.
+      const apiSource = source.api === true;
+      const chunks = apiSource ? [] : paChunks(source);
       const shown = chunks.slice(0, 8);
       const rows = shown.map((chunk) => el('tr', { key: chunk.ordinal },
         el('td', { className: 'lcr-pa-num' }, String(chunk.ordinal)),
@@ -1715,20 +1948,23 @@ window.__ModuleLoader__.load({
           el('div', { className: 'lcr-pa-toolbar' },
             el('button', { type: 'button', className: 'lcr-pa-btn', onClick: back }, t('common.back')),
             el('span', { className: 'lcr-pa-toolbar__group' },
-              paChip(source.collection, 'lib'),
+              paChip(source.collection || '—', 'lib'),
               paChip(paNum(source.bytes) + ' B'),
               paChip(String(source.chunks) + ' ' + t('common.chunks')))),
           paKv([
             [t('common.uri'), source.uri],
-            [t('common.collection'), source.collection],
+            [t('common.collection'), source.collection || '—'],
             [t('common.bytes'), paNum(source.bytes)],
             [t('common.chunks'), String(source.chunks)],
             [t('common.indexed'), paTime(source.indexedAt)],
           ]),
           el('h3', { className: 'lcr-pa-subtitle' }, t('common.chunks')),
-          el('p', { className: 'lcr-pa-hint' }, t('source.chunksShown', { shown: shown.length, total: source.chunks })),
-          paTable(t('common.chunks'), ['#', t('common.name'), 'charStart..charEnd', 'tokens', t('common.value')], rows, 'lcr-pa-tablewrap'),
-          el('p', { className: 'lcr-pa-hint' }, t('source.gap05')))));
+          apiSource
+            ? el('p', { className: 'lcr-pa-hint' }, t('source.chunksPending'))
+            : el('div', null,
+                el('p', { className: 'lcr-pa-hint' }, t('source.chunksShown', { shown: shown.length, total: source.chunks })),
+                paTable(t('common.chunks'), ['#', t('common.name'), 'charStart..charEnd', 'tokens', t('common.value')], rows, 'lcr-pa-tablewrap'),
+                el('p', { className: 'lcr-pa-hint' }, t('source.gap05'))))));
     }
 
     function paViewSearch(state, t, dispatch) {
@@ -1740,10 +1976,10 @@ window.__ModuleLoader__.load({
         ? results.results.map((row, index) => el('tr', { key: row.chunkKey },
           el('td', { className: 'lcr-pa-num' }, String(index + 1)),
           el('td', null, row.title),
-          el('td', null, row.heading),
-          el('td', null, paChip(row.scopeName + ' · ' + row.scopeKind, row.scopeKind === 'lib' ? 'lib' : 'prj')),
-          el('td', null, row.snippet),
-          el('td', { className: 'lcr-pa-num' }, row.rrf.toFixed(3))))
+          el('td', null, row.heading || row.uri || '—'),
+          el('td', null, row.scopeName ? paChip(row.scopeName + ' · ' + row.scopeKind, row.scopeKind === 'lib' ? 'lib' : 'prj') : '—'),
+          el('td', null, row.snippet || '—'),
+          el('td', { className: 'lcr-pa-num' }, row.score === null || row.score === undefined ? '—' : Number(row.score).toFixed(3))))
         : [];
       return el('div', { className: 'lcr-pa-stack' },
         el('section', { className: 'lcr-pa-hero' },
@@ -1767,8 +2003,10 @@ window.__ModuleLoader__.load({
                 'data-field': 'limit',
                 onChange: (event) => dispatch({ type: 'limit', value: event.target.value }),
               }, ['8', '20', '50'].map((value) => el('option', { key: value, value }, value)))),
-            el('button', { type: 'button', className: 'lcr-pa-btn lcr-pa-btn--primary', onClick: () => dispatch({ type: 'search' }) }, t('search.run'))),
-          el('p', { className: 'lcr-pa-hint', id: 'lcr-pa-search-msg' }, message ?? t('search.hint'))),
+            el('button', { type: 'button', className: 'lcr-pa-btn lcr-pa-btn--primary', disabled: state.pending === 'search', onClick: () => dispatch({ type: 'search' }) }, state.pending === 'search' ? t('search.running') : t('search.run'))),
+          el('p', { className: 'lcr-pa-hint', id: 'lcr-pa-search-msg' }, message
+            ?? (state.searchError ? t('search.failed') + ' · ' + state.searchError
+              : (state.mode === 'api' ? t('search.hintApi') : t('search.hint'))))),
         results && results.results.length === 0
           ? paCard(t('search.results'), paEmpty(t('search.noResults'), t('search.hint')))
           : null,
@@ -1785,7 +2023,7 @@ window.__ModuleLoader__.load({
                 disabled: !hasResults,
                 onClick: () => dispatch({ type: 'context' }),
               }, t('search.openContext'))),
-            paTable(t('search.results'), ['#', t('common.name'), t('common.value'), t('search.scope'), t('common.detail'), 'rrf'], rows, 'lcr-pa-tablewrap')))
+            paTable(t('search.results'), ['#', t('common.name'), t('common.value'), t('search.scope'), t('common.detail'), t('search.score')], rows, 'lcr-pa-tablewrap')))
           : null,
         paNotice(state, t));
     }
@@ -1807,16 +2045,17 @@ window.__ModuleLoader__.load({
             el('button', {
               type: 'button',
               className: 'lcr-pa-btn lcr-pa-btn--primary',
-              disabled: !(state.results && state.results.results.length > 0),
+              disabled: state.pending === 'context' || !(state.results && state.results.results.length > 0),
               onClick: () => dispatch({ type: 'context' }),
             }, t('context.build'))),
+          state.contextError ? el('p', { className: 'lcr-pa-error__title' }, t('context.failed') + ' · ' + state.contextError) : null,
           context === null
             ? paEmpty(t('context.empty'), t('context.failClosed'))
             : el('div', { className: 'lcr-pa-stack' },
               el('div', { className: 'lcr-pa-kpis' },
-                paKpi(t('context.tokens'), String(context.tokens)),
-                paKpi(t('context.truncated'), context.truncated ? t('common.yes') : t('common.no')),
-                paKpi(t('context.considered'), String(context.considered))),
+                context.tokens === null || context.tokens === undefined ? null : paKpi(t('context.tokens'), String(context.tokens)),
+                context.truncated === null || context.truncated === undefined ? null : paKpi(t('context.truncated'), context.truncated ? t('common.yes') : t('common.no')),
+                context.considered === null || context.considered === undefined ? null : paKpi(t('context.considered'), String(context.considered))),
               el('h3', { className: 'lcr-pa-subtitle' }, t('context.text')),
               el('pre', { className: 'lcr-pa-context' }, context.text),
               el('h3', { className: 'lcr-pa-subtitle' }, t('context.citations')),
@@ -1826,6 +2065,14 @@ window.__ModuleLoader__.load({
     }
 
     function paViewOperations(state, t, dispatch) {
+      // En modo api no hay operaciones simuladas que ofrecer: las de escritura exigen aprobación del
+      // host y responden 403 desde la API. Se declara en vez de fingir botones que no escriben.
+      if (state.mode === 'api') {
+        return el('div', { className: 'lcr-pa-stack' },
+          paCard(t('nav.operations'), el('div', { className: 'lcr-pa-stack' },
+            el('p', { className: 'lcr-pa-hint' }, t('operations.hostOnly')))),
+          paNotice(state, t));
+      }
       const rows = state.journal.map((entry) => el('tr', { key: entry.id },
         el('td', { className: 'lcr-pa-mono' }, entry.id),
         el('td', null, paTime(entry.at)),
@@ -1874,6 +2121,13 @@ window.__ModuleLoader__.load({
         el('td', null, scope.name),
         el('td', null, scope.store),
         el('td', null, scope.verified ? t('common.yes') : t('common.no'))));
+      // En modo api sólo los ámbitos vienen de la API; integridad, auditoría y versiones son del
+      // fixture, así que no se pintan (nada de cifras inventadas bajo un panel conectado).
+      if (state.mode === 'api') {
+        return el('div', { className: 'lcr-pa-stack' },
+          paCard(t('diagnostics.scopes'), paTable(t('diagnostics.scopes'), ['kind', 'id', t('common.name'), t('common.store'), t('diagnostics.verified')], scopeRows, 'lcr-pa-tablewrap')),
+          el('p', { className: 'lcr-pa-hint' }, t('diagnostics.pendingApi')));
+      }
       const versions = paKv([
         ['plugin', diagnostics.versions.plugin],
         ['contract', diagnostics.versions.contract],
@@ -1898,25 +2152,39 @@ window.__ModuleLoader__.load({
 
     function paViewConnection(state, t) {
       const health = state.health;
+      const mounted = state.mode === 'api';
       const missingStores = state.diagnostics.scopes.filter((scope) => scope.store !== 'present').length;
-      return el('div', { className: 'lcr-pa-stack' },
-        paCard(t('connection.title'), el('div', { className: 'lcr-pa-stack' },
-          el('div', { className: 'lcr-pa-toolbar' },
-            el('span', { className: 'lcr-pa-toolbar__group' },
-              paChip(t('status.client'), 'ok'),
-              paChip(t('status.api'), 'warn'),
-              paChip(t('status.data'), 'warn'),
-              paChip(t('connection.service') + ': ' + health.status, health.status === 'ok' ? 'ok' : 'warn'))),
-          paKv([
+      // En modo api sólo se muestra lo que la API confirma; registry/storeRoot/legacy son del fixture
+      // y no se pintan para no presentar datos inventados como estado real.
+      const pairs = mounted
+        ? [
+            [t('connection.service'), health.status],
+            [t('connection.api'), PA_API + ' · pa/1.0.0'],
+            [t('connection.mode'), panelState.mode + ' · ' + panelState.reason],
+            [t('project.project'), state.session.session.selection.projectName],
+            [t('project.scopes'), String(state.session.scopeCount)],
+          ]
+        : [
             [t('connection.service'), health.status],
             [t('connection.registry'), health.registry],
             [t('connection.storeRoot'), state.session.service.storeRoot],
             [t('connection.api'), t('connection.notMounted')],
             [t('connection.legacy'), health.legacy ? 'legacy' : 'no'],
-            [t('connection.mode'), DATA_MODE],
-          ]),
+            [t('connection.mode'), panelState.mode + ' · ' + panelState.reason],
+          ];
+      return el('div', { className: 'lcr-pa-stack' },
+        paCard(t('connection.title'), el('div', { className: 'lcr-pa-stack' },
+          el('div', { className: 'lcr-pa-toolbar' },
+            el('span', { className: 'lcr-pa-toolbar__group' },
+              paChip(t('status.client'), 'ok'),
+              paChip(mounted ? t('status.apiOk') : t('status.api'), mounted ? 'ok' : 'warn'),
+              paChip(mounted ? t('status.dataApi') : t('status.data'), mounted ? 'ok' : 'warn'),
+              paChip(t('connection.service') + ': ' + health.status, health.status === 'ok' ? 'ok' : 'warn'))),
+          paKv(pairs),
           el('p', { className: 'lcr-pa-hint' }, t('connection.notice')),
-          el('p', { className: 'lcr-pa-hint' }, t('connection.serviceDetail', { missing: missingStores, total: state.diagnostics.scopes.length })))));
+          el('p', { className: 'lcr-pa-hint' }, missingStores > 0
+            ? t('connection.serviceDetail', { missing: missingStores, total: state.diagnostics.scopes.length })
+            : t('libraries.allPresent')))));
     }
 
     function paViewHistory(state, t, dispatch) {
@@ -1990,6 +2258,55 @@ window.__ModuleLoader__.load({
       const [state, setState] = useState(() => paInitialState());
       const t = props && typeof props.t === 'function' ? props.t : (key, vars) => paTranslate('es', key, vars);
       const dispatch = (action) => setState((previous) => paReduce(previous, action));
+      // LE-RAG-10: el componente REAL del slot negocia antes de pintar datos. Si el servidor no
+      // confirma 'api', el estado pasa a 'down' con su razón (nunca lista vacía silenciosa).
+      useEffect(() => {
+        let alive = true;
+        (async () => {
+          await negotiateMode();
+          if (!alive) return;
+          if (panelState.mode !== 'api') {
+            dispatch({ type: 'unavailable', reason: panelState.reason });
+            return;
+          }
+          try {
+            const snapshot = await request('/snapshot');
+            if (alive) dispatch({ type: 'hydrate', snapshot });
+          } catch (failure) {
+            if (alive) dispatch({ type: 'unavailable', reason: (failure && failure.code) || 'transport-error' });
+          }
+        })();
+        return () => { alive = false; };
+      }, []);
+      // LE-RAG-10: la red de las vistas vive en un efecto encadenado al estado (no en el manejador del
+      // clic), así el reducer sigue siendo puro y un fallo de transporte se pinta como aviso en lugar
+      // de tumbar el panel.
+      useEffect(() => {
+        const job = state.pending;
+        if (!job) return undefined;
+        let alive = true;
+        (async () => {
+          try {
+            const query = String(state.query ?? '').trim();
+            // El contrato identifica el proyecto por query string en POST (la cabecera de sesión está
+            // BLOCKED). Sin esto, un perfil con más de un proyecto respondería scope-ambiguous.
+            const projectId = state.session.session.selection.projectId;
+            const suffix = projectId ? '?project=' + encodeURIComponent(projectId) : '';
+            if (job === 'search') {
+              const data = await request('/search' + suffix, { method: 'POST', body: { query, limit: state.limit } });
+              if (alive) dispatch({ type: 'search-ok', results: paNormalizeSearch(data, state.sources, state.session.session.selection.projectName) });
+              return;
+            }
+            if (job === 'context') {
+              const data = await request('/context' + suffix, { method: 'POST', body: { query, budgetTokens: PA_CONTEXT_BUDGET } });
+              if (alive) dispatch({ type: 'context-ok', context: paNormalizeContext(data, state.sources) });
+            }
+          } catch (failure) {
+            if (alive) dispatch({ type: job + '-error', reason: (failure && failure.code) || 'transport-error' });
+          }
+        })();
+        return () => { alive = false; };
+      }, [state.pending]);
       const activeId = state.view === 'source' ? 'sources' : state.view;
       const onKeyDown = (event) => {
         if (!event || (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft')) return;
@@ -2001,8 +2318,9 @@ window.__ModuleLoader__.load({
         dispatch({ type: 'nav', view: next });
       };
       const serviceStatus = state.session.service.status;
-      return el('div', { className: 'lcr-pa-root', 'data-data-mode': DATA_MODE },
-        el('div', { className: 'lcr-pa-banner', role: 'status', 'aria-atomic': 'true', 'aria-label': t('a11y.banner') },
+      const mounted = state.mode === 'api';
+      return el('div', { className: 'lcr-pa-root', 'data-data-mode': panelState.mode },
+        (panelState.mode === 'api' && !(typeof window !== 'undefined' && window.location && window.location.search.indexOf('lcrnobanner=1') >= 0)) ? null : el('div', { className: 'lcr-pa-banner', role: 'status', 'aria-atomic': 'true', 'aria-label': t('a11y.banner') },
           el('strong', null, SYNTHETIC_BANNER),
           el('span', { className: 'lcr-pa-banner__hint' }, t('banner.hint'))),
         el('header', { className: 'lcr-pa-head' },
@@ -2014,11 +2332,11 @@ window.__ModuleLoader__.load({
                 el('p', { className: 'lcr-pa-head__sub' }, t('app.subtitle')))),
             el('div', { className: 'lcr-pa-status', 'aria-label': t('a11y.status') },
               paStatusPill(t('status.client'), 'ok'),
-              paStatusPill(t('status.api'), 'warn'),
-              paStatusPill(t('status.data'), 'warn'),
+              paStatusPill(mounted ? t('status.apiOk') : t('status.api'), mounted ? 'ok' : 'warn'),
+              paStatusPill(mounted ? t('status.dataApi') : t('status.data'), mounted ? 'ok' : 'warn'),
               paStatusPill(t('connection.service') + ': ' + serviceStatus, serviceStatus === 'ok' ? 'ok' : 'warn'))),
           el('div', { className: 'lcr-pa-head__actions' },
-            el('button', { type: 'button', className: 'lcr-pa-btn', onClick: () => dispatch({ type: 'reset' }) }, t('app.reset')))),
+            mounted ? null : el('button', { type: 'button', className: 'lcr-pa-btn', onClick: () => dispatch({ type: 'reset' }) }, t('app.reset')))),
         el('div', { className: 'lcr-pa-tabs', role: 'tablist', 'aria-label': t('a11y.tabs'), onKeyDown },
           ...PA_VIEWS.map((view) => el('button', {
             key: view.id,
@@ -2221,7 +2539,10 @@ window.__ModuleLoader__.load({
       // Superficie de pruebas: el anfitrión la ignora. Permite ejercitar el contrato del módulo
       // (slots, reducer, vistas, guarda de red) sin React y sin host.
       __test: {
-        DATA_MODE,
+        panelState,
+        request,
+        negotiateMode,
+        get DATA_MODE() { return panelState.mode; },
         SYNTHETIC_BANNER,
         PA_DICT,
         PA_VIEWS,
