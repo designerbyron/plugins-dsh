@@ -183,5 +183,10 @@ el repositorio de desarrollo y **no** se distribuye en el paquete.
 
 ## Licencia
 
-`UNLICENSED` — todos los derechos reservados. Publicado para instalación por personas autorizadas; la
-publicación no concede licencia de uso, modificación ni redistribución. Ver [`LICENSE`](LICENSE).
+**MIT** — Copyright (c) 2026 Byron Vanegas.
+
+Se concede permiso, de forma gratuita, a cualquier persona que obtenga una copia de este software y de
+sus ficheros de documentación, para usarlo, copiarlo, modificarlo, fusionarlo, publicarlo, distribuirlo,
+sublicenciarlo y/o vender copias, con la única condición de incluir este aviso de copyright y esta
+licencia en todas las copias o partes sustanciales del software. El software se entrega «tal cual», sin
+garantía de ningún tipo. Texto completo en [`LICENSE`](LICENSE).

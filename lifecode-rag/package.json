@@ -4,8 +4,8 @@
     "type":  "module",
     "main":  "index.js",
     "description":  "Recuperación local, independiente y auditable para el ecosistema LifeCode (plugin de DeepSeek Harness)",
-    "license":  "UNLICENSED",
-    "author":  "Byron (designerbyron)",
+    "license":  "MIT",
+    "author":  "Byron Vanegas (designerbyron)",
     "keywords":  ["lifecode", "rag", "retrieval", "deepseek-harness", "dsh-plugin", "sqlite", "local-first"],
     "engines":  {
                     "node":  "\u003e=22.5.0",
