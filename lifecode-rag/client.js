@@ -9,7 +9,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: '@local/lifecode-rag',
+  id: '@designerbyron/lifecode-rag',
   factory(require) {
     const React = require('react');
     const el = React.createElement;
@@ -176,7 +176,9 @@ window.__ModuleLoader__.load({
       };
     }
 
-    const getSnapshot = () => request('/snapshot');
+    // `limit=200` es el máximo del contrato (§8): con él la lista cargada coincide con el total en
+    // perfiles normales, y si hay más se declara que el listado está acotado.
+    const getSnapshot = () => request('/snapshot?limit=200');
     const getSources = (query = '') => request(`/sources${query ? `?${query}` : ''}`);
     const getSource = (id) => request(`/sources/${encodeURIComponent(id)}`);
     const search = (payload) => request('/search', { method: 'POST', body: payload });
@@ -936,7 +938,7 @@ window.__ModuleLoader__.load({
         'project.service': 'Servicio',
         'project.current': 'actual',
         'project.select': 'Seleccionar',
-        'project.gap09': 'GAP-09: la selección todavía no protege contra dos pestañas (última escritura gana).',
+        'project.selectionCas': 'CR-1: la selección se guarda en el perfil con una revisión; si dos paneles cambian a la vez, el segundo recibe un conflicto y no pisa el cambio del primero.',
         'libraries.title': 'Bibliotecas autorizadas',
         'libraries.readonly': 'Sólo lectura: el panel no concede ni revoca bibliotecas.',
         'libraries.allPresent': 'Todos los almacenes disponibles',
@@ -945,6 +947,7 @@ window.__ModuleLoader__.load({
         'sources.title': 'Fuentes del proyecto',
         'sources.empty': 'Este proyecto no tiene fuentes indexadas.',
         'sources.showing': 'Mostrando {shown} de {total}',
+        'sources.capped': 'El listado carga las primeras {loaded} fuentes de {total}; las demás se consultan con las herramientas lifecode_rag_*.',
         'sources.filter': 'Sólo lectura: la ingesta se hace con las herramientas del agente, nunca desde el panel.',
         'source.title': 'Detalle de fuente',
         'source.notFound': 'La fuente ya no está disponible.',
@@ -1022,15 +1025,34 @@ window.__ModuleLoader__.load({
         'connection.notMounted': 'no montada',
         'connection.mode': 'Modo de datos',
         'connection.notice': 'No hay conexión real: el panel no habla con ninguna API y no puede activarla.',
+        'connection.noticeLive': 'Conectado a la API del panel: el estado se lee del almacén del perfil y cualquier escritura sigue exigiendo aprobación del host.',
         'connection.serviceDetail': 'Servicio degradado: {missing} de {total} almacenes no disponible(s).',
-        'history.title': 'Historial de operaciones',
+        'history.title': 'Historial del proyecto',
         'history.unavailable': 'No disponible en esta versión',
-        'history.why': 'El contrato pa-ui/0.1.0-draft no expone un listado de auditoría. /diagnostics sólo devuelve la cabeza de la cadena.',
-        'history.route': 'No se inventa una ruta: la vista queda deshabilitada hasta que exista contrato.',
-        'history.simulated': 'Las operaciones simuladas de esta sesión se registran en la vista Operaciones, no aquí.',
+        'history.why': 'La API no ha devuelto un historial para este proyecto. La vista no inventa entradas.',
+        'history.route': 'No se inventa una ruta: la vista queda deshabilitada hasta que la API responda.',
+        'history.simulated': 'Las operaciones de esta sesión se registran en la vista Operaciones, no aquí.',
+        'history.subtitle': 'Cadena de auditoría del almacén del proyecto activo, de más reciente a más antigua.',
+        'history.chainOk': 'Cadena verificada ({count} entradas)',
+        'history.chainBroken': 'Cadena rota en la entrada {at} ({reason})',
+        'history.empty': 'Este proyecto todavía no tiene operaciones auditadas.',
+        'history.col.seq': 'N.º',
+        'history.col.at': 'Fecha',
+        'history.col.actor': 'Actor',
+        'history.col.tool': 'Herramienta',
+        'history.col.action': 'Acción',
+        'history.col.target': 'Objetivo',
+        'history.col.outcome': 'Resultado',
+        'history.col.hash': 'Hash',
+        'history.page': 'Página {page} de {pages}',
+        'history.more': 'Cargar más',
+        'history.total': 'Total',
         'history.toOperations': 'Ver operaciones simuladas',
         'notice.sameProject': 'Ese proyecto ya está seleccionado; no hubo cambios.',
-        'notice.selected': 'Selección simulada: la revisión subió y el cambio quedó anotado en Operaciones.',
+        'notice.selected': 'Selección guardada en el perfil (revisión {revision}).',
+        'notice.selectedFixture': 'Selección simulada: la revisión subió y el cambio quedó anotado en Operaciones.',
+        'notice.selectionConflict': 'Otro panel cambió la selección antes: se recargó la revisión vigente y no se sobrescribió nada.',
+        'notice.selectionFailed': 'No se pudo guardar la selección ({reason}); no se cambió nada.',
         'notice.ingest': 'Ingesta simulada completada: una fuente añadida al fixture.',
         'notice.reindex': 'Reindexación simulada completada: no se escribió nada.',
         'notice.reset': 'Datos sintéticos reiniciados.',
@@ -1105,7 +1127,7 @@ window.__ModuleLoader__.load({
         'project.service': 'Service',
         'project.current': 'current',
         'project.select': 'Select',
-        'project.gap09': 'GAP-09: selection does not protect against two tabs yet (last write wins).',
+        'project.selectionCas': 'CR-1: the selection is stored in the profile with a revision; if two panels change it at once, the second gets a conflict and never overwrites the first.',
         'libraries.title': 'Authorized libraries',
         'libraries.readonly': 'Read-only: the panel neither grants nor revokes libraries.',
         'libraries.allPresent': 'All stores available',
@@ -1114,6 +1136,7 @@ window.__ModuleLoader__.load({
         'sources.title': 'Project sources',
         'sources.empty': 'This project has no indexed sources.',
         'sources.showing': 'Showing {shown} of {total}',
+        'sources.capped': 'The list loads the first {loaded} sources of {total}; the rest are reachable with the lifecode_rag_* tools.',
         'sources.filter': 'Read-only: ingestion runs through the agent tools, never from this panel.',
         'source.title': 'Source detail',
         'source.notFound': 'The source is no longer available.',
@@ -1191,15 +1214,34 @@ window.__ModuleLoader__.load({
         'connection.notMounted': 'not mounted',
         'connection.mode': 'Data mode',
         'connection.notice': 'No real connection: the panel talks to no API and cannot enable one.',
+        'connection.noticeLive': 'Connected to the panel API: state is read from the profile store and every write still needs the host to confirm it.',
         'connection.serviceDetail': 'Service degraded: {missing} of {total} stores unavailable.',
-        'history.title': 'Operation history',
+        'history.title': 'Project history',
         'history.unavailable': 'Not available in this version',
-        'history.why': 'The pa-ui/0.1.0-draft contract exposes no audit listing. /diagnostics only returns the chain head.',
-        'history.route': 'No route is invented: the view stays disabled until a contract exists.',
-        'history.simulated': 'Simulated operations for this session are logged in the Operations view, not here.',
+        'history.why': 'The API returned no history for this project. The view does not invent entries.',
+        'history.route': 'No route is invented: the view stays disabled until the API answers.',
+        'history.simulated': 'The operations of this session are logged in the Operations view, not here.',
+        'history.subtitle': 'Audit chain of the active project store, newest first.',
+        'history.chainOk': 'Chain verified ({count} entries)',
+        'history.chainBroken': 'Chain broken at entry {at} ({reason})',
+        'history.empty': 'This project has no audited operations yet.',
+        'history.col.seq': 'No.',
+        'history.col.at': 'Date',
+        'history.col.actor': 'Actor',
+        'history.col.tool': 'Tool',
+        'history.col.action': 'Action',
+        'history.col.target': 'Target',
+        'history.col.outcome': 'Outcome',
+        'history.col.hash': 'Hash',
+        'history.page': 'Page {page} of {pages}',
+        'history.more': 'Load more',
+        'history.total': 'Total',
         'history.toOperations': 'View simulated operations',
         'notice.sameProject': 'That project is already selected; nothing changed.',
-        'notice.selected': 'Simulated selection: the revision went up and the change was logged in Operations.',
+        'notice.selected': 'Selection saved to the profile (revision {revision}).',
+        'notice.selectedFixture': 'Simulated selection: the revision went up and the change was logged in Operations.',
+        'notice.selectionConflict': 'Another panel changed the selection first: the current revision was reloaded and nothing was overwritten.',
+        'notice.selectionFailed': 'The selection could not be saved ({reason}); nothing changed.',
         'notice.ingest': 'Simulated ingestion complete: one source added to the fixture.',
         'notice.reindex': 'Simulated reindex complete: nothing was written.',
         'notice.reset': 'Synthetic data reset.',
@@ -1387,6 +1429,7 @@ window.__ModuleLoader__.load({
         libraries: fx.libraries,
         sources: fx.sources,
         sourcePage: { limit: PA_PAGE_LIMIT, offset: 0 },
+        history: { entries: [], total: 0, nextCursor: null, integrity: null, pages: 1, loaded: false, error: null },
         selectedSourceId: null,
         query: '',
         limit: 8,
@@ -1551,15 +1594,25 @@ window.__ModuleLoader__.load({
           }));
           const scopesRaw = Array.isArray(snapshot.scopes) ? snapshot.scopes : [];
           const prjScopes = scopesRaw.filter((scope) => (scope.kind || 'prj') === 'prj');
-          const proyectos = prjScopes.length > 0
-            ? prjScopes.map((scope) => ({
-                id: scope.id,
-                name: scope.name || scope.id,
-                current: Boolean(snapshot.project) && scope.id === snapshot.project.id,
-                rootCount: Number(scope.roots) || 0,
+          // CR-1: la lista de proyectos seleccionables viene del perfil (`snapshot.projects`), no sólo
+          // del proyecto activo; si el servidor no la trae, se conserva la derivación anterior.
+          const proyectos = Array.isArray(snapshot.projects) && snapshot.projects.length > 0
+            ? snapshot.projects.map((row) => ({
+                id: row.id,
+                name: row.name || row.id,
+                current: Boolean(row.current),
+                rootCount: Number(row.roots) || 0,
               }))
-            : (state.projects || []).map((p, index) => (index === 0 && snapshot.project
-                ? { ...p, id: snapshot.project.id, name: snapshot.project.name } : p));
+            : (prjScopes.length > 0
+              ? prjScopes.map((scope) => ({
+                  id: scope.id,
+                  name: scope.name || scope.id,
+                  current: Boolean(snapshot.project) && scope.id === snapshot.project.id,
+                  rootCount: Number(scope.roots) || 0,
+                }))
+              : (state.projects || []).map((p, index) => (index === 0 && snapshot.project
+                  ? { ...p, id: snapshot.project.id, name: snapshot.project.name } : p)));
+          const totalFuentes = Number(snapshot.sources && snapshot.sources.total);
           const libraries = (Array.isArray(snapshot.libraries) ? snapshot.libraries : []).map((lib, index) => ({
             id: lib.id || ('lib_' + index),
             name: lib.name || lib.id || '—',
@@ -1574,10 +1627,13 @@ window.__ModuleLoader__.load({
           return {
             ...state,
             mode: 'api',
+            pending: null,
+            apiVersion: snapshot.version || state.apiVersion || null,
             error: null,
             libraries,
             projects: proyectos,
             sources: fuentes,
+            sourcesTotal: Number.isFinite(totalFuentes) ? totalFuentes : fuentes.length,
             sourcePage: { ...(state.sourcePage || {}), offset: 0 },
             session: {
               ...state.session,
@@ -1588,9 +1644,21 @@ window.__ModuleLoader__.load({
               service: { ...(state.session.service || {}), status: serviceStatus },
               session: {
                 ...state.session.session,
-                selection: snapshot.project
-                  ? { ...selection, projectId: snapshot.project.id, projectName: snapshot.project.name, state: 'active', source: 'explicit' }
-                  : selection,
+                // CR-1: la revisión que se muestra es la CONFIRMADA por el servidor, no una local.
+                selection: snapshot.selection
+                  ? {
+                    ...selection,
+                    projectId: snapshot.selection.projectId,
+                    projectName: snapshot.selection.projectName ?? (snapshot.project ? snapshot.project.name : selection.projectName),
+                    state: 'active',
+                    source: snapshot.selection.source || 'explicit',
+                    selectedBy: snapshot.selection.selectedBy ?? selection.selectedBy,
+                    selectedAt: snapshot.selection.selectedAt ?? selection.selectedAt,
+                    revision: snapshot.selection.revision,
+                  }
+                  : (snapshot.project
+                    ? { ...selection, projectId: snapshot.project.id, projectName: snapshot.project.name, state: 'active', source: 'explicit' }
+                    : selection),
               },
             },
             diagnostics: scopesRaw.length > 0
@@ -1609,8 +1677,11 @@ window.__ModuleLoader__.load({
           return { ...state, mode: 'down', error: action.reason || 'unavailable' };
         case 'reset':
           return paInitialState();
-        case 'nav':
-          return { ...state, view: action.view, notice: null };
+        case 'nav': {
+          const wantsHistory = action.view === 'history' && state.mode === 'api'
+            && !state.history.loaded && state.pending === null;
+          return { ...state, view: action.view, notice: null, ...(wantsHistory ? { pending: 'history' } : {}) };
+        }
         case 'select-project': {
           const current = state.session.session.selection;
           if (!action.projectId || action.projectId === current.projectId) {
@@ -1618,6 +1689,17 @@ window.__ModuleLoader__.load({
           }
           const project = state.projects.find((row) => row.id === action.projectId);
           if (!project) return { ...state, notice: { code: 'notice.sameProject' } };
+          // CR-1: en modo API la selección la confirma el servidor con CAS sobre la revisión. El
+          // panel NO adelanta el cambio: hasta que la respuesta llega, se sigue pintando la última
+          // revisión confirmada.
+          if (state.mode === 'api') {
+            return {
+              ...state,
+              notice: null,
+              pending: 'selection',
+              selectionPending: { projectId: project.id, projectName: project.name, expectedRevision: current.revision },
+            };
+          }
           const entry = paJournalEntry(state, 'selection', project.name);
           return {
             ...state,
@@ -1632,9 +1714,85 @@ window.__ModuleLoader__.load({
             clock: entry.clock,
             opSeq: entry.seq,
             journal: entry.journal,
-            notice: { code: 'notice.selected' },
+            notice: { code: 'notice.selectedFixture' },
           };
         }
+        case 'selection-ok': {
+          const confirmed = action.selection;
+          const project = state.projects.find((row) => row.id === confirmed.projectId);
+          const entry = paJournalEntry(state, 'selection', confirmed.projectName || (project ? project.name : confirmed.projectId));
+          return {
+            ...state,
+            // Las fuentes del proyecto anterior NO valen en el nuevo: se vacían y se pide el snapshot
+            // del proyecto confirmado (si no, se pintarían filas ajenas con el nombre nuevo).
+            pending: 'snapshot',
+            sources: [],
+            sourcesTotal: 0,
+            results: null,
+            context: null,
+            selectedSourceId: null,
+            selectionPending: null,
+            session: {
+              ...state.session,
+              session: {
+                ...state.session.session,
+                selection: {
+                  ...state.session.session.selection,
+                  projectId: confirmed.projectId,
+                  projectName: confirmed.projectName || (project ? project.name : confirmed.projectId),
+                  state: 'active',
+                  source: confirmed.source || 'explicit',
+                  selectedBy: confirmed.selectedBy ?? 'human',
+                  selectedAt: confirmed.selectedAt ?? Date.now(),
+                  revision: confirmed.revision,
+                },
+              },
+            },
+            projects: state.projects.map((row) => ({ ...row, current: row.id === confirmed.projectId })),
+            clock: entry.clock,
+            opSeq: entry.seq,
+            journal: entry.journal,
+            notice: { code: 'notice.selected', values: { revision: confirmed.revision } },
+          };
+        }
+        case 'selection-error':
+          return {
+            ...state,
+            pending: null,
+            selectionPending: null,
+            notice: {
+              code: action.reason === 'revision-conflict' ? 'notice.selectionConflict' : 'notice.selectionFailed',
+              values: { reason: action.reason || 'transport-error' },
+            },
+          };
+        case 'history-ok': {
+          const page = action.page || {};
+          const entries = Array.isArray(page.entries) ? page.entries : [];
+          const merged = action.append ? [...state.history.entries, ...entries] : entries;
+          const limit = 50;
+          return {
+            ...state,
+            pending: null,
+            history: {
+              entries: merged,
+              total: Number.isFinite(page.total) ? page.total : merged.length,
+              nextCursor: page.nextCursor ?? null,
+              integrity: page.integrity ?? state.history.integrity,
+              pages: Math.max(1, Math.ceil((Number.isFinite(page.total) ? page.total : merged.length) / limit)),
+              loaded: true,
+              error: null,
+            },
+          };
+        }
+        case 'history-error':
+          return {
+            ...state,
+            pending: null,
+            history: { ...state.history, loaded: true, error: action.reason || 'transport-error' },
+          };
+        case 'history-more':
+          if (!state.history.nextCursor || state.pending) return state;
+          return { ...state, pending: 'history' };
         case 'page': {
           const maxOffset = Math.max(0, Math.floor((state.sources.length - 1) / state.sourcePage.limit) * state.sourcePage.limit);
           const offset = Math.min(maxOffset, Math.max(0, Number(action.offset) || 0));
@@ -1790,7 +1948,7 @@ window.__ModuleLoader__.load({
 
     function paNotice(state, t) {
       if (!state.notice) return null;
-      return el('p', { className: 'lcr-pa-notice' }, t(state.notice.code));
+      return el('p', { className: 'lcr-pa-notice' }, t(state.notice.code, state.notice.values));
     }
 
     function paKpi(label, value, hint) {
@@ -1804,6 +1962,7 @@ window.__ModuleLoader__.load({
       const selection = state.session.session.selection;
       const missingStores = state.diagnostics.scopes.filter((scope) => scope.store !== 'present').length;
       const missingLibraries = state.libraries.filter((library) => library.store !== 'present').length;
+      const totalFuentes = Number.isFinite(state.sourcesTotal) ? state.sourcesTotal : state.sources.length;
       const pages = Math.max(1, Math.ceil(state.sources.length / PA_PAGE_LIMIT));
       const rows = state.projects.map((project) => el('tr', { key: project.id },
         el('td', null, project.name),
@@ -1821,7 +1980,7 @@ window.__ModuleLoader__.load({
           paKpi(t('nav.libraries'), String(state.libraries.length), missingLibraries > 0
             ? t('diagnostics.storesDetail', { missing: missingLibraries, total: state.libraries.length })
             : t('libraries.allPresent')),
-          paKpi(t('nav.sources'), paNum(state.sources.length), t('common.page', { page: 1, pages })),
+          paKpi(t('nav.sources'), paNum(totalFuentes), t('common.page', { page: 1, pages })),
           paKpi(t('connection.service'), state.session.service.status,
             missingStores > 0
               ? t('connection.serviceDetail', { missing: missingStores, total: state.diagnostics.scopes.length })
@@ -1836,7 +1995,7 @@ window.__ModuleLoader__.load({
               [t('project.scopes'), String(state.session.scopeCount)],
               [t('project.service'), state.session.service.status],
             ]),
-            el('p', { className: 'lcr-pa-hint' }, t('project.gap09')))),
+            el('p', { className: 'lcr-pa-hint' }, t('project.selectionCas')))),
           paCard(t('project.candidates'), paTable(t('project.candidates'), [t('project.project'), t('common.roots'), t('common.status'), t('common.actions')], rows))),
         paNotice(state, t));
     }
@@ -1896,6 +2055,7 @@ window.__ModuleLoader__.load({
 
     function paViewSources(state, t, dispatch) {
       const info = paPageInfo(state);
+      const totalProyecto = Number.isFinite(state.sourcesTotal) ? state.sourcesTotal : info.total;
       const pageRows = state.sources.slice(info.offset, info.offset + info.limit);
       const rows = pageRows.map((source) => el('tr', { key: source.id },
         el('td', null, source.title),
@@ -1914,9 +2074,12 @@ window.__ModuleLoader__.load({
           el('div', { className: 'lcr-pa-stack' },
             el('div', { className: 'lcr-pa-toolbar' },
               el('span', { className: 'lcr-pa-toolbar__group' },
-                paChip(t('nav.sources') + ': ' + paNum(info.total), 'lib'),
-                el('span', { className: 'lcr-pa-muted' }, t('sources.showing', { shown: pageRows.length, total: info.total })))),
+                paChip(t('nav.sources') + ': ' + paNum(totalProyecto), 'lib'),
+                el('span', { className: 'lcr-pa-muted' }, t('sources.showing', { shown: pageRows.length, total: totalProyecto })))),
             el('p', { className: 'lcr-pa-hint' }, t('sources.filter')),
+            totalProyecto > info.total
+              ? el('p', { className: 'lcr-pa-hint' }, t('sources.capped', { loaded: info.total, total: totalProyecto }))
+              : null,
             info.total === 0
               ? paEmpty(t('sources.empty'))
               : paTable(t('sources.title'), [t('common.name'), t('common.uri'), t('common.collection'), t('common.chunks'), t('common.bytes'), t('common.updated'), t('common.actions')], rows, 'lcr-pa-tablewrap')),
@@ -2159,8 +2322,8 @@ window.__ModuleLoader__.load({
       const pairs = mounted
         ? [
             [t('connection.service'), health.status],
-            [t('connection.api'), PA_API + ' · pa/1.0.0'],
-            [t('connection.mode'), panelState.mode + ' · ' + panelState.reason],
+            [t('connection.api'), PA_API + (state.apiVersion ? ' · ' + state.apiVersion : '')],
+            [t('connection.mode'), panelState.mode + (panelState.reason && panelState.reason !== panelState.mode ? ' · ' + panelState.reason : '')],
             [t('project.project'), state.session.session.selection.projectName],
             [t('project.scopes'), String(state.session.scopeCount)],
           ]
@@ -2181,24 +2344,56 @@ window.__ModuleLoader__.load({
               paChip(mounted ? t('status.dataApi') : t('status.data'), mounted ? 'ok' : 'warn'),
               paChip(t('connection.service') + ': ' + health.status, health.status === 'ok' ? 'ok' : 'warn'))),
           paKv(pairs),
-          el('p', { className: 'lcr-pa-hint' }, t('connection.notice')),
+          el('p', { className: 'lcr-pa-hint' }, t(mounted ? 'connection.noticeLive' : 'connection.notice')),
           el('p', { className: 'lcr-pa-hint' }, missingStores > 0
             ? t('connection.serviceDetail', { missing: missingStores, total: state.diagnostics.scopes.length })
             : t('libraries.allPresent')))));
     }
 
     function paViewHistory(state, t, dispatch) {
+      const history = state.history || { entries: [], total: 0, nextCursor: null, integrity: null, pages: 1, loaded: false, error: null };
+      // Sin historial servible se conserva el estado honesto: no se fabrica ni una fila.
+      if (!history.loaded || history.error !== null || (history.entries.length === 0 && history.integrity === null)) {
+        return paCard(t('history.title'), el('div', { className: 'lcr-pa-stack' },
+          el('div', { className: 'lcr-pa-empty lcr-pa-empty--big' },
+            el('p', { className: 'lcr-pa-empty__title' }, t('history.unavailable')),
+            el('p', { className: 'lcr-pa-empty__hint' }, t('history.why')),
+            el('button', {
+              type: 'button',
+              className: 'lcr-pa-link',
+              onClick: () => dispatch({ type: 'nav', view: 'operations' }),
+            }, t('history.toOperations'))),
+          el('p', { className: 'lcr-pa-hint' }, t('history.route')),
+          el('p', { className: 'lcr-pa-hint' }, t('history.simulated'))));
+      }
+      const integrity = history.integrity || {};
+      const chain = integrity.ok
+        ? paChip(t('history.chainOk', { count: integrity.count ?? history.total }), 'ok')
+        : paChip(t('history.chainBroken', { at: integrity.brokenAt ?? '?', reason: integrity.reason ?? '?' }), 'warn');
+      const rows = history.entries.map((entry) => el('tr', { key: entry.seq },
+        el('td', { className: 'lcr-pa-num' }, String(entry.seq)),
+        el('td', null, paTime(entry.at)),
+        el('td', null, entry.actor),
+        el('td', null, el('span', { className: 'lcr-pa-mono' }, entry.tool)),
+        el('td', null, entry.action),
+        el('td', null, el('span', { className: 'lcr-pa-mono lcr-pa-celluri', title: entry.target || '' }, entry.target || '—')),
+        el('td', null, paChip(entry.outcome, entry.outcome === 'ok' ? 'ok' : 'warn')),
+        el('td', null, el('span', { className: 'lcr-pa-mono' }, entry.hash || '—'))));
       return paCard(t('history.title'), el('div', { className: 'lcr-pa-stack' },
-        el('div', { className: 'lcr-pa-empty lcr-pa-empty--big' },
-          el('p', { className: 'lcr-pa-empty__title' }, t('history.unavailable')),
-          el('p', { className: 'lcr-pa-empty__hint' }, t('history.why')),
-          el('button', {
-            type: 'button',
-            className: 'lcr-pa-link',
-            onClick: () => dispatch({ type: 'nav', view: 'operations' }),
-          }, t('history.toOperations'))),
-        el('p', { className: 'lcr-pa-hint' }, t('history.route')),
-        el('p', { className: 'lcr-pa-hint' }, t('history.simulated'))));
+        el('div', { className: 'lcr-pa-toolbar' },
+          el('span', { className: 'lcr-pa-toolbar__group' },
+            paChip(t('history.total') + ': ' + paNum(history.total), 'lib'),
+            chain),
+          history.nextCursor
+            ? el('button', { type: 'button', className: 'lcr-pa-btn', onClick: () => dispatch({ type: 'history-more' }) }, t('history.more'))
+            : null),
+        el('p', { className: 'lcr-pa-hint' }, t('history.subtitle')),
+        history.entries.length === 0
+          ? paEmpty(t('history.empty'))
+          : paTable(t('history.title'), [
+            t('history.col.seq'), t('history.col.at'), t('history.col.actor'), t('history.col.tool'),
+            t('history.col.action'), t('history.col.target'), t('history.col.outcome'), t('history.col.hash'),
+          ], rows, 'lcr-pa-tablewrap')));
     }
 
     const PA_VIEWS = [
@@ -2300,6 +2495,45 @@ window.__ModuleLoader__.load({
             if (job === 'context') {
               const data = await request('/context' + suffix, { method: 'POST', body: { query, budgetTokens: PA_CONTEXT_BUDGET } });
               if (alive) dispatch({ type: 'context-ok', context: paNormalizeContext(data, state.sources) });
+            }
+            if (job === 'history') {
+              // Historial del proyecto activo: la API lo resuelve por la selección persistida.
+              const append = state.history.loaded && Boolean(state.history.nextCursor);
+              const suffixHistory = '?limit=50' + (append ? '&cursor=' + encodeURIComponent(state.history.nextCursor) : '');
+              try {
+                const page = await request('/history' + suffixHistory);
+                if (alive) dispatch({ type: 'history-ok', page, append });
+              } catch (failure) {
+                if (alive) dispatch({ type: 'history-error', reason: (failure && failure.code) || 'transport-error' });
+              }
+              return;
+            }
+            if (job === 'snapshot') {
+              const snapshot = await request('/snapshot?limit=200');
+              if (alive) dispatch({ type: 'hydrate', snapshot });
+              return;
+            }
+            if (job === 'selection') {
+              // CR-1: el cambio sólo se pinta cuando el servidor lo confirma con la revisión nueva.
+              const target = state.selectionPending;
+              if (!target) return;
+              try {
+                const data = await request('/selection', {
+                  method: 'POST',
+                  body: { projectId: target.projectId, expectedRevision: target.expectedRevision },
+                });
+                if (alive) dispatch({ type: 'selection-ok', selection: data.selection });
+              } catch (failure) {
+                const reason = (failure && failure.code) || 'transport-error';
+                if (reason === 'revision-conflict') {
+                  // Otro panel ganó: se recarga la revisión vigente y se avisa; no se reintenta solo.
+                  try {
+                    const snapshot = await request('/snapshot');
+                    if (alive) dispatch({ type: 'hydrate', snapshot });
+                  } catch { /* el aviso de conflicto ya es suficiente */ }
+                }
+                if (alive) dispatch({ type: 'selection-error', reason });
+              }
             }
           } catch (failure) {
             if (alive) dispatch({ type: job + '-error', reason: (failure && failure.code) || 'transport-error' });

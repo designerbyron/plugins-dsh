@@ -25,7 +25,7 @@ const SEVEN = [
   'lifecode_rag_reindex',
 ];
 
-function fakeCtx({ timer = null, webServer = null, cwd = null } = {}) {
+function fakeCtx({ timer = null, webServer = null, cwd = null, connection = null } = {}) {
   const tools = [];
   const effects = [];
   const listeners = new Map();
@@ -35,6 +35,7 @@ function fakeCtx({ timer = null, webServer = null, cwd = null } = {}) {
     get(name) {
       if (name === 'timer') return timer;
       if (name === 'webServer') return webServer;
+      if (name === 'connection') return connection;
       if (name === 'approval') return { request: async () => 'rejected' };
       if (name === 'workingDirectory') return { ensure: async () => cwd ?? process.cwd() };
       return undefined;
@@ -202,6 +203,83 @@ test('un almacén legado ya existente conserva la automatización v0.2', async (
     assert.equal(effects.length, 4, 'PA + sincronización + automatización + API heredada');
     assert.equal(routes.filter((r) => r.path === PA_PREFIX).length, 1, 'la API PA se monta siempre');
     assert.equal(routes.filter((r) => r.path !== PA_PREFIX).length, 1, 'la API heredada sólo se expone si existe el almacén legado');
+  } finally {
+    world.cleanup();
+  }
+});
+
+/**
+ * PA01 · la compuerta del adaptador reproduce el mecanismo del host: `requestRejection` decide
+ * trust+auth y `admit` devuelve el Peer vivo. Se ejercita el handler que el adaptador registra de
+ * verdad (no una copia) con y sin servicio de conexión.
+ */
+function paRequest(pathname, headers = {}) {
+  const res = {
+    statusCode: 0, headers: {}, body: '',
+    setHeader(k, v) { this.headers[k] = v; },
+    end(b) { this.body = b; },
+  };
+  return {
+    res,
+    req: { url: PA_PREFIX + pathname, method: 'GET', headers, async *[Symbol.asyncIterator]() {} },
+  };
+}
+
+function fakeConnection({ admitCookie = 'valida' } = {}) {
+  const calls = { rejections: 0, admits: 0 };
+  return {
+    calls,
+    async requestRejection({ headers }) {
+      calls.rejections += 1;
+      return headers.cookie === admitCookie ? undefined : { status: 401 };
+    },
+    async admit({ headers }) {
+      calls.admits += 1;
+      if (headers.cookie !== admitCookie) return { rejection: { status: 401 } };
+      return { peer: { id: 'peer-1', principal: { kind: 'owner' } } };
+    },
+  };
+}
+
+test('PA01: con el servicio de conexión del host, la API PA exige su credencial', async () => {
+  const world = await makeEightWorld({ libraryCount: 0 });
+  try {
+    const routes = [];
+    const webServer = { register(options) { routes.push(options); return () => {}; } };
+    const connection = fakeConnection();
+    const { ctx } = fakeCtx({ webServer, connection });
+    await withEnv(world.env, () => apply(ctx));
+    const pa = routes.find((route) => route.path === PA_PREFIX);
+    assert.equal(typeof pa?.handler, 'function');
+
+    const anonymous = paRequest('/config');
+    await pa.handler(anonymous.req, anonymous.res);
+    assert.equal(anonymous.res.statusCode, 401);
+    assert.equal(JSON.parse(anonymous.res.body).error.code, 'unauthenticated');
+
+    const authenticated = paRequest('/config', { cookie: 'valida' });
+    await pa.handler(authenticated.req, authenticated.res);
+    assert.equal(authenticated.res.statusCode, 200, authenticated.res.body);
+    assert.equal(connection.calls.admits >= 1, true, 'el Peer se pide al host, no se inventa');
+  } finally {
+    world.cleanup();
+  }
+});
+
+test('PA01: sin servicio de conexión la API PA queda cerrada (fail closed)', async () => {
+  const world = await makeEightWorld({ libraryCount: 0 });
+  try {
+    const routes = [];
+    const webServer = { register(options) { routes.push(options); return () => {}; } };
+    const { ctx, logs } = fakeCtx({ webServer }); // sin `connection`
+    await withEnv(world.env, () => apply(ctx));
+    const pa = routes.find((route) => route.path === PA_PREFIX);
+    assert.equal(typeof pa?.handler, 'function', 'el plugin carga igual: las herramientas no dependen de la compuerta');
+    const response = paRequest('/config');
+    await pa.handler(response.req, response.res);
+    assert.equal(response.res.statusCode, 503);
+    assert.equal(JSON.parse(response.res.body).error.code, 'authorization-unavailable');
+    assert.match(logs.join(' '), /API PA queda cerrada/);
   } finally {
     world.cleanup();
   }

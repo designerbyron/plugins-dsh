@@ -27,8 +27,69 @@ import { createAutoContext } from './lib/auto-context.mjs';
 
 export const name = 'lifecode-rag';
 
-/** Sólo `tools` es imprescindible. `approval`, `workingDirectory`, `webServer`, `timer` se usan si están. */
-export const inject = ['tools', 'webServer'];
+/** Servicios del host que el plugin necesita: herramientas, servidor web y, para PA01, la compuerta de
+ * autenticación (`connection`). El cargador del host 0.2.2-rc.5 no aplica la forma `{required, optional}`
+ * (medido: el plugin no se carga y su prefijo responde 404), así que se declaran los tres como requeridos:
+ * un perfil sin servidor web no tiene panel que proteger y no carga el plugin igual que antes. */
+export const inject = ['tools', 'webServer', 'connection'];
+
+/**
+ * PA01 · compuerta de autenticación del host para la API PA.
+ *
+ * El host autentica el navegador con una cookie firmada (token de lanzamiento en `GET /`) y aplica
+ * la compuerta a `/` y `/api`, **no** a los prefijos que monta un plugin. Aquí se reutiliza su
+ * mecanismo: `requestRejection` (trust + auth: 401/403) y `admit` (Peer vivo) sobre cada petición.
+ *
+ * - Sin `ctx.connection` no hay compuerta posible: se NIEGA (fail closed), nunca se abre.
+ * - La identidad la fija el host; ninguna cabecera del renderer se interpreta como identidad.
+ */
+function hostGate(ctx, logger) {
+  const connection = ctx.get('connection');
+  const usable = connection
+    && typeof connection.requestRejection === 'function'
+    && typeof connection.admit === 'function';
+  if (!usable) {
+    logger.warn?.('lifecode-rag PA: el host no ofrece ctx.connection; la API PA queda cerrada');
+    return async () => ({
+      ok: false, status: 503, code: 'authorization-unavailable',
+      message: 'el host no ofrece autenticación: la API PA está cerrada',
+    });
+  }
+  return async ({ headers }) => {
+    let rejection = null;
+    try {
+      rejection = await connection.requestRejection({ headers });
+    } catch {
+      return { ok: false, status: 503, code: 'authorization-unavailable', message: 'la compuerta del host falló' };
+    }
+    if (rejection) {
+      const status = typeof rejection === 'number' ? rejection
+        : (Number(rejection.status) || 401);
+      return {
+        ok: false,
+        status: status === 403 ? 403 : 401,
+        code: status === 403 ? 'forbidden' : 'unauthenticated',
+        message: 'la petición no está autenticada por el host',
+      };
+    }
+    let admitted = null;
+    try {
+      admitted = await connection.admit({ headers });
+    } catch {
+      return { ok: false, status: 503, code: 'authorization-unavailable', message: 'la compuerta del host falló' };
+    }
+    if (!admitted || !admitted.peer) {
+      const status = admitted && admitted.rejection && Number(admitted.rejection.status) === 403 ? 403 : 401;
+      return {
+        ok: false,
+        status,
+        code: status === 403 ? 'forbidden' : 'unauthenticated',
+        message: 'la petición no está autenticada por el host',
+      };
+    }
+    return { ok: true, peer: admitted.peer };
+  };
+}
 
 export function apply(ctx) {
   // Dos raíces con propósitos distintos: `ragRoot` sólo guarda la configuración heredada (global al
@@ -70,7 +131,11 @@ export function apply(ctx) {
   const webServer = ctx.get('webServer');
   if (webServer) {
     // LE-RAG-10: el panel lee el almacén del PERFIL (no el legacy). Solo lectura.
-    const paHandler = createPaHandler({ profileRoot: profile, profileKey: resolveProfileKey(process.env), env: process.env });
+    // PA01: toda la API PA pasa por la compuerta de autenticación del host antes de tocar el almacén.
+    const authorize = hostGate(ctx, logger);
+    const paHandler = createPaHandler({
+      profileRoot: profile, profileKey: resolveProfileKey(process.env), env: process.env, authorize,
+    });
     ctx.effect(() => webServer.register({ kind: 'prefix', path: PA_PREFIX, handler: paHandler }));
   }
   if (webServer && legacyStoreExists) {

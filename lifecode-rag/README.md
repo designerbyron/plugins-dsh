@@ -6,7 +6,13 @@ fragmentos compactos, citables y con presupuesto de tokens.
 
 No depende de `@deepseek-ai/*`, no usa el almacén del Skill Center y no comparte rutas privadas con él.
 
-**Versión 1.0.0** · contrato público de herramientas **v0.1.0** (congelado).
+**Paquete:** `@designerbyron/lifecode-rag` · **versión 1.0.0** · contrato público de herramientas
+**v0.1.0** (congelado) · API del panel `pa/1.2.0`.
+
+Identificadores internos que **no** cambian con el nombre del paquete: id del plugin `lifecode-rag`,
+herramientas `lifecode_rag_*` y rutas `/lifecode-rag/pa/*`.
+
+**Requisitos:** Node.js ≥ 22.5 (usa `node:sqlite`) y DeepSeek Harness ≥ 0.2.2-rc.3 y < 0.3.0.
 
 ## Modelo Project-Aware
 
@@ -48,15 +54,29 @@ sesión, no en el prompt.
 
 ## Instalación
 
-Perfil gestionado por la aplicación (`desktop`): con la herramienta de plugins del host, instalando el
-bundle local como enlace.
+Instalación desde el registro público, en el directorio del perfil de DSH:
 
-```
-plugin_manager  install_bundle  target=link:C:/xampp/htdocs/plugins-dhs/lifecode-rag
+```sh
+npm install @designerbyron/lifecode-rag@1.0.0
 ```
 
-Perfiles gestionados por CLI: `dsh plugin --profile <perfil> add "link:<ruta>" --offline`. El lanzador
-invoca `pnpm` desde `PATH`; si no está, exporta antes el shim oficial del runtime.
+`package.json` del perfil:
+
+```json
+{
+  "dependencies": { "@designerbyron/lifecode-rag": "1.0.0" },
+  "dsh": { "profile": { "bundles": ["lifecode-rag"] } }
+}
+```
+
+Reinicia DeepSeek Harness: el plugin carga su `cordis.patch.yml`, registra las siete herramientas y monta
+el panel lateral **LifeCode RAG**.
+
+Para desarrollo se puede enlazar un checkout en lugar de instalar:
+
+```sh
+dsh plugin --profile <perfil> add "link:C:/ruta/al/checkout" --offline
+```
 
 Tras cambiar el código del plugin, basta recargarlo con el gestor de plugins (desactivar y activar) o
 reiniciar la aplicación; no hace falta reinstalar.
@@ -112,6 +132,15 @@ Desactivado por defecto (`autoContext.enabled=false`). Si se activa, el hook `ag
 mensaje con contexto recuperado, sólo en el primer paso de un turno con prompt humano, con presupuesto de
 tiempo (2 000 ms), sin egreso de red y sin compartir estado entre sesiones.
 
+## Modos del panel: REAL y DEMO
+
+- **REAL** (`Modo de datos: api`) — el panel lee `/lifecode-rag/pa/*` del host. Toda cifra mostrada sale
+  del almacén del perfil. Si la API no responde, el panel **no inventa**: pasa a DEMO y lo dice.
+- **DEMO** (`Modo de datos: demo`) — fixtures sintéticos, marcados como tales en la cabecera; nunca
+  muestra datos del proyecto real ni cifras del almacén.
+- Las escrituras (ingesta, olvido, reindexación) **no** se ejecutan desde el panel: la API responde `403`
+  y remite a las herramientas, que pasan por la aprobación del host.
+
 ## Seguridad
 
 - La autorización no se cachea: cada apertura y cada punto de control releen el registro.
@@ -125,11 +154,13 @@ tiempo (2 000 ms), sin egreso de red y sin compartir estado entre sesiones.
 ## Pruebas
 
 ```sh
-node --test                  # suite completa, sin tocar el almacén real
-npm run test:hermetic        # la suite + huella del almacén real antes/después
-npm run check                # estructura, cero dependencias, red acotada
-node ../eval/pa0/sql-check.mjs   # esquema SQL en memoria
+npm test                 # node --test --test-concurrency=1
+npm run test:hermetic    # la suite + huella del almacén real antes y después
+npm run check            # estructura, cero dependencias, red acotada
 ```
+
+Las pruebas y las herramientas de desarrollo viven en el repositorio, no en el paquete publicado
+(`files` excluye `tests/` y `tools/`).
 
 ## Documentación
 
@@ -138,20 +169,19 @@ node ../eval/pa0/sql-check.mjs   # esquema SQL en memoria
 - [`docs/PROJECT-AWARE-SESSION-CONTRACT.md`](docs/PROJECT-AWARE-SESSION-CONTRACT.md) — sesión y selección.
 - [`docs/PROJECT-AWARE-ERROR-CONTRACT.md`](docs/PROJECT-AWARE-ERROR-CONTRACT.md) — códigos y semántica.
 - [`docs/CONTRATO-v0.1.md`](docs/CONTRATO-v0.1.md) — contrato público de las siete herramientas.
+- [`docs/PA-UI-0-API-CONTRACT.md`](docs/PA-UI-0-API-CONTRACT.md) — contrato de la API del panel.
+- [`docs/AUTO-DISCOVERY.md`](docs/AUTO-DISCOVERY.md) — descubrimiento automático.
 - [`docs/AUTOMATION-POLICIES.md`](docs/AUTOMATION-POLICIES.md) — sincronización y presupuesto.
-- [`docs/ACEPTACION-project-aware-propuesta.md`](docs/ACEPTACION-project-aware-propuesta.md) — matriz de aceptación.
-- [`docs/PA-UI-0-API-CONTRACT.md`](docs/PA-UI-0-API-CONTRACT.md) — contrato `pa-ui/0.1.0-draft` del panel.
-- [`docs/PA-UI-0-ACCEPTANCE.md`](docs/PA-UI-0-ACCEPTANCE.md) — criterios G1…G8 del panel y su estado.
-- [`docs/PA-UI-0-GAPS.md`](docs/PA-UI-0-GAPS.md) — GAP-01…GAP-20, incluidos los límites del anfitrión.
-- [`docs/PA-UI-0.4-ROUTE-B-EVALUATION.md`](docs/PA-UI-0.4-ROUTE-B-EVALUATION.md) — evaluación de la Ruta B (aislamiento).
-- [`docs/WORKSPACE-UX.md`](docs/WORKSPACE-UX.md) — reglas de interfaz del workspace.
+- [`docs/EMBEDDING-PROVIDERS.md`](docs/EMBEDDING-PROVIDERS.md) — proveedores de embeddings.
+- [`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md) — métricas y trazas.
+- [`docs/PERFORMANCE-BUDGETS.md`](docs/PERFORMANCE-BUDGETS.md) — presupuestos medidos.
+- [`docs/WORKSPACE-API.md`](docs/WORKSPACE-API.md) — API del espacio de trabajo.
+- [`docs/ARCHITECTURE-v0.2.md`](docs/ARCHITECTURE-v0.2.md) — arquitectura del almacén heredado.
 
-Evidencia por acto (no es documentación de uso):
+La evidencia de cada acto de ingeniería (planes K1, auditorías `eval/`, matrices de aceptación) vive en
+el repositorio de desarrollo y **no** se distribuye en el paquete.
 
-- `docs/K1-IMPLEMENTATION-PLAN/` — plan K1 (sellado con manifiesto propio).
-- `docs/K1-DECISIONS-RESOLUTION/` — resoluciones del propietario y enmienda de G3.
-- `eval/pa-ui-1/evidence/` — implementación del panel Project-Aware.
-- `eval/functional-audit-01/` — auditoría funcional y registro de defectos.
-- `eval/remediation-redesign-01/` — remediación y rediseño con capturas.
-- `eval/host-subagent-audit-01/` — aceptación en host y auditoría de subagentes.
-- `eval/product-readiness-01/` — matriz de promesas y aceptación de las siete herramientas.
+## Licencia
+
+`UNLICENSED` — todos los derechos reservados. Publicado para instalación por personas autorizadas; la
+publicación no concede licencia de uso, modificación ni redistribución. Ver [`LICENSE`](LICENSE).

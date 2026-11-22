@@ -19,7 +19,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { RagError } from './errors.mjs';
 import { canonicalJson } from './audit.mjs';
 import { withTransaction } from './db.mjs';
-import { REGISTRY_APPLICATION_ID, REGISTRY_DDL, REGISTRY_VERSION } from './registry-schema.mjs';
+import { REGISTRY_APPLICATION_ID, REGISTRY_DDL, REGISTRY_MIGRATIONS, REGISTRY_VERSION } from './registry-schema.mjs';
 import { registryPath } from './profile.mjs';
 import {
   assertRootStructure,
@@ -36,6 +36,7 @@ const REGISTRY_TABLES = Object.freeze([
   'meta',
   'operation_steps',
   'operations',
+  'pa_selection',
   'projects',
   'roots',
   'session_scope',
@@ -103,6 +104,9 @@ export function openRegistry({ root, create = false, now = Date.now() } = {}) {
       if (!create) throw new RagError('store-not-initialized', 'el registro del perfil está vacío');
       initializeRegistry(db, { root, now });
     } else {
+      // Un registro de una versión anterior se migra de forma ADITIVA antes de validarlo: sólo se
+      // crean estructuras nuevas (v1 → v2 añade `pa_selection`), ninguna fila existente se toca.
+      migrateRegistry(db, { root });
       assertRegistry(db, { root });
     }
     return { db, path, root };
@@ -128,6 +132,40 @@ function initializeRegistry(db, { root, now }) {
   } catch (error) {
     db.exec('ROLLBACK');
     throw new RagError('internal', `no se pudo crear el registro: ${error.message}`, { cause: error });
+  }
+}
+
+/**
+ * Lleva el registro a `REGISTRY_VERSION` con migraciones aditivas, o no hace nada si ya está al día.
+ *
+ * Se ejecuta dentro de `BEGIN IMMEDIATE` y vuelve a leer la versión dentro de la transacción: dos
+ * procesos del mismo perfil (host y CLI) pueden abrir a la vez, y sólo uno migra; el otro encuentra
+ * el registro ya migrado y sigue. Una versión superior a la soportada no se toca: la rechaza
+ * `assertRegistry` con `store-version-unsupported`.
+ */
+function migrateRegistry(db, { root }) {
+  const from = Number(db.prepare('PRAGMA user_version').get().user_version);
+  if (!Number.isInteger(from) || from < 1 || from >= REGISTRY_VERSION) return;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const current = Number(db.prepare('PRAGMA user_version').get().user_version);
+    if (current >= REGISTRY_VERSION) {
+      db.exec('COMMIT');
+      return;
+    }
+    for (let target = current + 1; target <= REGISTRY_VERSION; target += 1) {
+      for (const statement of REGISTRY_MIGRATIONS[target] ?? []) db.exec(statement);
+    }
+    db.exec(`PRAGMA user_version = ${REGISTRY_VERSION}`);
+    db.prepare(`INSERT INTO meta (key, value) VALUES ('registry_version', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(String(REGISTRY_VERSION));
+    db.exec('COMMIT');
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch { /* la transacción ya no estaba abierta */ }
+    throw new RagError('registry-corrupt', 'no se pudo migrar el registro del perfil', {
+      details: { root, from, to: REGISTRY_VERSION },
+      cause: error,
+    });
   }
 }
 

@@ -33,7 +33,9 @@ test('registra herramientas, API y automatización con un ctx mínimo', () => {
     apply(ctx);
 
     assert.equal(name, 'lifecode-rag');
-    assert.deepEqual(inject, ['tools', 'webServer'], 'PA necesita el servicio webServer');
+    // PA01: `connection` es la compuerta de autenticación. El cargador del host no aplica la forma
+    // `{required, optional}`, así que va en la lista; sin ella el plugin no carga (no se abre nada).
+    assert.deepEqual(inject, ['tools', 'webServer', 'connection']);
     assert.equal(tools.length, 7);
     assert.deepEqual(tools.map((tool) => tool.name).sort(), [
       'lifecode_rag_context',

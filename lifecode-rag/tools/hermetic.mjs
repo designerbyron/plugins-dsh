@@ -41,7 +41,7 @@ const before = fingerprint(root);
 console.log(`almacén vivo: ${root}`);
 console.log(before.exists ? `huella previa: ${before.files} fichero(s) ${before.hash.slice(0, 16)}…` : 'huella previa: no existe (nada que proteger)');
 
-const run = spawnSync(process.execPath, ['--test'], { stdio: 'inherit', cwd: fileURLToPath(new URL('..', import.meta.url)) });
+const run = spawnSync(process.execPath, ['--test', '--test-concurrency=1'], { stdio: 'inherit', cwd: fileURLToPath(new URL('..', import.meta.url)) });
 const after = fingerprint(root);
 
 if (before.exists !== after.exists || before.hash !== after.hash || before.files !== after.files) {

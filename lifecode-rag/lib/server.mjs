@@ -14,7 +14,7 @@ import { appendAudit } from './audit.mjs';
 import { assembleContextAsync } from './context.mjs';
 import { closeDatabase, openDatabase } from './db.mjs';
 import { createEmbedder } from './embedders.mjs';
-import { RagError } from './errors.mjs';
+import { RagError, httpStatusFor } from './errors.mjs';
 import { expandInputs } from './inputs.mjs';
 import { ingestFiles } from './ingest.mjs';
 import { forgetSource, reindex } from './maintenance.mjs';
@@ -27,34 +27,8 @@ export const API_PREFIX = '/lifecode-rag/api';
 const VERSION = '1.0.0';
 const BODY_LIMIT = 1_000_000;
 
-const STATUS_BY_CODE = {
-  'invalid-argument': 400,
-  'invalid-config': 400,
-  'invalid-tag': 400,
-  'source-not-found': 404,
-  'store-not-initialized': 404,
-  'store-not-rag': 409,
-  'store-version-unsupported': 409,
-  'store-busy': 503,
-  'store-corrupt': 500,
-  'fts-integrity': 500,
-  'source-unreadable': 422,
-  'path-outside-root': 409,
-  'path-protected': 403,
-  'path-denied': 403,
-  'path-unsupported': 415,
-  'path-escape': 403,
-  'hardlink-refused': 403,
-  'too-large': 413,
-  'too-many-files': 413,
-  'binary-file': 415,
-  'approval-required': 409,
-  'approval-unavailable': 409,
-  'egress-denied': 403,
-  'embedding-failed': 502,
-  cancelled: 499,
-  internal: 500,
-};
+// El status de cada código vive en `lib/errors.mjs` (`httpStatusFor`). Esta API mantiene las
+// diferencias documentadas de su contrato v0.1 mediante `LEGACY_HTTP_OVERRIDES`, no con una tabla propia.
 
 export class ApiError extends Error {
   constructor(status, code, message, details = undefined) {
@@ -346,7 +320,7 @@ export function createApiHandler({ root = ragRoot(), env = process.env, now = ()
     } catch (error) {
       if (error instanceof ApiError) return fail(res, error.status, error.code, error.message, error.details);
       if (error instanceof RagError) {
-        return fail(res, STATUS_BY_CODE[error.code] ?? 500, error.code, error.message, error.details);
+        return fail(res, httpStatusFor(error.code, { legacy: true }), error.code, error.message, error.details);
       }
       return fail(res, 500, 'internal', error?.message ?? 'fallo interno');
     }

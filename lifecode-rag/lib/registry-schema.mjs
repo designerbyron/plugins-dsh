@@ -5,7 +5,8 @@
  */
 
 export const REGISTRY_APPLICATION_ID = 1_279_480_402; // 'LCRR'
-export const REGISTRY_VERSION = 1;
+/** v2: añade `pa_selection` (selección de proyecto persistida con revisión monotónica, CR-1). */
+export const REGISTRY_VERSION = 2;
 
 export const REGISTRY_DDL = Object.freeze([
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT`,
@@ -107,6 +108,17 @@ export const REGISTRY_DDL = Object.freeze([
                                       AND expires_at IS NULL))
   ) STRICT`,
 
+  `CREATE TABLE pa_selection (
+    selection_key    TEXT PRIMARY KEY CHECK (selection_key='profile'),
+    project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    revision         INTEGER NOT NULL CHECK (revision >= 1),
+    selection_source TEXT NOT NULL CHECK (selection_source IN ('explicit','cwd')),
+    selected_by      TEXT NOT NULL CHECK (selected_by IN ('human','host')),
+    principal        TEXT NOT NULL DEFAULT 'owner',
+    selected_at      TEXT NOT NULL,
+    updated_at       TEXT NOT NULL
+  ) STRICT`,
+
   `CREATE TABLE sync_state (
     scope_kind   TEXT NOT NULL CHECK (scope_kind IN ('prj','lib')),
     scope_id     TEXT NOT NULL,
@@ -167,6 +179,28 @@ export const REGISTRY_DDL = Object.freeze([
   `CREATE INDEX grants_project_open   ON grants(project_id) WHERE revoked_at IS NULL`,
   `CREATE INDEX session_scope_project ON session_scope(project_id, state)`,
   `CREATE INDEX session_scope_expiry  ON session_scope(state, expires_at)`,
+  `CREATE INDEX pa_selection_project  ON pa_selection(project_id)`,
   `CREATE INDEX sync_state_status     ON sync_state(scope_kind, scope_id, status)`,
   `CREATE INDEX audit_registry_at     ON audit_registry(at)`,
 ]);
+
+/**
+ * Migraciones aditivas del registro, por versión de destino. Sólo crean estructuras nuevas: ninguna
+ * toca filas existentes, así que un registro v1 se abre y sigue sirviendo con los mismos datos.
+ * La versión se fija con `PRAGMA user_version` y `meta.registry_version` en la misma transacción.
+ */
+export const REGISTRY_MIGRATIONS = Object.freeze({
+  2: Object.freeze([
+    `CREATE TABLE IF NOT EXISTS pa_selection (
+      selection_key    TEXT PRIMARY KEY CHECK (selection_key='profile'),
+      project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      revision         INTEGER NOT NULL CHECK (revision >= 1),
+      selection_source TEXT NOT NULL CHECK (selection_source IN ('explicit','cwd')),
+      selected_by      TEXT NOT NULL CHECK (selected_by IN ('human','host')),
+      principal        TEXT NOT NULL DEFAULT 'owner',
+      selected_at      TEXT NOT NULL,
+      updated_at       TEXT NOT NULL
+    ) STRICT`,
+    `CREATE INDEX IF NOT EXISTS pa_selection_project ON pa_selection(project_id)`,
+  ]),
+});

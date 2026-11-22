@@ -16,17 +16,27 @@ import { search } from './search.mjs';
 import { assembleContextAsync } from './context.mjs';
 import { resolveConfig } from './config-resolve.mjs';
 import { DEFAULT_DIM, LOCAL_PROVIDER, embedText } from './embed.mjs';
-import { RagError } from './errors.mjs';
+import { RagError, httpStatusFor } from './errors.mjs';
+import { applySelection, readSelection } from './selection.mjs';
+import { verifyAuditChain } from './audit.mjs';
 
 export const PA_PREFIX = '/lifecode-rag/pa';
-export const PA_VERSION = 'pa/1.0.0';
+export const PA_VERSION = 'pa/1.2.0';
 const MAX_BODY = 1_000_000;
 const MAX_LIMIT = 200;
 const MAX_SEARCH = 50;
 /** Contrato §8: la consulta se limita a 512 caracteres; por encima se rechaza, nunca se recorta. */
 const MAX_QUERY = 512;
-const GET_ROUTES = { '/': ['project', 'limit', 'cursor'], '/snapshot': ['project', 'limit', 'cursor'] };
-const POST_FIELDS = { '/search': ['query', 'limit'], '/context': ['query', 'budgetTokens'] };
+const GET_ROUTES = {
+  '/': ['project', 'limit', 'cursor'],
+  '/snapshot': ['project', 'limit', 'cursor'],
+  '/history': ['project', 'limit', 'cursor'],
+};
+const POST_FIELDS = {
+  '/search': ['query', 'limit'],
+  '/context': ['query', 'budgetTokens'],
+  '/selection': ['projectId', 'expectedRevision'],
+};
 /** En POST el proyecto viaja por query string: la cabecera de sesión del contrato está BLOCKED (PA01). */
 const POST_PARAMS = ['project'];
 
@@ -158,17 +168,38 @@ function contextPayload(body, config) {
   return { query, budgetTokens };
 }
 
-function projectView(db, requested) {
+/** CR-1 (§6.2): el cuerpo declara el proyecto y la revisión que el cliente cree vigente. */
+function selectionPayload(body) {
+  assertKnownFields(body, POST_FIELDS['/selection'], '/selection');
+  if (!Object.prototype.hasOwnProperty.call(body, 'projectId')) {
+    throw new RagError('invalid-argument', '/selection: falta projectId', { details: { reason: 'missing-field', field: 'projectId' } });
+  }
+  if (typeof body.projectId !== 'string' || !body.projectId.startsWith('prj_')) {
+    throw new RagError('invalid-argument', '/selection: projectId debe ser un identificador de proyecto', { details: { reason: 'invalid-field', field: 'projectId' } });
+  }
+  return { projectId: body.projectId, expectedRevision: body.expectedRevision };
+}
+
+/**
+ * Proyecto efectivo de la petición, en este orden: el que pide el cliente, la selección persistida
+ * del perfil (CR-1) y, si sólo hay uno, ese. Con varios proyectos y sin selección se responde
+ * `scope-ambiguous`: nunca se elige uno «por defecto» a la callada.
+ */
+function projectView(db, requested, selection = null) {
   const projects = db.prepare('select id, name from projects order by created_at').all();
   if (projects.length === 0) throw new RagError('project-not-authorized', 'el perfil no tiene proyectos');
   let project = null;
   if (requested) {
     project = projects.find((p) => p.id === requested) ?? null;
     if (!project) throw new RagError('project-not-authorized', 'proyecto desconocido o no autorizado', { details: { project: requested } });
-  } else if (projects.length === 1) {
-    project = projects[0];
-  } else {
-    throw new RagError('scope-ambiguous', 'varios proyectos: especifica project', { details: { candidates: projects.map((p) => p.id) } });
+  } else if (selection) {
+    project = projects.find((p) => p.id === selection.projectId) ?? null;
+    // Una selección que apunta a un proyecto desaparecido o archivado no se usa en silencio: se
+    // ignora y se resuelve como si no hubiera selección.
+  }
+  if (!project) {
+    if (projects.length === 1) project = projects[0];
+    else throw new RagError('scope-ambiguous', 'varios proyectos: especifica project', { details: { candidates: projects.map((p) => p.id) } });
   }
   const roots = listRoots(db, { scopeKind: 'prj', scopeId: project.id });
   const authorized = roots.filter((r) => r.state === 'authorized');
@@ -215,9 +246,92 @@ function auditHead(db) {
 }
 
 /**
- * @param {{profileRoot: string, profileKey?: string, env?: object, now?: () => number}} options
+ * Proyectos seleccionables del perfil: id, nombre y raíces autorizadas. Es lo que el panel necesita
+ * para ofrecer el cambio de proyecto (CR-1); sin esta lista el selector sólo podía mostrar el activo.
  */
-export function createPaHandler({ profileRoot, profileKey = 'desktop', env = process.env, now = () => Date.now(), maxBody = MAX_BODY } = {}) {
+function projectsIndex(db, currentId) {
+  const rows = db.prepare(`select p.id, p.name, p.status,
+      (select count(*) from roots r where r.scope_kind='prj' and r.scope_id=p.id and r.state='authorized') as roots
+    from projects p where p.status='active' order by p.created_at`).all();
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    roots: Number(row.roots),
+    authorized: Number(row.roots),
+    current: row.id === currentId,
+  }));
+}
+
+/**
+ * Claves de `audit.details` que se publican. El resto se descarta: los detalles pueden llevar rutas
+ * absolutas, ids de otros ámbitos o mensajes de error con trayectorias, y el historial es de lectura.
+ */
+const HISTORY_DETAIL_KEYS = Object.freeze(['sourceId', 'chunks', 'bytes', 'code', 'revision', 'replace', 'embedding', 'skipped']);
+
+function safeDetails(raw) {
+  if (raw === null || raw === undefined) return null;
+  let parsed;
+  try { parsed = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return null; }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const out = {};
+  for (const key of HISTORY_DETAIL_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(parsed, key)) out[key] = parsed[key];
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * Historial del proyecto ACTIVO, leído de SU almacén (`audit`), que es la cadena encadenada por hash.
+ * No hay forma de ver el historial de otro proyecto por esta ruta: cada proyecto tiene su propio
+ * fichero y sus propias filas, así que el filtro de ámbito es estructural, no un `where` que se pueda
+ * olvidar. `details` se filtra por lista blanca y `target` se relativiza a las raíces autorizadas.
+ */
+function historyPage(db, { limit, cursor, roots, scope }) {
+  const take = Math.min(limit ?? 50, MAX_LIMIT);
+  const before = cursor ? Number(cursor) : null;
+  if (before !== null && (!Number.isInteger(before) || before < 0)) {
+    throw new RagError('invalid-argument', 'cursor inválido', { details: { reason: 'invalid-field', field: 'cursor' } });
+  }
+  const total = db.prepare('select count(*) n from audit').get().n;
+  const rows = before === null
+    ? db.prepare(`select seq, at, actor, tool, action, target, outcome, details, hash
+        from audit order by seq desc limit ?`).all(take)
+    : db.prepare(`select seq, at, actor, tool, action, target, outcome, details, hash
+        from audit where seq < ? order by seq desc limit ?`).all(before, take);
+  const entries = rows.map((row) => ({
+    seq: row.seq,
+    at: Number(row.at),
+    actor: row.actor,
+    tool: row.tool,
+    action: row.action,
+    target: row.target === null ? null : relUri(row.target, roots),
+    outcome: row.outcome,
+    hash: String(row.hash).slice(0, 16),
+    details: safeDetails(row.details),
+  }));
+  const oldest = entries.length > 0 ? entries[entries.length - 1].seq : null;
+  return {
+    scope,
+    total,
+    entries,
+    nextCursor: oldest !== null && oldest > 1 ? String(oldest) : null,
+  };
+}
+
+/**
+ * @param {{profileRoot: string, profileKey?: string, env?: object, now?: () => number,
+ *          maxBody?: number, authorize?: (request: {headers: object, method: string, url: URL}) =>
+ *            Promise<{ok: boolean, peer?: {id?: string, principal?: {kind?: string}}, status?: number,
+ *                      code?: string, message?: string}> | {ok: boolean, peer?: object}} options
+ *
+ * `authorize` es la compuerta del anfitrión (PA01). Sin ella el núcleo sigue sirviendo tal cual —es
+ * su contrato de independencia—, pero el adaptador de DSH **siempre** pasa una, y cuando el host no
+ * ofrece servicio de conexión pasa una que niega: la ausencia de compuerta no se degrada a «abierto».
+ */
+export function createPaHandler({
+  profileRoot, profileKey = 'desktop', env = process.env, now = () => Date.now(),
+  maxBody = MAX_BODY, authorize = null,
+} = {}) {
   // Respondedores ligados al tope de esta instancia: la sobrecarga se mide por respuesta.
   const respond = (res, status, payload) => writeJson(res, status, { ok: true, data: payload }, maxBody);
   const failWith = (res, status, code, message, details) => writeJson(res, status, { ok: false, error: { code, message, ...(details ? { details } : {}) } }, maxBody);
@@ -232,6 +346,26 @@ export function createPaHandler({ profileRoot, profileKey = 'desktop', env = pro
       if (!url.pathname.startsWith(PA_PREFIX)) return failWith(res, 404, 'not-found', 'ruta fuera de la API PA');
       const route = url.pathname.slice(PA_PREFIX.length).replace(/\/+$/, '') || '/';
       const method = (req.method || 'GET').toUpperCase();
+
+      // PA01: la compuerta va ANTES de resolver la ruta. Sin credencial del host no se distingue una
+      // ruta existente de una inventada: 401/403 y nada más.
+      let peer = null;
+      if (authorize) {
+        let decision;
+        try {
+          decision = await authorize({ headers: req.headers ?? {}, method, url });
+        } catch {
+          return failWith(res, 503, 'authorization-unavailable', 'la compuerta de autenticación del host falló');
+        }
+        if (!decision || decision.ok !== true) {
+          const status = decision?.status === 401 ? 401 : (decision?.status ?? 403);
+          const code = decision?.code ?? (status === 401 ? 'unauthenticated' : 'authorization-unavailable');
+          return failWith(res, status, code, decision?.message ?? 'la petición no está autenticada por el host');
+        }
+        peer = decision.peer ?? null;
+      }
+      const principal = peer && peer.principal && peer.principal.kind ? String(peer.principal.kind) : null;
+
       const { config } = resolveConfig({ dataRoot: profileRoot, profileKey });
 
       // /config no depende de proyecto: se responde antes de abrir el registro.
@@ -255,7 +389,9 @@ export function createPaHandler({ profileRoot, profileKey = 'desktop', env = pro
         if (method !== 'POST') return methodNotAllowed(res, ['POST'], `${route} se consulta con POST y cuerpo JSON`);
         params = queryParams(url, POST_PARAMS, route);
         const body = await readJsonBody(req, maxBody);
-        payload = route === '/search' ? searchPayload(body, config) : contextPayload(body, config);
+        payload = route === '/search' ? searchPayload(body, config)
+          : route === '/context' ? contextPayload(body, config)
+            : selectionPayload(body);
       } else if (Object.prototype.hasOwnProperty.call(GET_ROUTES, route)) {
         if (method !== 'GET' && method !== 'HEAD') return methodNotAllowed(res, ['GET', 'HEAD'], 'la API PA es de solo lectura');
         params = queryParams(url, GET_ROUTES[route], route);
@@ -274,15 +410,41 @@ export function createPaHandler({ profileRoot, profileKey = 'desktop', env = pro
       }
       const db = registry.db ?? registry;
       try {
-        const { project, roots, authorized } = projectView(db, params.project);
+        // CR-1: la selección se escribe en el registro del perfil, con CAS sobre la revisión.
+        if (route === '/selection') {
+          const applied = applySelection(db, {
+            projectId: payload.projectId,
+            expectedRevision: payload.expectedRevision,
+            selectedBy: 'human',
+            source: 'explicit',
+            principal: principal ?? 'owner',
+            now: now(),
+          });
+          const selected = db.prepare('select id, name from projects where id = ?').get(applied.selection.projectId);
+          return respond(res, 200, {
+            changed: applied.changed,
+            selection: applied.selection,
+            project: selected ? { id: selected.id, name: selected.name } : null,
+          });
+        }
+        const selection = readSelection(db);
+        const { project, roots, authorized } = projectView(db, params.project, selection);
         const store = openStore(profileRoot, profileKey, project.id);
         const sdb = store.db ?? store;
         const scope = { id: project.id, kind: 'prj', name: project.name };
         try {
+          if (route === '/history') {
+            // Historial del proyecto activo: sale de SU almacén (no de otro), con la cadena verificada.
+            const page = historyPage(sdb, { limit: params.limit, cursor: params.cursor, roots: authorized, scope });
+            return respond(res, 200, { mode: 'api', ...page, integrity: verifyAuditChain(sdb) });
+          }
           if (route === '/' || route === '/snapshot') {
             return respond(res, 200, {
               mode: 'api', service: 'ok', asOf: started, version: PA_VERSION,
               project: { id: project.id, name: project.name },
+              selection,
+              projects: projectsIndex(db, project.id),
+              auth: peer ? { principal: principal ?? 'owner' } : null,
               scopes: [{ kind: 'prj', id: project.id, name: project.name, roots: roots.length, authorized: authorized.length }],
               libraries: [],
               sources: sourcesPage(sdb, { limit: params.limit, cursor: params.cursor, roots: authorized }),
@@ -345,11 +507,9 @@ export function createPaHandler({ profileRoot, profileKey = 'desktop', env = pro
       }
     } catch (error) {
       if (error instanceof RagError) {
-        const status = error.code === 'invalid-argument' ? 400
-          : error.code === 'too-large' ? 413
-            : error.code === 'project-not-authorized' || error.code === 'scope-unresolved' || error.code === 'scope-ambiguous' ? 403
-              : error.code === 'store-not-initialized' ? 503 : 500;
-        return failWith(res, status, error.code, error.message, error.details);
+        // Un solo mapa (lib/errors.mjs): un código de autorización no puede acabar en 500 por no estar
+        // en una tabla local. El status sale de HTTP_STATUS; lo no clasificado cae a 500 explícitamente.
+        return failWith(res, httpStatusFor(error.code), error.code, error.message, error.details);
       }
       return failWith(res, 500, 'internal-error', 'error interno del transporte PA');
     }

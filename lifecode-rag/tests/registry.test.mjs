@@ -9,6 +9,7 @@ import {
   addRoot, appendRegistryAudit, closeRegistry, createLibrary, createProject, listRoots, newId,
   openRegistry, pathKeyFor, registryIntegrity, verifyRegistryAudit,
 } from '../lib/registry.mjs';
+import { REGISTRY_VERSION } from '../lib/registry-schema.mjs';
 import { profileKey, profileRoot, registryPath } from '../lib/profile.mjs';
 
 function tempRoot() {
@@ -25,7 +26,7 @@ test('crea un registro vacío con esquema, aplicación y auditoría válidos', (
     assert.equal(integrity.foreignKeys, 0);
     assert.equal(integrity.audit.ok, true);
     assert.equal(Number(db.prepare('PRAGMA application_id').get().application_id), 1_279_480_402);
-    assert.equal(Number(db.prepare('PRAGMA user_version').get().user_version), 1);
+    assert.equal(Number(db.prepare('PRAGMA user_version').get().user_version), REGISTRY_VERSION);
     closeRegistry(db);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -122,6 +123,42 @@ test('la cadena de auditoría del registro detecta una edición', () => {
     assert.equal(broken.ok, false);
     assert.equal(broken.reason, 'hash');
     closeRegistry(db);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('registro v1 se migra a v2 de forma aditiva: crea `pa_selection` y conserva datos y auditoría', () => {
+  const root = tempRoot();
+  try {
+    // Un registro recién creado, degradado a v1 tal como lo dejó la versión anterior: sin
+    // `pa_selection`, con `user_version=1`. Es la forma exacta del registro del propietario.
+    const first = openRegistry({ root, create: true, now: 1_700_000_000_000 });
+    const project = createProject(first.db, { name: 'Proyecto v1', now: 1_700_000_000_000 });
+    appendRegistryAudit(first.db, {
+      at: 1_700_000_000_000, actor: 'human', action: 'test.seed', target: project.id, outcome: 'ok',
+    });
+    first.db.exec('DROP TABLE pa_selection');
+    first.db.exec('PRAGMA user_version = 1');
+    first.db.prepare(`UPDATE meta SET value='1' WHERE key='registry_version'`).run();
+    closeRegistry(first.db);
+
+    const migrated = openRegistry({ root, create: false });
+    try {
+      assert.equal(Number(migrated.db.prepare('PRAGMA user_version').get().user_version), REGISTRY_VERSION);
+      assert.equal(migrated.db.prepare(`SELECT value FROM meta WHERE key='registry_version'`).get().value, String(REGISTRY_VERSION));
+      const tables = migrated.db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all().map((row) => row.name);
+      assert.ok(tables.includes('pa_selection'), 'la tabla nueva existe tras migrar');
+      assert.equal(migrated.db.prepare('SELECT count(*) n FROM projects').get().n, 1, 'los proyectos no se tocan');
+      assert.equal(registryIntegrity(migrated.db).audit.ok, true, 'la cadena de auditoría sigue verificando');
+    } finally { closeRegistry(migrated.db); }
+
+    // Idempotente: reabrir un registro ya migrado no vuelve a migrar ni falla.
+    const again = openRegistry({ root, create: false });
+    try {
+      assert.equal(Number(again.db.prepare('PRAGMA user_version').get().user_version), REGISTRY_VERSION);
+      assert.equal(again.db.prepare('SELECT count(*) n FROM projects').get().n, 1);
+    } finally { closeRegistry(again.db); }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -1,10 +1,12 @@
 {
-    "name":  "@local/lifecode-rag",
+    "name":  "@designerbyron/lifecode-rag",
     "version":  "1.0.0",
-    "private":  true,
     "type":  "module",
     "main":  "index.js",
-    "description":  "LifeCode RAG ? recuperaci?n local, independiente y auditable para el ecosistema LifeCode",
+    "description":  "Recuperación local, independiente y auditable para el ecosistema LifeCode (plugin de DeepSeek Harness)",
+    "license":  "UNLICENSED",
+    "author":  "Byron (designerbyron)",
+    "keywords":  ["lifecode", "rag", "retrieval", "deepseek-harness", "dsh-plugin", "sqlite", "local-first"],
     "engines":  {
                     "node":  "\u003e=22.5.0",
                     "dsh":  "\u003e=0.2.2-rc.3 \u003c0.3.0"
@@ -25,18 +27,36 @@
                   "client.js",
                   "lib/",
                   "bin/",
-                  "docs/",
                   "icon.svg",
-                  "cordis.patch.yml"
+                  "cordis.patch.yml",
+                  "README.md",
+                  "LICENSE",
+                  "docs/CONTRATO-v0.1.md",
+                  "docs/ARCHITECTURE-v0.2.md",
+                  "docs/PROJECT-AWARE-ARCHITECTURE.md",
+                  "docs/PROJECT-AWARE-DATA-CONTRACT.md",
+                  "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+                  "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
+                  "docs/PA-UI-0-API-CONTRACT.md",
+                  "docs/AUTO-DISCOVERY.md",
+                  "docs/AUTOMATION-POLICIES.md",
+                  "docs/EMBEDDING-PROVIDERS.md",
+                  "docs/OBSERVABILITY.md",
+                  "docs/PERFORMANCE-BUDGETS.md",
+                  "docs/WORKSPACE-API.md"
               ],
+    "publishConfig":  {
+                          "access":  "public"
+                      },
     "exports":  {
                     ".":  "./index.js",
                     "./client":  "./client.js",
                     "./package.json":  "./package.json",
+                    "./lib/*.mjs":  "./lib/*.mjs",
                     "./lib/*":  "./lib/*.mjs"
                 },
     "scripts":  {
-                    "test":  "node --test",
+                    "test":  "node --test --test-concurrency=1",
                     "test:hermetic":  "node tools/hermetic.mjs",
                     "check":  "node tools/check.mjs",
                     "bench":  "node tools/benchmark.mjs",

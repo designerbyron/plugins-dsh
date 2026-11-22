@@ -174,7 +174,7 @@ function mountPanel() {
 /* ------------------------------------------------------------------- estáticas */
 
 test('el manifiesto exporta el cliente con la forma que exige el compositor', () => {
-  assert.equal(manifest.name, '@local/lifecode-rag');
+  assert.equal(manifest.name, '@designerbyron/lifecode-rag');
   assert.equal(manifest.exports['.'], './index.js');
   assert.equal(manifest.exports['./client'], './client.js');
   assert.equal(manifest.exports['./package.json'], './package.json');
@@ -445,11 +445,48 @@ test('una operación simulada puede fallar y el error se muestra sin escribir', 
   assert.equal(panel.text().includes('Formato no soportado en el fixture'), false);
 });
 
-test('historial se presenta como no disponible, sin inventar ruta', () => {
+test('historial sin API se presenta como no disponible, sin inventar entradas', () => {
   const { panel } = mountPanel();
   panel.click(panel.tab('Historial'));
   assert.equal(panel.text().includes('No disponible en esta versión'), true);
-  assert.equal(panel.text().includes('El contrato pa-ui/0.1.0-draft no expone un listado de auditoría'), true);
+  assert.equal(panel.text().includes('La API no ha devuelto un historial para este proyecto'), true);
+  assert.equal(panel.text().includes('No se inventa una ruta'), true);
+});
+
+test('historial: la respuesta de /history llena el estado con total, integridad y cursor', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paInitialState, paReduce } = mod.__test;
+  const page = {
+    scope: { id: 'prj_01LAB', kind: 'prj', name: 'Laboratorio' },
+    total: 141,
+    entries: [
+      { seq: 141, at: 1_700_000_000_000, actor: 'automation', tool: 'lifecode_rag_sync', action: 'sync.run', target: 'prj_01LAB', outcome: 'ok', hash: '5bc176a33fa5cc11', details: null },
+      { seq: 140, at: 1_699_999_000_000, actor: 'model', tool: 'lifecode_rag_ingest', action: 'ingest', target: 'guia-soporte.md', outcome: 'ok', hash: '885b284111311111', details: { chunks: 1 } },
+    ],
+    nextCursor: '140',
+    integrity: { ok: true, count: 141 },
+  };
+  const next = paReduce(paInitialState(), { type: 'history-ok', page, append: false });
+  assert.equal(next.history.entries.length, 2);
+  assert.equal(next.history.total, 141);
+  assert.equal(next.history.pages, 3);
+  assert.equal(next.history.nextCursor, '140');
+  assert.equal(next.history.integrity.ok, true);
+  assert.equal(next.pending, null);
+
+  const appended = paReduce(next, { type: 'history-ok', page: { ...page, total: 141, nextCursor: null, entries: [page.entries[0]] }, append: true });
+  assert.equal(appended.history.entries.length, 3, 'cargar más añade, no reemplaza');
+  assert.equal(appended.history.nextCursor, null);
+});
+
+test('historial: un fallo de la API deja el estado vacío y marcado, sin datos inventados', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paInitialState, paReduce } = mod.__test;
+  const failed = paReduce(paInitialState(), { type: 'history-error', reason: 'unauthenticated' });
+  assert.equal(failed.history.loaded, true);
+  assert.equal(failed.history.error, 'unauthenticated');
+  assert.equal(failed.history.entries.length, 0);
+  assert.equal(failed.pending, null);
 });
 
 test('el teclado mueve el foco entre pestañas (flechas)', () => {
@@ -525,6 +562,95 @@ test('hydrate pasa el panel a api y sustituye las fuentes por las filas del snap
   assert.equal(next.projects[0].id, 'prj_01LAB');
   assert.equal(next.sourcePage.offset, 0);
   assert.equal(next.error, null);
+});
+
+/**
+ * CR-1: en modo API el panel no inventa la selección. La revisión que pinta es la del servidor y el
+ * cambio sólo se refleja cuando llega la confirmación; un conflicto no altera nada y se avisa.
+ */
+function apiState(mod, { selection = { projectId: 'prj_01LAB', projectName: 'Laboratorio', revision: 5 }, scopes = null } = {}) {
+  const snapshot = {
+    mode: 'api',
+    service: 'ok',
+    project: { id: selection.projectId, name: selection.projectName },
+    selection: { ...selection, source: 'explicit', selectedBy: 'human', selectedAt: 1_700_000_000_000 },
+    scopes: scopes ?? [
+      { kind: 'prj', id: selection.projectId, name: selection.projectName, roots: 1, authorized: 1 },
+      { kind: 'prj', id: 'prj_01LAB2', name: 'Segundo proyecto', roots: 1, authorized: 1 },
+    ],
+    sources: { rows: [] },
+  };
+  return mod.__test.paReduce(mod.__test.paInitialState(), { type: 'hydrate', snapshot });
+}
+
+test('CR-1: hydrate pinta la revisión del servidor, no la del fixture', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const state = apiState(mod);
+  assert.equal(state.mode, 'api');
+  assert.equal(state.session.session.selection.revision, 5, 'la revisión del fixture (3) no sobrevive a la hidratación');
+  assert.equal(state.session.session.selection.projectId, 'prj_01LAB');
+});
+
+test('CR-1: en modo API la selección queda pendiente y no se adelanta la revisión', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paReduce } = mod.__test;
+  const state = apiState(mod);
+  const pending = paReduce(state, { type: 'select-project', projectId: 'prj_01LAB2' });
+  assert.equal(pending.pending, 'selection');
+  // El reducer corre dentro del sandbox `vm`: otro realm, otra `Object.prototype`, así que se
+  // comparan los campos uno a uno (deepEqual estricto compara prototipos y falla por realm).
+  assert.equal(pending.selectionPending.projectId, 'prj_01LAB2');
+  assert.equal(pending.selectionPending.projectName, 'Segundo proyecto');
+  assert.equal(pending.selectionPending.expectedRevision, 5);
+  assert.equal(pending.session.session.selection.revision, 5, 'nada cambia antes de confirmar');
+  assert.equal(pending.session.session.selection.projectId, 'prj_01LAB');
+
+  const confirmed = paReduce(pending, {
+    type: 'selection-ok',
+    selection: { projectId: 'prj_01LAB2', projectName: 'Segundo proyecto', revision: 6, source: 'explicit', selectedBy: 'human' },
+  });
+  assert.equal(confirmed.pending, 'snapshot', 'tras confirmar se pide el snapshot del proyecto nuevo');
+  assert.equal(confirmed.sources.length, 0, 'las fuentes del proyecto anterior no sobreviven al cambio');
+  assert.equal(confirmed.sourcesTotal, 0);
+  assert.equal(confirmed.session.session.selection.revision, 6, 'la revisión es la que confirmó el servidor');
+  assert.equal(confirmed.session.session.selection.projectId, 'prj_01LAB2');
+  assert.equal(confirmed.projects.find((row) => row.id === 'prj_01LAB2').current, true);
+  assert.equal(confirmed.notice.code, 'notice.selected');
+});
+
+test('CR-1: un conflicto de revisión no cambia la selección y se avisa', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paReduce } = mod.__test;
+  const pending = paReduce(apiState(mod), { type: 'select-project', projectId: 'prj_01LAB2' });
+  const failed = paReduce(pending, { type: 'selection-error', reason: 'revision-conflict' });
+  assert.equal(failed.pending, null);
+  assert.equal(failed.selectionPending, null);
+  assert.equal(failed.session.session.selection.projectId, 'prj_01LAB', 'el perdedor no pisa el cambio ajeno');
+  assert.equal(failed.session.session.selection.revision, 5);
+  assert.equal(failed.notice.code, 'notice.selectionConflict');
+  // El aviso se pinta con el valor de la revisión resuelto, nunca con la plantilla cruda.
+  assert.match(mod.__test.paTranslate('es', failed.notice.code, failed.notice.values), /revisión vigente/);
+});
+
+test('el snapshot hidrata la lista de proyectos del perfil y el total de fuentes', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paInitialState, paReduce } = mod.__test;
+  const snapshot = {
+    mode: 'api',
+    service: 'ok',
+    project: { id: 'prj_01LAB', name: 'Laboratorio' },
+    selection: { projectId: 'prj_01LAB', projectName: 'Laboratorio', revision: 2, source: 'explicit' },
+    projects: [
+      { id: 'prj_01LAB', name: 'Laboratorio', roots: 1, current: true },
+      { id: 'prj_01OTRO', name: 'Otro proyecto', roots: 2, current: false },
+    ],
+    sources: { rows: [{ id: 'src_1', uri: 'a.md', title: 'a', mime: 'text/markdown', bytes: 10, chunks: 1 }], total: 121 },
+  };
+  const state = paReduce(paInitialState(), { type: 'hydrate', snapshot });
+  assert.equal(state.projects.length, 2, 'los dos proyectos del perfil, no sólo el activo');
+  assert.equal(state.projects.find((row) => row.id === 'prj_01OTRO').current, false);
+  assert.equal(state.sourcesTotal, 121, 'el total del proyecto, no las filas de la página');
+  assert.equal(state.sources.length, 1, 'sólo se cargan las filas recibidas');
 });
 
 test('unavailable deja el panel en down con la razón del servidor', () => {

@@ -4,6 +4,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join, relative as relativePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -70,8 +71,24 @@ if (typeof clientRel === 'string') {
 }
 
 const patch = readFileSync(join(ROOT, 'cordis.patch.yml'), 'utf8');
-if (!/id:\s*lifecode-rag/.test(patch) || !/name:\s*'@local\/lifecode-rag'/.test(patch)) {
-  problems.push('cordis.patch.yml: no inserta la fila esperada');
+// El nombre de la fila debe ser el del paquete declarado, no una cadena fija: así el renombrado para
+// publicación no puede dejar el patch apuntando a un paquete que ya no existe.
+const patchName = /name:\s*'([^']+)'/.exec(patch)?.[1];
+if (!/id:\s*lifecode-rag/.test(patch) || patchName !== manifest.name) {
+  problems.push(`cordis.patch.yml: no inserta la fila esperada (id lifecode-rag + name ${manifest.name})`);
+}
+
+// `exports["./lib/*"]` se resuelve con el patrón aplicado al especificador: si el destino vuelve a
+// añadir `.mjs`, `pkg/lib/tools.mjs` pediría `tools.mjs.mjs`. Esto sólo se ve desde fuera del paquete,
+// así que se comprueba aquí con la autorreferencia por nombre (Node la permite dentro del propio paquete).
+try {
+  const selfRequire = createRequire(join(ROOT, 'package.json'));
+  for (const specifier of [`${manifest.name}/lib/tools.mjs`, `${manifest.name}/lib/tools`]) {
+    const resolved = selfRequire.resolve(specifier);
+    if (!existsSync(resolved)) problems.push(`package.json: ${specifier} no resuelve a un fichero existente`);
+  }
+} catch (error) {
+  problems.push(`package.json: exports["lib/*"] no resuelve el import del consumidor (${error.code ?? error.message})`);
 }
 
 const definitions = createToolDefinitions({ config: validateConfig({}), root: join(ROOT, '.check-store'), services: {} });

@@ -29,6 +29,27 @@ async function call(handler, url, method = 'GET', body) {
   return { status: res.statusCode, json: JSON.parse(res.body || '{}'), headers: res.headers };
 }
 
+test('PA/CR-1: el snapshot declara los proyectos seleccionables del perfil', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = createPaHandler({ profileRoot: world.root, profileKey: 'pa3-test' });
+    const snap = await call(handler, '/snapshot?project=' + world.projectA.id);
+    assert.equal(snap.status, 200);
+    assert.equal(Array.isArray(snap.json.data.projects), true, 'el panel necesita la lista para poder cambiar de proyecto');
+    assert.equal(snap.json.data.projects.length, 2);
+    const current = snap.json.data.projects.filter((row) => row.current);
+    assert.deepEqual(current.map((row) => row.id), [world.projectA.id]);
+    for (const row of snap.json.data.projects) {
+      assert.equal(typeof row.id, 'string');
+      assert.equal(typeof row.name, 'string');
+      assert.equal(typeof row.roots, 'number');
+      assert.equal(Object.prototype.hasOwnProperty.call(row, 'current'), true);
+    }
+    // La lista es de proyectos del perfil, no de ámbitos del proyecto activo.
+    assert.deepEqual(snap.json.data.projects.map((row) => row.id).sort(), [world.projectA.id, world.projectB.id].sort());
+  } finally { world.cleanup(); }
+});
+
 test('PA: snapshot, search, context, config y actions', async () => {
   const world = await makeWorld();
   try {

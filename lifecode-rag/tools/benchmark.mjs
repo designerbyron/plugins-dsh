@@ -63,11 +63,12 @@ function percentile(values, p) {
   return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
 }
 
-function measure(db, { queries, config }) {
+async function measure(db, { queries, config }) {
   const out = { fts: { recall: [], mrr: [], latency: [] }, hybrid: { recall: [], mrr: [], latency: [] } };
   for (const check of queries) {
     for (const strategy of ['fts', 'hybrid']) {
-      const result = search(db, { query: check.query, limit: TOP_K, strategy, config });
+      // `search` es asíncrona (embedder con interfaz async): sin `await` se medía una promesa.
+      const result = await search(db, { query: check.query, limit: TOP_K, strategy, config });
       out[strategy].recall.push(recallAt(result.results, check.relevant));
       out[strategy].mrr.push(reciprocalRank(result.results, check.relevant));
       out[strategy].latency.push(result.elapsedMs);
@@ -91,7 +92,9 @@ try {
 
   const docs = buildCorpus();
   for (const doc of docs) writeFileSync(join(cwd, doc.name), doc.body, 'utf8');
-  const ingested = ingestFiles({
+  // `ingestFiles` es asíncrona desde PA3: sin `await`, el banco medía una promesa (y la ingesta
+  // seguía en segundo plano reteniendo el almacén, lo que rompía la limpieza con EPERM).
+  const ingested = await ingestFiles({
     root: store, files: docs.map((doc) => join(cwd, doc.name)), collection: 'bench', tags: ['bench'], now: Date.now(), config,
   });
   if (ingested.ingested.length !== DOCS) throw new Error(`corpus incompleto: ${JSON.stringify(ingested.errors)}`);
@@ -111,14 +114,14 @@ try {
     // Palabra que el corpus NO contiene: el documento dice «instalación», la consulta dice «instalar».
     const parafrasis = [{ query: 'instalar', relevant: relevantesInstalacion }];
 
-    const exact = measure(opened.db, { queries: exactas, config });
-    const paraphrase = measure(opened.db, { queries: parafrasis, config });
-    const sinAcento = measure(opened.db, { queries: [{ query: 'instalacion', relevant: relevantesInstalacion }], config });
+    const exact = await measure(opened.db, { queries: exactas, config });
+    const paraphrase = await measure(opened.db, { queries: parafrasis, config });
+    const sinAcento = await measure(opened.db, { queries: [{ query: 'instalacion', relevant: relevantesInstalacion }], config });
 
     const contextSamples = [];
     const corpusTokens = opened.db.prepare('SELECT SUM(token_est) AS tokens FROM chunks').get().tokens;
     for (const check of exactas) {
-      const result = search(opened.db, { query: check.query, limit: TOP_K, config });
+      const result = await search(opened.db, { query: check.query, limit: TOP_K, config });
       const context = assembleContext({ results: result.results, config, budgetTokens: 2000, maxChunks: 12, mmrLambda: 0.7 });
       contextSamples.push({ tokens: context.tokens, truncated: context.truncated });
     }
@@ -151,6 +154,17 @@ try {
   } finally {
     closeDatabase(opened.db);
   }
+} catch (error) {
+  // Un fallo dentro del banco no puede quedar enmascarado por la limpieza: se informa el original.
+  console.error('bench: fallo durante la medición:', error && (error.stack || error.message));
+  process.exitCode = 1;
 } finally {
-  rmSync(box, { recursive: true, force: true });
+  // Windows: un `-wal`/`-shm` recién cerrado puede tardar milisegundos en soltarse; sin reintentos el
+  // banco falla en la limpieza (EPERM) después de haber medido bien. `maxRetries` reintenta en vez de tapar.
+  try {
+    rmSync(box, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  } catch (error) {
+    console.error('bench: no se pudo limpiar', box, '-', error && error.code);
+    process.exitCode = process.exitCode || 2;
+  }
 }

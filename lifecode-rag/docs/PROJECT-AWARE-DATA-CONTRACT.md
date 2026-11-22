@@ -52,7 +52,7 @@ está cubierto por pruebas en PA1.
 
 ```sql
 PRAGMA application_id = 1279480402;  -- 'LCRR' (registro Project-Aware); el almacén de ámbito conserva 'LCRG'
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;             -- v2 (ACP-01): añade pa_selection. Migración aditiva desde v1.
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
@@ -247,11 +247,25 @@ CREATE UNIQUE INDEX operation_steps_effect
   ON operation_steps(operation_id, effect_key)
   WHERE effect_key IS NOT NULL;
 
+-- v2 · Selección de proyecto del panel (CR-1). Una fila por perfil, con revisión monotónica para el
+-- compare-and-swap. No es identidad: `principal` sólo registra el principal del host que la confirmó.
+CREATE TABLE pa_selection (
+  selection_key    TEXT PRIMARY KEY CHECK (selection_key='profile'),
+  project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  revision         INTEGER NOT NULL CHECK (revision >= 1),
+  selection_source TEXT NOT NULL CHECK (selection_source IN ('explicit','cwd')),
+  selected_by      TEXT NOT NULL CHECK (selected_by IN ('human','host')),
+  principal        TEXT NOT NULL DEFAULT 'owner',
+  selected_at      TEXT NOT NULL,
+  updated_at       TEXT NOT NULL
+) STRICT;
+
 CREATE INDEX projects_status            ON projects(status);
 CREATE INDEX roots_scope                ON roots(scope_kind, scope_id, state);
 CREATE INDEX grants_project_open       ON grants(project_id) WHERE revoked_at IS NULL;
 CREATE INDEX session_scope_project     ON session_scope(project_id, state);
 CREATE INDEX session_scope_expiry      ON session_scope(state, expires_at);
+CREATE INDEX pa_selection_project      ON pa_selection(project_id);
 CREATE INDEX sync_state_status         ON sync_state(scope_kind, scope_id, status);
 CREATE INDEX audit_registry_at         ON audit_registry(at);
 ```
@@ -382,3 +396,16 @@ timestamp: dos intentos distintos del mismo efecto deben producir la misma clave
 - No afirma que los disparadores se hayan probado: son especificación; sus pruebas pertenecen a PA1.
 - No afirma atomicidad entre registro y almacenes: las operaciones multicontenedor se documentan como
   coordinadas, con estado parcial y reconciliación (`operations`).
+
+## 8. Registro de revisión ACP-01 (2026-11-21)
+
+- **`user_version` 1 → 2.** Tabla nueva `pa_selection` (§3) e índice `pa_selection_project`. La migración
+  vive en `REGISTRY_MIGRATIONS` (`lib/registry-schema.mjs`) y la aplica `migrateRegistry` dentro de
+  `BEGIN IMMEDIATE` al abrir; es **aditiva**: no altera ni borra filas existentes, y un registro v1 sigue
+  sirviendo con sus proyectos, raíces, concesiones y cadena de auditoría intactos.
+- **Prueba de la migración:** `tests/registry.test.mjs` («registro v1 se migra a v2…»): degrada un registro
+  a v1 (sin `pa_selection`, `user_version=1`), reabre, comprueba que la tabla existe, que la versión sube en
+  `PRAGMA user_version` y en `meta.registry_version`, que los proyectos siguen y que la cadena de auditoría
+  verifica; y que reabrir el registro ya migrado no vuelve a migrar.
+- **Compatibilidad hacia atrás:** un build anterior (v1) que abra un registro v2 recibe
+  `store-version-unsupported`; por eso la migración va en el mismo acto que el despliegue del build nuevo.

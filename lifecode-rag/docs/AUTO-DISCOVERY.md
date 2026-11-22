@@ -56,12 +56,12 @@ almacén por descubrir.
 ## CLI
 
 ```sh
-node bin/lifecode-rag.mjs trust add --path C:\xampp\htdocs\plugins-dhs --read true
+node bin/lifecode-rag.mjs trust add --path C:\ruta\a\mi-proyecto --read true
 node bin/lifecode-rag.mjs trust list
-node bin/lifecode-rag.mjs discover scan --path C:\xampp\htdocs\plugins-dhs
-node bin/lifecode-rag.mjs discover register --path C:\xampp\htdocs\plugins-dhs --read true
+node bin/lifecode-rag.mjs discover scan --path C:\ruta\a\mi-proyecto
+node bin/lifecode-rag.mjs discover register --path C:\ruta\a\mi-proyecto --read true
 node bin/lifecode-rag.mjs discover show --project prj_…
-node bin/lifecode-rag.mjs trust remove --path C:\xampp\htdocs\plugins-dhs
+node bin/lifecode-rag.mjs trust remove --path C:\ruta\a\mi-proyecto
 ```
 
 `trust remove` revoca la confianza sin borrar proyectos ni almacenes.
@@ -98,8 +98,8 @@ contenedora:
 
 La prueba de forma real (`eval/auto-discovery-01/scripts-harness-shape.mjs`) copia el registro
 real con `VACUUM INTO`, lee `$DSH_HOME/storages/workspace.json` y demuestra: sin trust →
-`project-not-authorized`; con trust sólo de `plugins-dhs` → resuelve ese proyecto con `cwd`
-`C:\xampp\htdocs`; ningún hermano registrado; el registro y el almacén reales no cambian
+`project-not-authorized`; con trust sólo de `<proyecto>` → resuelve ese proyecto con `cwd`
+`<checkout>`; ningún hermano registrado; el registro y el almacén reales no cambian
 (hashes antes/después en `16-harness-shape.txt`).
 
 ### Límite de esta entrega

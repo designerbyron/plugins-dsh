@@ -210,6 +210,13 @@ Envoltorio de respuesta (mismo sobre que la API v0.2, para no introducir un terc
 | POST | `/context` | cabecera de sesión | no | Contexto recuperado + citas |
 | GET | `/diagnostics` | cabecera de sesión | no | Diagnóstico redactado de la sesión |
 
+> **Implementado en `pa/1.1.0` (ACP-01, §15).** La superficie viva de este build es
+> `GET /lifecode-rag/pa/snapshot`, `GET /config`, `POST /search`, `POST /context`, `POST /selection` y
+> `POST /actions` (siempre 403). Las rutas `/session`, `/projects`, `/libraries`, `/sources`,
+> `/sources/:id`, `/diagnostics` y `/health` de esta tabla siguen siendo **diseño**: no hay contrato
+> implementado y el panel no las consume. La autorización no es una cabecera de sesión (§3.2, PA01):
+> es la credencial del host, verificada por `ctx.connection` en el adaptador.
+
 Todas las rutas de datos exigen `x-lifecode-rag-session`. `POST` exige además `x-lifecode-rag: 1` y `content-type: application/json` (patrón ya usado por la API v0.2, `[IMPLEMENTED]` `assertWrite`).
 
 Reglas transversales de la superficie (PA02/PA03):
@@ -293,7 +300,64 @@ Comportamiento determinista (control de concurrencia optimista):
 
 Invalidaciones (sin escritura): `session-expired` (409), `scope-forbidden` con `reason` de invalidación (403), `scope-forbidden` `reason: "project-unavailable"` si el proyecto no existe, está archivado o no es candidato (una sola respuesta, C-07), `invalid-argument` si el id no es `prj_…`.
 
-> **Estado de implementación:** la condición `revision = ?` **no existe hoy** en `lib/sessions.mjs` (`registerSelection` hace última-escritura-gana). Este contrato la exige; GAP-09 pasa a `REQUIRES IMPLEMENTATION` en PA-UI-1 y su prueba es C-12.
+> **Estado de implementación (ACP-01, `pa/1.1.0`): CERRADO.** `POST /lifecode-rag/pa/selection` aplica
+> este contrato con estas precisiones, todas medidas por `tests/selection-cas.test.mjs`:
+>
+> - **Alcance de la selección:** una fila por perfil (`pa_selection`, `selection_key='profile'`), no por
+>   `session_scope`. El motivo es PA01: el host no ofrece identidad de sesión al plugin (§3.2), y atar la
+>   selección del panel a un `SessionId` sin autenticar sería inventar identidad. Consecuencia buscada:
+>   la selección **sobrevive al cierre de sesión y al reinicio**.
+> - **Petición:** `{ "projectId": "prj_…", "expectedRevision": 0 }`, esquema estricto; cualquier otra clave
+>   → `400 invalid-argument` (`unknown-field`).
+> - **Respuesta 200:** `{ changed, revision, selection: {projectId, projectName, revision, source, selectedBy,
+>   principal, selectedAt, updatedAt}, project: {id, name} }`. No se implementa `GET /session`, así que la
+>   respuesta devuelve el bloque de selección ya resuelto en vez de la sesión completa.
+> - **Conflicto:** `409 revision-conflict` con `details: { reason: "revision-mismatch", expectedRevision,
+>   currentRevision, current: { projectId, projectName, revision } }`. No se escribe nada.
+> - **Proyecto inválido o ajeno:** `403 project-not-authorized` (el código `scope-forbidden` de §7 no existe
+>   en `RAG_CODES` de este build; `project-not-authorized` es el que ya usa toda la API PA para ese hecho).
+> - **Idempotencia:** mismo proyecto con la revisión vigente → `changed:false` y la revisión **no** sube.
+> - **Carrera entre dos paneles:** `BEGIN IMMEDIATE` + condición de revisión; exactamente uno confirma y el
+>   otro recibe `409`, que el panel traduce en recarga de la revisión vigente y aviso, sin reintento automático.
+> - **Auditoría:** cada cambio confirmado escribe `selection.select` / `selection.reselect` en la cadena del
+>   registro (`actor:'human'`, `detail.revision`, `detail.previous`, `detail.principal`).
+>
+> El reducer del panel no adelanta la revisión: `select-project` en modo API deja `pending:'selection'` y sólo
+> pinta el cambio al recibir `selection-ok` con la revisión confirmada (`tests/client.test.mjs`).
+
+### 6.11 `GET /history` (ACP-02)
+
+Historial de auditoría del **proyecto activo**, de sólo lectura. Implementado en `pa/1.2.0`.
+
+```json
+{
+  "scope": { "id": "prj_…", "kind": "prj", "name": "…" },
+  "total": 141,
+  "entries": [
+    {
+      "seq": 141, "at": 1795043069763, "actor": "automation",
+      "tool": "lifecode_rag_sync", "action": "sync.run",
+      "target": "prj_…", "outcome": "ok",
+      "hash": "5bc176a33fa5cc11", "details": null
+    }
+  ],
+  "nextCursor": "91",
+  "integrity": { "ok": true, "count": 141 }
+}
+```
+
+| Regla | Detalle |
+|---|---|
+| Ámbito | Estructural: las filas salen del almacén **del proyecto activo** (`audit` del scope store). No hay `where` de ámbito que se pueda olvidar, porque otro proyecto es otro fichero |
+| Paginación | `?limit=` (1–200, por defecto 50) y `?cursor=<seq>` (devuelve entradas con `seq` menor). `nextCursor` es `null` al final |
+| Procedencia | `seq`, `hash` (16 hex) y `integrity` (verificación de la cadena completa con el código del plugin) |
+| Redacción | `target` se relativiza a las raíces autorizadas (nunca ruta absoluta); `details` pasa por **lista blanca**: `sourceId, chunks, bytes, code, revision, replace, embedding, skipped`. Nada de `sessions`, `paths` ni mensajes de error con trayectorias |
+| Autenticación | La misma compuerta del host que el resto (§3, PA01); sin credencial → `401` |
+| Errores | `400 invalid-argument` (cursor o límite inválidos, parámetro no declarado), `403 project-not-authorized`, `503 authorization-unavailable` |
+
+> Si la API no puede servirlo, el panel mantiene el estado «no disponible» y **no** pinta filas: un historial
+> vacío y un historial inaccesible se distinguen (`entries: []` con `integrity.ok` frente a error de
+> transporte).
 
 ### 6.3 `GET /projects`
 
@@ -465,7 +529,7 @@ Se reutilizan los códigos de `lib/errors.mjs` (`[IMPLEMENTED]`), mapeados a HTT
 
 | Código RAG | HTTP | Significado | Mensaje visible (ES) | Nunca revelar |
 |---|---|---|---|---|
-| `unauthenticated` `[HOST]` | 401 | el host no reconoce el peer: sin cookie de GUI o cookie inválida/caducada (se emite **antes** de entrar a la ruta del plugin) | «Vuelve a abrir DeepSeek Harness desde el enlace que imprime `dsh web`.» | si faltaba la cookie, si era inválida o si caducó |
+| `unauthenticated` `[IMPLEMENTED · PA01]` | 401 | el host no reconoce el peer: sin cookie de GUI o cookie inválida/caducada (se emite **antes** de entrar a la ruta del plugin) | «Vuelve a abrir DeepSeek Harness desde el enlace que imprime `dsh web`.» | si faltaba la cookie, si era inválida o si caducó |
 | `session-invalid` | 401 | cabecera `x-lifecode-rag-session` ausente o mal formada | «No hay una sesión válida para esta ventana.» | patrón interno, id recibido |
 | `session-unavailable` | 409 | no hay agente vivo con ese id (o el id no existe) | «La sesión ya no está activa; recarga la ventana.» | si el id existió alguna vez, existencia de otras sesiones |
 | `session-expired` | 409 | sesión terminada (`expireSession`) | «La sesión terminó; abre una nueva.» | `expires_at` ajeno |
@@ -475,7 +539,9 @@ Se reutilizan los códigos de `lib/errors.mjs` (`[IMPLEMENTED]`), mapeados a HTT
 | `scope-too-many` | 409 | >8 ámbitos | «La selección supera el máximo de ámbitos.» | lista de scopes no autorizados |
 | `grant-revoked` | 403 | grant revocado durante la operación | «El acceso a una biblioteca cambió; vuelve a consultar.» | nombre de la biblioteca ajena |
 | `invalid-argument` | 400 | parámetro o campo inválido/desconocido | «La solicitud no es válida.» | valores internos |
-| `revision-conflict` `[PROPOSED]` | 409 | `expectedRevision` no coincide con la revisión actual | «Otra pestaña cambió el proyecto; recarga y reintenta.» | revisión de otras sesiones |
+| `revision-conflict` `[IMPLEMENTED · CR-1]` | 409 | `expectedRevision` no coincide con la revisión actual | «Otra pestaña cambió el proyecto; recarga y reintenta.» | revisión de otras sesiones |
+| `forbidden` `[IMPLEMENTED · PA01]` | 403 | la compuerta del host rechaza la petición pese a estar bien formada (trust/`Origin`) | «Esta ventana no está autorizada a leer el panel.» | motivo del rechazo en el host |
+| `authorization-unavailable` `[IMPLEMENTED · PA01]` | 403 / 503 | el host no ofrece `ctx.connection` (403) o la compuerta falló al decidir (503): la API PA queda cerrada | «La autenticación del host no está disponible; el panel está cerrado.» | detalle interno del servicio |
 | `audit-unavailable` `[PROPOSED]` | 503 | no se pudo escribir el evento `ui.read`; la lectura **no** se sirve | «No se pudo registrar el acceso; la operación no se completó.» | detalle del fallo de escritura, SQL, rutas |
 | `source-not-found` | 404 | fuente inexistente en el proyecto | «La fuente no existe en este proyecto.» | si existe en otro proyecto |
 | `store-not-initialized` | 503 | perfil sin registro | «El perfil aún no está inicializado.» | rutas del perfil |
@@ -569,7 +635,7 @@ Paginación: **offset** es suficiente y compatible con el modelo actual. No se i
 
 ### 9.1 Requisitos no negociables
 
-1. **Autenticación del peer = la del host** (cookie de GUI, principal `owner`). La sesión es direccionamiento, no credencial (§3.2–3.3). La API **no** afirma en ningún sitio que autentica una sesión. `[VERIFIED HOST]` + `[PROPOSED]` (postura contractual)
+1. **Autenticación del peer = la del host** (cookie de GUI, principal `owner`). La sesión es direccionamiento, no credencial (§3.2–3.3). La API **no** afirma en ningún sitio que autentica una sesión. `[VERIFIED HOST]` + `[IMPLEMENTED · PA01]`: el adaptador llama a `ctx.connection.requestRejection` y `admit` en **cada** petición, antes de resolver la ruta; sin `ctx.connection` niega (`503 authorization-unavailable`). Medido: `tests/pa-auth.test.mjs` (8 casos) y `tests/host-adapter.test.mjs`.
 2. Resolución de sesión/proyecto antes de cualquier dato (§4).
 3. Grants validados en cada operación; revalidación antes de devolver (`ctx.checkpoint`). `[IMPLEMENTED]`
 4. Apertura de almacenes sólo vía `ctx.open`. `[IMPLEMENTED]`
@@ -680,3 +746,57 @@ Cambios, exclusivamente documentales:
 6. **§13** se conserva íntegro como historial.
 
 Ver `docs/PA-UI-0.2-REVIEW.md` para la tabla de hallazgos y la verificación.
+
+---
+
+## 15. Registro de revisión ACP-01 (2026-11-21)
+
+Cambios de implementación (con su documentación):
+
+1. **PA01 — autenticación del panel (§3, §7, §9.1).** La API PA estaba **abierta**: `webServer.register`
+   no pasa por la compuerta del host y `GET /lifecode-rag/pa/health` respondía 200 sin credencial. Ahora
+   `createPaHandler` recibe una `authorize` opcional y el adaptador la construye con
+   `ctx.connection.requestRejection({headers})` + `admit({headers})`. La compuerta se evalúa **antes** de
+   resolver la ruta (una ruta inventada y una real responden lo mismo sin credencial), el principal se toma
+   del `Peer` del host (`owner`) y ninguna cabecera del renderer concede identidad. Sin servicio de conexión
+   se falla cerrado. Códigos nuevos en `RAG_CODES`: `unauthenticated`, `forbidden`,
+   `authorization-unavailable`.
+2. **CR-1 — selección con CAS (§6.2).** Implementada según lo descrito arriba; esquema del registro
+   **v2** con tabla aditiva `pa_selection` (`lib/registry-schema.mjs`, `lib/selection.mjs`) y migración
+   aditiva dentro de `openRegistry` (un registro v1 se abre, se migra y conserva datos y auditoría).
+3. **Snapshot.** `GET /snapshot` devuelve `selection` (proyección de `pa_selection`), `projects` (los
+   proyectos **activos** del perfil con `id`, `name`, `roots`, `authorized` y `current`: es la lista que el
+   panel necesita para cambiar de proyecto) y `auth.principal` (sólo el principal del host, nunca
+   credenciales). Con varios proyectos y sin selección sigue siendo `403 scope-ambiguous`: no se elige un
+   proyecto «por defecto» a la callada.
+   El panel pide `?limit=200` (el máximo de §8) para que la lista cargada coincida con el total del perfil;
+   si el proyecto tiene más de 200 fuentes, la vista lo declara (`sources.capped`) en vez de presentar la
+   página como si fuera el total.
+4. **Versión de la API:** `PA_VERSION = 'pa/1.1.0'` (en ACP-02 sube a `pa/1.2.0` por §6.11).
+5. **Pruebas.** `tests/pa-auth.test.mjs` (8 casos de PA01), `tests/selection-cas.test.mjs` (9 casos de CR-1),
+   dos casos de compuerta en `tests/host-adapter.test.mjs`, tres de reducer en `tests/client.test.mjs` y la
+   migración v1→v2 en `tests/registry.test.mjs`.
+
+Sin cambios en: contratos de las siete herramientas, almacenes de ámbito, DEMO/fixtures, motor de búsqueda,
+embeddings y presupuesto de contexto.
+
+---
+
+## 16. Registro de revisión ACP-02 (2026-11-22)
+
+1. **Catálogo de errores completo y único (`lib/errors.mjs`).** `RAG_CODES` pasa de 34 a 52 códigos: se
+   añadieron los 18 que el código lanzaba sin catalogar —entre ellos los de autorización (`scope-forbidden`,
+   `grant-revoked`, `session-invalid`, `session-expired`, `project-not-authorized`, `scope-ambiguous`,
+   `scope-too-many`, `scope-unresolved`) y los de ruta (`path-escape`, `hardlink-refused`, `root-overlap`,
+   `sequence-conflict`, `vector-index-incomplete`, `registry-*`, `scope-store-*`, `sync-root-unavailable`)—.
+   El catálogo y el mapa `HTTP_STATUS` son el mismo conjunto (biyección probada) y **un solo mapa** alimenta
+   las dos APIs: `pa-api` y el servidor heredado (`LEGACY_HTTP_OVERRIDES` declara las tres diferencias de la
+   v0.2). Un `RagError` con código no catalogado conserva el código (`catalogued:false`) en vez de convertirse
+   en `internal` en silencio.
+2. **Clasificación explícita de seguridad.** `SECURITY_CODES` (decisiones: siempre 4xx, probado que nunca
+   5xx) y `FAIL_CLOSED_CODES` (`approval-unavailable`, `authorization-unavailable`: 503 porque el fallo es del
+   servicio, no una decisión). Invariante probada por status: todo `401`/`403` del catálogo está clasificado.
+3. **`GET /history` (§6.11)** implementado con paginación, ámbito estructural y redacción; el panel estrena la
+   pestaña **Historial** con cadena verificada en lugar del «no disponible».
+4. **Pruebas:** `tests/error-codes.test.mjs` (8 casos, recorren el fuente) y `tests/pa-history.test.mjs`
+   (5 casos). Total del proyecto: **448**.
