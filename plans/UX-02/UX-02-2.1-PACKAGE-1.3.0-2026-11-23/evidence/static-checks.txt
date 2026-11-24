@@ -1,0 +1,26 @@
+=== node --check en TODO el tarball extraido ===
+ficheros comprobados: 56 · fallos: 0
+=== tipos en lib/ (worktree vs tarball) ===
+worktree lib:
+find: ‘../../../../lifecode-rag/lib’: No such file or directory
+tarball lib:
+     53 mjs
+=== docs del tarball ===
+ARCHITECTURE-v0.2.md
+AUTO-DISCOVERY.md
+AUTOMATION-POLICIES.md
+CONTRATO-v0.1.md
+EMBEDDING-PROVIDERS.md
+OBSERVABILITY.md
+PA-UI-0-API-CONTRACT.md
+PERFORMANCE-BUDGETS.md
+PROJECT-AWARE-ARCHITECTURE.md
+PROJECT-AWARE-DATA-CONTRACT.md
+PROJECT-AWARE-ERROR-CONTRACT.md
+PROJECT-AWARE-SESSION-CONTRACT.md
+WORKSPACE-API.md
+=== docs del worktree (para comparar) ===
+ls: cannot access '../../../../lifecode-rag/docs': No such file or directory
+=== rutas absolutas de desarrollo en el paquete ===
+--- en docs (recuento) ---
+0

@@ -1,0 +1,17 @@
+=== PASO 7c · CONTROL: copia LIMPIA (sin nuestra edicion) · utc 2026-11-23T04:00:43Z ===
+ff5ac0c9451dc45e04a5a0e3640ae45852632e2b0ef62ef9f5bb4d5d9da1c973 *pnpm-lock.yaml
+50012c7fd12c3fdcd9f54d0c08e7c29ad6bb900eabb199ee49c1f15b53de248f *package.json
+Error: ERR_PNPM_OUTDATED_LOCKFILE
+        Failure reason:
+        local dependency "@local/skill-compiler" at "../../../../../xampp/
+      htdocs/plugins-dhs/skill-compiler" is outdated
+exit=1
+--- y ahora el mismo ensayo SIN --frozen-lockfile, para ver que reescribe (solo en la copia) ---
+        that bypassed the policy locally — inspect recent changes to pnpm-
+        lock.yaml before trusting it. If the changes look expected, run "pnpm
+        clean --lockfile" and then "pnpm install" to rebuild from a fresh
+        resolution. If the fresh resolution still fails and you trust the
+        affected packages, relax the policy that flagged them.
+
+exit=1
+--- diff del lock REGENERADO por pnpm frente al original (solo skill-compiler?) ---

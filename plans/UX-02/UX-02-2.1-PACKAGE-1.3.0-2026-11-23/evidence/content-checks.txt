@@ -1,0 +1,29 @@
+=== package.json del tarball ===
+name: @designerbyron/lifecode-rag
+version: 1.3.0
+files: ["index.js","client.js","lib/","bin/","icon.svg","cordis.patch.yml","README.md","LICENSE","docs/CONTRATO-v0.1.md","docs/ARCHITECTURE-v0.2.md","docs/PROJECT-AWARE-ARCHITECTURE.md","docs/PROJECT-AWARE-DATA-CONTRACT.md","docs/PROJECT-AWARE-ERROR-CONTRACT.md","docs/PROJECT-AWARE-SESSION-CONTRACT.md","docs/PA-UI-0-API-CONTRACT.md","docs/AUTO-DISCOVERY.md","docs/AUTOMATION-POLICIES.md","docs/EMBEDDING-PROVIDERS.md","docs/OBSERVABILITY.md","docs/PERFORMANCE-BUDGETS.md","docs/WORKSPACE-API.md"]
+exports: {".":"./index.js","./client":"./client.js","./package.json":"./package.json","./lib/*.mjs":"./lib/*.mjs","./lib/*":"./lib/*.mjs"}
+deps: {}
+=== PA_VERSION en el tarball ===
+36:export const PA_VERSION = 'pa/1.4.0';
+=== modulos UX-2.1 presentes ===
+8692 evidence/extract/package/lib/harness-workspaces.mjs
+8278 evidence/extract/package/lib/workspaces-projection.mjs
+=== no debe haber tests/tools/plans/_audit/demo/eval ===
+ausente: tests
+ausente: tools
+ausente: plans
+ausente: _audit
+ausente: demo
+ausente: eval
+ausente: bench
+=== recuento real de entradas ===
+74
+=== tipos de fichero ===
+     54 mjs
+     14 md
+      2 js
+      1 yml
+      1 svg
+      1 json
+      1 evidence/extract/package/LICENSE

@@ -1,0 +1,10 @@
+=== gzip -t (integridad del flujo) ===
+gzip OK
+=== entradas fuera de package/ o con traversal ===
+(vacio = todas bajo package/ y sin traversal)
+=== package.json leido DEL tarball (no del worktree) ===
+@designerbyron/lifecode-rag 1.3.0 main: index.js engines: {"node":">=22.5.0","dsh":">=0.2.2-rc.3 <0.3.0"}
+=== PA_VERSION leido DEL tarball ===
+36:export const PA_VERSION = 'pa/1.4.0';
+=== sha256 de cada fichero del tarball vs worktree (resumen) ===
+extraidos 74 | identicos 74 | distintos 0 | sin fuente 0 | prohibidos 0

@@ -1,0 +1,17 @@
+# Diferencia del grafo de dependencias (lock) — antes vs después
+
+antes: 168 entradas · después: 172 · comunes: 166
+
+## Sólo antes (retiradas)
+
+pkg | @designerbyron/lifecode-rag@1.4.0 | resolution: {integrity: sha512-mojAqRJhh6Hy+MLKNTK9VT+Je3VPtdZl7/vxvahQmPoIo6mzJMO2Wuaaj0TqgvYzfFPN9loR5l8RBM/PTsloBQ==}
+snap | @designerbyron/lifecode-rag@1.4.0
+
+## Sólo después (añadidas)
+
+pkg | @designerbyron/lifecode-rag@file:vendor/designerbyron-lifecode-rag-1.4.0.tgz | resolution: {integrity: sha512-mojAqRJhh6Hy+MLKNTK9VT+Je3VPtdZl7/vxvahQmPoIo6mzJMO2Wuaaj0TqgvYzfFPN9loR5l8RBM/PTsloBQ==, tarball: file:vendor/designerbyron-lifecode-rag-1.4.0.tgz}
+pkg | dsh-data-quality@0.3.29 | resolution: {integrity: sha512-UV7aTAWA/xIhs7gT79n6Bs3eAy2kS4WwGbgIMR8r8j/apmUkHQFmbCJJ3xs8tHtjAhQfrftVWGGwBIB7NPWrvA==}
+pkg | zod@4.6.6 | resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
+snap | @designerbyron/lifecode-rag@file:vendor/designerbyron-lifecode-rag-1.4.0.tgz
+snap | dsh-data-quality@0.3.29(@deepseek-ai/schemastery@3.18.5)
+snap | zod@4.6.6

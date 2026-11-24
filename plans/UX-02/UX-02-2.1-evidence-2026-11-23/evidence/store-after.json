@@ -1,0 +1,147 @@
+{
+  "raiz": "<DSH_HOME>\\lifecode-rag",
+  "existe": true,
+  "ficheros": 8,
+  "huella": "22aabfb4e458e8ac1b7f72e96c09f2efb6ba8627dd512e28ff6d19012bfb48f6",
+  "inventario": [
+    {
+      "perfil": "desktop",
+      "registro": {
+        "proyectos": [
+          {
+            "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+            "name": "LifeCode RAG",
+            "status": "active"
+          },
+          {
+            "id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+            "name": "plugins-dhs",
+            "status": "active"
+          },
+          {
+            "id": "prj_01M82G7A9MGTQMRW15F0R5RVDP",
+            "name": "lifecode-brain",
+            "status": "active"
+          }
+        ],
+        "raices": [
+          {
+            "scope_kind": "prj",
+            "scope_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+            "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag",
+            "state": "authorized"
+          },
+          {
+            "scope_kind": "prj",
+            "scope_id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+            "path": "C:\\xampp\\htdocs\\plugins-dhs",
+            "state": "authorized"
+          },
+          {
+            "scope_kind": "prj",
+            "scope_id": "prj_01M82G7A9MGTQMRW15F0R5RVDP",
+            "path": "C:\\xampp\\htdocs\\lifecode-brain",
+            "state": "authorized"
+          }
+        ],
+        "seleccion": [
+          {
+            "selection_key": "profile",
+            "project_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+            "revision": 5,
+            "selected_by": "human"
+          }
+        ],
+        "auditoria": {
+          "n": 88,
+          "head": 88
+        },
+        "confianza": [
+          {
+            "clave": "trusted_roots",
+            "entradas": 1
+          }
+        ],
+        "integridad": {
+          "integrity_check": "ok"
+        }
+      },
+      "almacenes": [
+        {
+          "scopeId": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+          "fichero": "scopes\\prj_01M7RBSRD33M26HGBEFW51WPP6\\rag.sqlite3",
+          "datos": {
+            "fuentes": 121,
+            "chunks": 964,
+            "vectores": 964,
+            "auditoria": {
+              "n": 141,
+              "head": 141
+            },
+            "integridad": {
+              "integrity_check": "ok"
+            }
+          }
+        },
+        {
+          "scopeId": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+          "fichero": "scopes\\prj_01M7TRDQYRAPJR03QTM3PP6PX2\\rag.sqlite3",
+          "datos": {
+            "fuentes": 0,
+            "chunks": 0,
+            "vectores": 0,
+            "auditoria": {
+              "n": 4,
+              "head": 4
+            },
+            "integridad": {
+              "integrity_check": "ok"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "detalle": [
+    {
+      "path": "profiles/desktop/config.json",
+      "bytes": 998,
+      "sha256": "b15622c0ab9f790f71a4e7a1c3d4ef3d3c8a61279d60dfc2cbdac2751d01353c"
+    },
+    {
+      "path": "profiles/desktop/registry.sqlite3",
+      "bytes": 241664,
+      "sha256": "4b67cadc9afee8f6c24fb92ab9e1e4742429bd745b4ffb68c1fb1e11b3e45fae"
+    },
+    {
+      "path": "profiles/desktop/registry.sqlite3-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "profiles/desktop/registry.sqlite3-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "profiles/desktop/scopes/prj_01M7RBSRD33M26HGBEFW51WPP6/rag.sqlite3",
+      "bytes": 3862528,
+      "sha256": "4dcf31c4cb7058bb37528ad2c35ec33faa171ff003ad1faffb3bfec8b2472ae5"
+    },
+    {
+      "path": "profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3",
+      "bytes": 126976,
+      "sha256": "6130ecbae17b8e8241c792a036165ffa42902537dc838eeb649201e748ababcb"
+    },
+    {
+      "path": "profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-shm",
+      "bytes": 32768,
+      "sha256": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+    },
+    {
+      "path": "profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-wal",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

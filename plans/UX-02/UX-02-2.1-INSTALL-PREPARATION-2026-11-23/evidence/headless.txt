@@ -1,0 +1,12 @@
+=== HEADLESS, medicion corregida · utc 2026-11-23T03:48:56Z ===
+--- A) raiz temporal SIN registro (el caso anterior) ---
+exit real = 1
+ok: false | problems: ["el perfil no tiene registro Project-Aware (todavía no hay proyecto registrado)"]
+--- B) raiz temporal CON registro creado en el temporal ---
+registro temporal creado
+exit real = 0
+ok: true | problems: []
+perfil: prueba | registro: {"path":"C:\\Users\\BYRON\\AppData\\Local\\hermes\\profiles\\byron-saas-corporative\\cache\\scratch\\ux21\\install\\head
+--- residuos fuera del temporal ---
+C:/Users/BYRON/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/ux21/install/headless3/a.json
+C:/Users/BYRON/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/ux21/install/headless3/b.json

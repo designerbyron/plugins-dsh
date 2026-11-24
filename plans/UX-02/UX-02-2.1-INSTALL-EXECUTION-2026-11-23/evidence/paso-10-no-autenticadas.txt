@@ -1,0 +1,27 @@
+=== PASO 10 · comprobaciones no autenticadas sobre lo instalado · utc 2026-11-23T04:03:29Z ===
+--- 10.1 nucleo, version y tools ---
+herramientas: 7 -> lifecode_rag_context, lifecode_rag_forget, lifecode_rag_get, lifecode_rag_ingest, lifecode_rag_list, lifecode_rag_reindex, lifecode_rag_search
+PA_VERSION: pa/1.4.0
+inject: ["tools","webServer","connection"]
+source: host | items: 4 | truncated: false
+counts: {"total":4,"returned":4,"skipped":0,"withProject":2,"withoutProject":2,"ok":2,"missing":1,"unknown":1,"exact":2,"inside":0,"liveSessions":2,"knownSessions":4}
+ - w1 ok      exact  proyecto=Alfa vivas=1 total=2 titulo="Alfa"
+ - w2 missing exact  proyecto=AlfaSub vivas=0 total=1 titulo="Alfa"
+ - w3 unknown none   proyecto=- vivas=0 total=0 titulo="Beta"
+ - w4 ok      none   proyecto=- vivas=1 total=1 titulo="Beta"
+limite 2 -> devueltas: 2 | truncated: true | total: 4
+sin host (liveIds null) -> vivas: null | historicas: null
+entradas invalidas -> items: 1 | skipped: 2
+exit=0
+
+--- 10.2 rama source:none en pa-api (codigo instalado) ---
+801-        registry = openRegistry({ root: profileRoot, create: false, now: now() });
+802-      } catch (error) {
+803-        if (error instanceof RagError && error.code === 'store-not-initialized') {
+804:          return failWith(res, 503, 'registry-unavailable', 'el perfil no tiene registro Project-Aware');
+805-        }
+806-        throw error;
+807-      }
+808-      const db = registry.db ?? registry;
+809-      try {
+810-        // UX-2.1 §19: workspaces conocidos por el Host. Se responde ANTES de resolver el proyecto

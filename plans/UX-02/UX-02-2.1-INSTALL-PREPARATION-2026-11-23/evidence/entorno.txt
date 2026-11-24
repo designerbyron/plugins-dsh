@@ -1,0 +1,37 @@
+=== ENTORNO DE INSTALACION · utc 2026-11-23T03:46:26Z ===
+--- pnpm ---
+12.15.0
+--- node/npm ---
+v24.21.0
+11.19.0
+--- politica de edad minima ---
+pnpm config get minimumReleaseAge: undefined
+--- lock: entradas de lifecode-rag ---
+11:      '@designerbyron/lifecode-rag':
+47:  '@designerbyron/lifecode-rag@1.2.0':
+420:  '@designerbyron/lifecode-rag@1.2.0': {}
+--- electron dir (host) ---
+background-close-confirmed
+blob_storage
+Cache
+Code Cache
+DawnGraphiteCache
+DawnWebGPUCache
+declarative_performance_observer.db
+declarative_performance_observer.db-journal
+desktop
+DIPS
+DIPS-wal
+GPUCache
+GPUPersistentCache
+GrShaderCache
+Local State
+--- journal del gestor de plugins ---
+total 16
+drwxr-xr-x 1 BYRON 197121 0 nov. 22 15:55 .
+drwxr-xr-x 1 BYRON 197121 0 nov. 22 15:55 ..
+drwxr-xr-x 1 BYRON 197121 0 oct. 25 21:26 github-connection-2Dp69q
+drwxr-xr-x 1 BYRON 197121 0 oct. 26 17:27 github-connection-HGs7Jk
+--- config del plugin (claves, sin valores sensibles) ---
+["maxFileBytes","maxFilesPerIngest","chunk","context","search","embedding","audit","roots","metrics","automation","autoContext"]
+automation.enabled: false | autoContext.enabled: false

@@ -1,0 +1,8 @@
+=== otros plugins: versiones instaladas (baseline) ===
+@local/lifecode-skill-center 1.0.1
+@local/skill-compiler 5.0.2
+@tuhengyu/dsh-full-life-memory 0.8.0
+billion-context 0.1.216
+dsh-context 0.87.1
+dsh-data-quality 0.3.29
+dsh-plugins-update 0.2.5

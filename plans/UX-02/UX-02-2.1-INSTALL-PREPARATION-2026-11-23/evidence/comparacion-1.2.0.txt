@@ -1,0 +1,4 @@
+=== COMPARACION 1.2.0 INSTALADO vs PUBLICADO · utc 2026-11-23T03:48:43Z ===
+-rw-r--r-- 1 BYRON 197121 298855 nov. 22 21:45 C:/Users/BYRON/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/ux21/install/publicado-1.2.0.tgz
+ec672bea490d41c53c4ae6f6504e37608b52c1f1028910cf5a18e98152472143 *C:/Users/BYRON/AppData/Local/hermes/profiles/byron-saas-corporative/cache/scratch/ux21/install/publicado-1.2.0.tgz
+instalados: 73 | publicados: 73 | identicos: 73 | distintos: 0 | solo instalado: 0 | solo publicado: 0

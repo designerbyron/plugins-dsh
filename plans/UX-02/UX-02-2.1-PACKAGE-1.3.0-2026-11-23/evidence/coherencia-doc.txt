@@ -1,0 +1,8 @@
+=== §19 en el contrato empaquetado ===
+891:## 19. Registro de revisión UX-2.1 · `GET /pa/workspaces` (`pa/1.4.0`, 2026-11-23)
+4
+=== siete herramientas declaradas en el tarball ===
+=== referencias a rutas del repositorio no empaquetadas ===
+evidence/extract/package/docs/PA-UI-0-API-CONTRACT.md:774:Sin cambios en: código (`lib/`, `index.js`, `client.js`), `package.json`, esquemas, endpoints, slots, perfiles, registro, almacenes, `CONTRATO-v0.1.md`, `skill-compiler/`, `_audit/`, `lifecode-skill-center/`, `MEMORY.md`, `AGENTS.md`. Sin instalación, sin reinicio, sin `node --test` raíz, sin operaciones Git de escritura.
+evidence/extract/package/docs/PA-UI-0-API-CONTRACT.md:887:   host) contra `createPaHandler` sobre un **perfil temporal**, en `_audit/evidence/acp07-f4/`.
+evidence/extract/package/docs/PA-UI-0-API-CONTRACT.md:1036:resultados está en `plans/UX-02/UX-02-2.1-TEST-MATRIX.md` del acto UX-2.1.

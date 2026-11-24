@@ -1,0 +1,47 @@
+=== FECHA ===
+local 2026-11-22 20:18:25 HAC
+utc   2026-11-23 02:18:26Z
+=== HEAD ===
+7d7e839d514cca27044d595218bf8c67ec5a1f7d
+=== RAMA ===
+release/lifecode-rag-1.0.0
+=== INDICE (lineas) ===
+0
+=== STATUS ===
+ M lifecode-rag/README.md
+ M lifecode-rag/client.js
+ M lifecode-rag/docs/PA-UI-0-API-CONTRACT.md
+ M lifecode-rag/index.js
+ M lifecode-rag/lib/errors.mjs
+ M lifecode-rag/lib/harness-workspaces.mjs
+ M lifecode-rag/lib/pa-api.mjs
+ M lifecode-rag/lib/registry.mjs
+ M lifecode-rag/lib/resolve.mjs
+ M lifecode-rag/lib/selection.mjs
+ M lifecode-rag/lib/server.mjs
+ M lifecode-rag/package.json
+ M lifecode-rag/tests/adapter.test.mjs
+ M lifecode-rag/tests/client.test.mjs
+ M lifecode-rag/tests/discovery.test.mjs
+ M lifecode-rag/tests/harness-projects.test.mjs
+ M lifecode-rag/tests/registry.test.mjs
+?? _audit/ACP-04-CLEAN-CONSUMER-INSTALLATION.md
+?? _audit/ACP-04-DELIVERABLES.sha256
+?? _audit/ACP-04-NPM-REGISTRY-VERIFICATION.md
+?? _audit/ACP-04-PUBLIC-API-COMPATIBILITY.md
+?? _audit/ACP-04-RELEASE-CLOSURE.md
+?? _audit/ACP-05-CLEAN-CONSUMER-VERIFICATION.md
+?? _audit/ACP-05-DELIVERABLES.sha256
+?? _audit/ACP-05-PUBLICATION-REPORT.md
+?? _audit/ACP-05-REGISTRY-INTEGRITY.md
+?? _audit/ACP-05-RELEASE-CLOSURE.md
+?? lifecode-rag/lib/workspaces-projection.mjs
+?? lifecode-rag/tests/pa-admin.test.mjs
+?? lifecode-rag/tests/pa-workspaces.test.mjs
+?? lifecode-rag/tests/workspaces-projection.test.mjs
+?? plans/UX-02/
+=== VERSIONES ===
+3:    "version":  "1.3.0",
+36:export const PA_VERSION = 'pa/1.4.0';
+=== ENTREGABLES UX-2.1 ===
+38

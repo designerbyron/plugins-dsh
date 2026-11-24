@@ -1,0 +1,133 @@
+{
+  "version": "pa/1.4.0",
+  "url": "http://127.0.0.1:50622/lifecode-rag/pa",
+  "casos": [
+    {
+      "nombre": "GET /workspaces · status",
+      "esperado": 200,
+      "observado": 200,
+      "ok": true
+    },
+    {
+      "nombre": "content-type JSON",
+      "esperado": "application/json; charset=utf-8",
+      "observado": "application/json; charset=utf-8",
+      "ok": true
+    },
+    {
+      "nombre": "cache-control",
+      "esperado": "no-store",
+      "observado": "no-store",
+      "ok": true
+    },
+    {
+      "nombre": "source",
+      "esperado": "host",
+      "observado": "host",
+      "ok": true
+    },
+    {
+      "nombre": "version",
+      "esperado": "pa/1.4.0",
+      "observado": "pa/1.4.0",
+      "ok": true
+    },
+    {
+      "nombre": "items",
+      "esperado": 3,
+      "observado": 3,
+      "ok": true
+    },
+    {
+      "nombre": "estado ok",
+      "esperado": "ok",
+      "observado": "ok",
+      "ok": true
+    },
+    {
+      "nombre": "estado missing",
+      "esperado": "missing",
+      "observado": "missing",
+      "ok": true
+    },
+    {
+      "nombre": "estado unknown + motivo",
+      "esperado": "timeout",
+      "observado": "timeout",
+      "ok": true
+    },
+    {
+      "nombre": "relación",
+      "esperado": "exact",
+      "observado": "exact",
+      "ok": true
+    },
+    {
+      "nombre": "sesiones vivas",
+      "esperado": {
+        "known": 2,
+        "live": 1,
+        "historical": 1
+      },
+      "observado": {
+        "known": 2,
+        "live": 1,
+        "historical": 1
+      },
+      "ok": true
+    },
+    {
+      "nombre": "sin sessionIds en el cuerpo",
+      "esperado": false,
+      "observado": false,
+      "ok": true
+    },
+    {
+      "nombre": "POST rechazado",
+      "esperado": 405,
+      "observado": 405,
+      "ok": true
+    },
+    {
+      "nombre": "parámetro no declarado",
+      "esperado": 400,
+      "observado": 400,
+      "ok": true
+    },
+    {
+      "nombre": "motivo del 400",
+      "esperado": "unknown-parameter",
+      "observado": "unknown-parameter",
+      "ok": true
+    },
+    {
+      "nombre": "/config sigue respondiendo",
+      "esperado": 200,
+      "observado": 200,
+      "ok": true
+    },
+    {
+      "nombre": "/config · claves",
+      "esperado": [
+        "config",
+        "mode",
+        "profile",
+        "service",
+        "version"
+      ],
+      "observado": [
+        "config",
+        "mode",
+        "profile",
+        "service",
+        "version"
+      ],
+      "ok": true
+    }
+  ],
+  "resumen": {
+    "casos": 17,
+    "ok": 17,
+    "fallos": []
+  }
+}

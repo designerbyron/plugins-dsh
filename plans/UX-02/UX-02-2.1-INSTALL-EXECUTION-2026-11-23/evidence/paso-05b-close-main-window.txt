@@ -1,0 +1,8 @@
+=== PASO 5b · CloseMainWindow sobre el pid principal 11816 · utc 2026-11-23T03:56:37Z ===
+ventana antes: [DeepSeek Harness]
+CloseMainWindow devolvio: True
+--- estado 3 s despues ---
+ 11816 24120 1424 24224 10308 
+ventana ahora: []
+--- puerto ---
+127.0.0.1:57200 pid=10308

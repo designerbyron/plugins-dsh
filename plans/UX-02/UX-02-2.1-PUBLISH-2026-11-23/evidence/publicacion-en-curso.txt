@@ -1,0 +1,25 @@
+=== utc 2026-11-23T03:32:07Z · estado de la publicacion en curso ===
+--- mtime del log ---
+2026-11-22 21:31:14.427040600 -0600
+--- ultimas lineas seguras del log ---
+38 http fetch GET 202 https://registry.npmjs.org/-/v1/done?authId=*** 164ms
+39 http fetch GET 202 https://registry.npmjs.org/-/v1/done?authId=*** 191ms
+40 http fetch GET 200 https://registry.npmjs.org/-/v1/done?authId=*** 211ms
+41 verbose web auth done-check finished
+42 notice Your package is being processed and may take a few minutes to become available.
+43 http fetch PUT 202 https://registry.npmjs.org/@designerbyron%2flifecode-rag 1876ms
+44 verbose cwd C:\xampp\htdocs\plugins-dhs-release\plans\UX-02\UX-02-2.1-PACKAGE-1.3.0-2026-11-23\artifact
+45 verbose os Windows_NT 10.0.26200
+46 verbose node v24.21.0
+47 verbose npm  v11.19.0
+48 verbose exit 0
+49 info ok
+--- procesos node/npm vivos ---
+"node.exe","12156","Console","1","114,504 KB"
+"node.exe","22760","Console","1","60,700 KB"
+"node.exe","9472","Console","1","52,920 KB"
+"node.exe","18048","Console","1","127,096 KB"
+"node.exe","26224","Console","1","198,828 KB"
+"node.exe","12032","Console","1","73,456 KB"
+--- registro ahora ---
+1.3.0: false | latest: 1.2.0 | modified: 2026-11-22T19:59:55.679Z

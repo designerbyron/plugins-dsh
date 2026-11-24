@@ -1,0 +1,10 @@
+=== entorno de construccion ===
+node: v24.21.0
+npm:  11.19.0
+so:   MSYS_NT-10.0-26200 3.6.6-1cdd4371.x86_64
+=== estado git tras la generacion ===
+7d7e839d514cca27044d595218bf8c67ec5a1f7d
+release/lifecode-rag-1.0.0
+indice: 0 lineas
+porcelain: 32 entradas
+?? plans/UX-02/

@@ -1,0 +1,1244 @@
+{
+  "tgz": "C:/xampp/htdocs/plugins-dhs-release/plans/UX-02/UX-02-2.1-PACKAGE-1.3.0-2026-11-23/artifact/designerbyron-lifecode-rag-1.3.0.tgz",
+  "destino": "C:/xampp/htdocs/plugins-dhs-release/plans/UX-02/UX-02-2.1-PACKAGE-1.3.0-2026-11-23/evidence/extract",
+  "ficherosExtraidos": 74,
+  "identicos": 74,
+  "distintos": [],
+  "sinFuenteEnWorktree": [],
+  "ficherosDelWorktreeNoPublicados": 375,
+  "listaNoPublicados": [
+    ".gitignore",
+    "bench/bench-real.mjs",
+    "bench/bench.mjs",
+    "bench/last-run.json",
+    "bench/real-run.json",
+    "demo/.gitignore",
+    "demo/.store/rag.sqlite3",
+    "demo/app.js",
+    "demo/corpus/arquitectura.md",
+    "demo/corpus/herramientas.md",
+    "demo/corpus/indice.txt",
+    "demo/corpus/observabilidad.md",
+    "demo/corpus/operacion.md",
+    "demo/corpus/recuperacion-hibrida.md",
+    "demo/corpus/seguridad.md",
+    "demo/index.html",
+    "demo/server.mjs",
+    "demo/shots/resumen.png",
+    "demo/styles.css",
+    "docs/ACEPTACION-project-aware-propuesta.md",
+    "docs/ACEPTACION-v0.1.md",
+    "docs/ACEPTACION-v0.2-propuesta.md",
+    "docs/ACEPTACION-v0.2.0.md",
+    "docs/BENCHMARK-2026-11-17.md",
+    "docs/INSTALACION-M6.md",
+    "docs/K1-DECISIONS-RESOLUTION/01-OWNER-DECISIONS.md",
+    "docs/K1-DECISIONS-RESOLUTION/02-G3-AMENDMENT-PROPOSAL.md",
+    "docs/K1-DECISIONS-RESOLUTION/03-K1-DECISIONS-TRACEABILITY.md",
+    "docs/K1-DECISIONS-RESOLUTION/04-IMPLEMENTATION-AUTHORIZATION-BOUNDARY.md",
+    "docs/K1-DECISIONS-RESOLUTION/05-RESOLUTION-MANIFEST-SHA256.txt",
+    "docs/K1-IMPLEMENTATION-PLAN/01 — K1-IMPLEMENTATION-PLAN.md",
+    "docs/K1-IMPLEMENTATION-PLAN/02 — K1-A-CLIENT-INTEGRATION.md",
+    "docs/K1-IMPLEMENTATION-PLAN/03 — K1-B-PROJECT-AWARE-UI.md",
+    "docs/K1-IMPLEMENTATION-PLAN/04 — K1-C-API-SECURITY-GATES.md",
+    "docs/K1-IMPLEMENTATION-PLAN/05 — K1-TEST-AND-ACCEPTANCE.md",
+    "docs/K1-IMPLEMENTATION-PLAN/06 — K1-FILE-IMPACT-MATRIX.md",
+    "docs/K1-IMPLEMENTATION-PLAN/07 — K1-DECISIONS-AND-OPEN-QUESTIONS.md",
+    "docs/K1-IMPLEMENTATION-PLAN/08 — K1-PLAN-MANIFEST-SHA256.txt",
+    "docs/LE-RAG-01-ARCHITECTURE.md",
+    "docs/LE-RAG-02-COMPLETION.md",
+    "docs/LE-RAG-03-RELEASE.md",
+    "docs/LE-RAG-04-DECISIONS-AND-SPEC.md",
+    "docs/LE-RAG-05-CLIENT-AUDIT.md",
+    "docs/LE-RAG-05-FINAL-REVIEW.md",
+    "docs/LE-RAG-06-FILE-RECONCILIATION.md",
+    "docs/LE-RAG-06-INTEGRATION-REPORT.md",
+    "docs/LE-RAG-07-COMMIT-PREPARATION.md",
+    "docs/LE-RAG-07-FILE-MANIFEST.md",
+    "docs/LE-RAG-08-DSH-INTEGRATION-PLAN.md",
+    "docs/LE-RAG-08-POST-COMMIT-VALIDATION.md",
+    "docs/LE-RAG-09-DSH-LOAD-REPORT.md",
+    "docs/LE-RAG-09-LAB-SETUP.md",
+    "docs/LE-RAG-09-MODEL-TOOLS-REPORT.md",
+    "docs/LE-RAG-09-SECURITY-REPORT.md",
+    "docs/LE-RAG-10-IMPLEMENTATION-REPORT.md",
+    "docs/LE-RAG-10-PANEL-FIX-REPORT.md",
+    "docs/LE-RAG-10-RESEARCH.md",
+    "docs/LE-RAG-11-POST-CONTRACT-REPORT.md",
+    "docs/LE-RAG-12-CONSISTENCY-REPORT.md",
+    "docs/PA-UI-0-ACCEPTANCE.md",
+    "docs/PA-UI-0-GAPS.md",
+    "docs/PA-UI-0.1-REVIEW.md",
+    "docs/PA-UI-0.2-REVIEW.md",
+    "docs/PA-UI-0.3-REVIEW.md",
+    "docs/PA-UI-0.4-ROUTE-B-EVALUATION.md",
+    "docs/RETRIEVAL-EVALUATION.md",
+    "docs/WORKSPACE-UX.md",
+    "docs/release/ACP-02-ACCEPTANCE-MATRIX.md",
+    "docs/release/ACP-02-CHANGE-MANIFEST.md",
+    "docs/release/ACP-02-CLEANUP-REPORT.md",
+    "docs/release/ACP-02-FINAL-REPORT.md",
+    "docs/release/ACP-02-TEST-EVIDENCE.md",
+    "docs/release/LIFECODE-RAG-1.0.0-ACCEPTANCE-MATRIX.md",
+    "docs/release/LIFECODE-RAG-1.0.0-CHANGE-MANIFEST.md",
+    "docs/release/LIFECODE-RAG-1.0.0-DAILY-USE-GUIDE.md",
+    "docs/release/LIFECODE-RAG-1.0.0-DEPLOYMENT-REPORT.md",
+    "docs/release/LIFECODE-RAG-1.0.0-FINAL-REPORT.md",
+    "docs/release/LIFECODE-RAG-1.0.0-ROLLBACK-GUIDE.md",
+    "docs/release/LIFECODE-RAG-1.0.0-TEST-EVIDENCE.md",
+    "eval/auto-discovery-01/01-tests-full.txt",
+    "eval/auto-discovery-01/02-tests-discovery.txt",
+    "eval/auto-discovery-01/03-tests-client.txt",
+    "eval/auto-discovery-01/04-discovery-plugins-dhs.txt",
+    "eval/auto-discovery-01/05-discovery-htdocs.txt",
+    "eval/auto-discovery-01/06-real-registry-readonly.txt",
+    "eval/auto-discovery-01/07-store-integrity.txt",
+    "eval/auto-discovery-01/08-resolution-real-shape.txt",
+    "eval/auto-discovery-01/09-panel.txt",
+    "eval/auto-discovery-01/10-dsh-real.txt",
+    "eval/auto-discovery-01/11-design.md",
+    "eval/auto-discovery-01/12-manifest.sha256",
+    "eval/auto-discovery-01/13-REPORT.md",
+    "eval/auto-discovery-01/14-tests-harness-projects.txt",
+    "eval/auto-discovery-01/15-tests-full-after-harness.txt",
+    "eval/auto-discovery-01/16-harness-shape.txt",
+    "eval/auto-discovery-01/17-harness-live-state.txt",
+    "eval/auto-discovery-01/18-REPORT-harness-projects.md",
+    "eval/auto-discovery-01/19-manifest-harness.sha256",
+    "eval/auto-discovery-01/20-trust-add.txt",
+    "eval/auto-discovery-01/README.md",
+    "eval/auto-discovery-01/scripts-harness-shape.mjs",
+    "eval/auto-discovery-01/scripts-live-state.mjs",
+    "eval/auto-discovery-01/scripts-real-shape.mjs",
+    "eval/auto-discovery-01/scripts-trust-postcheck.mjs",
+    "eval/functional-audit-01/ACCEPTANCE-MATRIX.md",
+    "eval/functional-audit-01/DATA-PROVENANCE-MATRIX.md",
+    "eval/functional-audit-01/DEFECT-REGISTER.md",
+    "eval/functional-audit-01/EXECUTIVE-REPORT.md",
+    "eval/functional-audit-01/HASHES.txt",
+    "eval/functional-audit-01/HOST-VERIFICATION.md",
+    "eval/functional-audit-01/SECURITY-AND-FIXTURE-VERIFICATION.md",
+    "eval/functional-audit-01/TEST-RESULTS.md",
+    "eval/functional-audit-01/VIEW-BY-VIEW-RESULTS.md",
+    "eval/functional-audit-01/VISUAL-OBSERVATIONS.md",
+    "eval/functional-audit-01/logs/check.txt",
+    "eval/functional-audit-01/logs/hermetic.txt",
+    "eval/functional-audit-01/logs/node-test.txt",
+    "eval/functional-audit-01/screens/01-project.png",
+    "eval/functional-audit-01/screens/02-libraries.png",
+    "eval/functional-audit-01/screens/03-sources.png",
+    "eval/functional-audit-01/screens/04-search.png",
+    "eval/functional-audit-01/screens/05-context.png",
+    "eval/functional-audit-01/screens/06-operations.png",
+    "eval/functional-audit-01/screens/07-diagnostics.png",
+    "eval/functional-audit-01/screens/08-connection.png",
+    "eval/functional-audit-01/screens/09-history.png",
+    "eval/functional-audit-01/screens/10-fleet-reference.png",
+    "eval/host-subagent-audit-01/ARCHITECTURE-OPTIONS.md",
+    "eval/host-subagent-audit-01/EXECUTIVE-REPORT.md",
+    "eval/host-subagent-audit-01/HASHES.txt",
+    "eval/host-subagent-audit-01/HOST-POST-REDESIGN-VERIFICATION.md",
+    "eval/host-subagent-audit-01/RAG-TOOL-AVAILABILITY-MATRIX.md",
+    "eval/host-subagent-audit-01/RECOMMENDATION.md",
+    "eval/host-subagent-audit-01/SECURITY-THREAT-MODEL.md",
+    "eval/host-subagent-audit-01/SUBAGENT-AUTHORIZATION-ANALYSIS.md",
+    "eval/host-subagent-audit-01/SUBAGENT-PROVIDER-INVENTORY.md",
+    "eval/host-subagent-audit-01/SYNTHETIC-TEST-RESULTS.md",
+    "eval/host-subagent-audit-01/VIEW-COUNT-RECONCILIATION.md",
+    "eval/host-subagent-audit-01/evidence-host/approval-README.md",
+    "eval/host-subagent-audit-01/evidence-host/base-patch.yml",
+    "eval/host-subagent-audit-01/evidence-host/child-agent.ts",
+    "eval/host-subagent-audit-01/evidence-host/fork-README.md",
+    "eval/host-subagent-audit-01/evidence-host/spawn-README.md",
+    "eval/host-subagent-audit-01/evidence-host/subagent-README.md",
+    "eval/host-subagent-audit-01/evidence-host/tool-subagent-README.md",
+    "eval/host-subagent-audit-01/evidence-host/tools-README.md",
+    "eval/host-subagent-audit-01/evidence-host/web-patch.yml",
+    "eval/host-subagent-audit-01/screens-host/01-project.png",
+    "eval/host-subagent-audit-01/screens-host/02-libraries.png",
+    "eval/host-subagent-audit-01/screens-host/03-sources.png",
+    "eval/host-subagent-audit-01/screens-host/04-search.png",
+    "eval/host-subagent-audit-01/screens-host/05-context.png",
+    "eval/host-subagent-audit-01/screens-host/06-operations.png",
+    "eval/host-subagent-audit-01/screens-host/07-diagnostics.png",
+    "eval/host-subagent-audit-01/screens-host/08-connection.png",
+    "eval/host-subagent-audit-01/screens-host/09-history.png",
+    "eval/le-rag-03/functional-report.json",
+    "eval/le-rag-03/functional.mjs",
+    "eval/le-rag-04/seven-tools-report.json",
+    "eval/le-rag-04/seven-tools.mjs",
+    "eval/lunascape-token-rotation-01/HASHES.txt",
+    "eval/lunascape-token-rotation-01/OPERATION-REPORT.md",
+    "eval/pa-ui-1/evidence/CAMBIOS.md",
+    "eval/pa-ui-1/evidence/CAPTURAS.md",
+    "eval/pa-ui-1/evidence/CRITERIOS.md",
+    "eval/pa-ui-1/evidence/DEFECTOS-CORREGIDOS.md",
+    "eval/pa-ui-1/evidence/G3-AMENDMENT.md",
+    "eval/pa-ui-1/evidence/HASHES.txt",
+    "eval/pa-ui-1/evidence/INFORME-EJECUTIVO.md",
+    "eval/pa-ui-1/evidence/PENDIENTES-Y-BLOQUEOS.md",
+    "eval/pa-ui-1/evidence/PRUEBAS.md",
+    "eval/pa-ui-1/evidence/README.md",
+    "eval/pa-ui-1/evidence/SIN-ACCESO-REAL.md",
+    "eval/pa-ui-1/evidence/TRAZABILIDAD.md",
+    "eval/pa-ui-1/evidence/after/PA-UI-0-ACCEPTANCE.md",
+    "eval/pa-ui-1/evidence/after/check.mjs.txt",
+    "eval/pa-ui-1/evidence/after/client.js.txt",
+    "eval/pa-ui-1/evidence/after/client.test.mjs.txt",
+    "eval/pa-ui-1/evidence/after/package.json",
+    "eval/pa-ui-1/evidence/before/PA-UI-0-ACCEPTANCE.md",
+    "eval/pa-ui-1/evidence/before/check.mjs.txt",
+    "eval/pa-ui-1/evidence/before/client.js.txt",
+    "eval/pa-ui-1/evidence/before/client.test.mjs.txt",
+    "eval/pa-ui-1/evidence/before/package.json",
+    "eval/pa-ui-1/evidence/check.txt",
+    "eval/pa-ui-1/evidence/diffs/PA-UI-0-ACCEPTANCE.md.diff",
+    "eval/pa-ui-1/evidence/diffs/check.mjs.diff",
+    "eval/pa-ui-1/evidence/diffs/client.js.diff",
+    "eval/pa-ui-1/evidence/diffs/client.test.mjs.diff",
+    "eval/pa-ui-1/evidence/diffs/package.json.diff",
+    "eval/pa-ui-1/evidence/hermetic.txt",
+    "eval/pa-ui-1/evidence/node-test.txt",
+    "eval/product-readiness-01/CANDIDATE-REPORT.md",
+    "eval/product-readiness-01/HASHES.txt",
+    "eval/product-readiness-01/PANEL-DATA-PATH.md",
+    "eval/product-readiness-01/PROMISE-MATRIX.md",
+    "eval/product-readiness-01/SECURITY-GATES.md",
+    "eval/product-readiness-01/SUBAGENT-AUTHORIZATION.md",
+    "eval/product-readiness-01/TEST-MATRIX.md",
+    "eval/product-readiness-01/TOOLS-ACCEPTANCE.md",
+    "eval/product-readiness-01/hermetic.log",
+    "eval/product-readiness-01/probe-forget.mjs",
+    "eval/product-readiness-01/smoke-tools.log",
+    "eval/product-readiness-01/smoke-tools.mjs",
+    "eval/real-host-acceptance-01/ACCEPTANCE-RUN.md",
+    "eval/real-host-acceptance-01/COEXISTENCE.md",
+    "eval/real-host-acceptance-01/EXECUTIVE-REPORT.md",
+    "eval/real-host-acceptance-01/HASHES.txt",
+    "eval/real-host-acceptance-01/INTEGRITY-VERIFICATION.md",
+    "eval/real-host-acceptance-01/LAYER-VERIFICATION.md",
+    "eval/real-host-acceptance-01/MODEL-INVOCATION.md",
+    "eval/real-host-acceptance-01/READ-ONLY-TESTS.md",
+    "eval/real-host-acceptance-01/SESSION-CONTEXT.md",
+    "eval/real-host-acceptance-01/TOOL-CATALOG.md",
+    "eval/real-host-acceptance-01/after.files.tsv",
+    "eval/real-host-acceptance-01/after.sha256",
+    "eval/real-host-acceptance-01/baseline-1423.files.tsv",
+    "eval/real-host-acceptance-01/baseline-1423.sha256",
+    "eval/real-host-acceptance-01/before-run.json",
+    "eval/real-host-acceptance-01/before-run.sha256",
+    "eval/real-host-acceptance-01/before.files.tsv",
+    "eval/real-host-acceptance-01/before.sha256",
+    "eval/real-host-acceptance-01/chunks-muestra.json",
+    "eval/real-host-acceptance-01/coexistence-probe.json",
+    "eval/real-host-acceptance-01/coexistence-probe.mjs",
+    "eval/real-host-acceptance-01/diff.files.tsv",
+    "eval/real-host-acceptance-01/diff.sha256",
+    "eval/real-host-acceptance-01/inspect-proyecto.json",
+    "eval/real-host-acceptance-01/inspect-readonly.mjs",
+    "eval/real-host-acceptance-01/owner-acceptance.json",
+    "eval/real-host-acceptance-01/owner-acceptance.mjs",
+    "eval/real-host-acceptance-01/resolve-probe-workspace.json",
+    "eval/real-host-acceptance-01/resolve-probe.json",
+    "eval/real-host-acceptance-01/resolve-probe.mjs",
+    "eval/real-host-acceptance-01/tool-path-plugins-dhs.json",
+    "eval/real-host-acceptance-01/tool-path-probe.json",
+    "eval/real-host-acceptance-01/tool-path-probe.mjs",
+    "eval/real-world-01/DAILY-USE.md",
+    "eval/real-world-01/HASHES.txt",
+    "eval/real-world-01/PANEL-STATE.md",
+    "eval/real-world-01/RESULTS.md",
+    "eval/real-world-01/SUBAGENT-PROTECTION.md",
+    "eval/real-world-01/docs-b/otro-proyecto.md",
+    "eval/real-world-01/docs/borrador-temporal.md",
+    "eval/real-world-01/docs/guia-turno.md",
+    "eval/real-world-01/docs/politica-reembolsos.md",
+    "eval/real-world-01/ingest.log",
+    "eval/real-world-01/isolation.log",
+    "eval/real-world-01/isolation.mjs",
+    "eval/real-world-01/probe.mjs",
+    "eval/real-world-01/project-id.txt",
+    "eval/real-world-01/root.json",
+    "eval/real-world-01/run-acceptance.mjs",
+    "eval/real-world-01/store/registry.sqlite3",
+    "eval/real-world-01/store/scopes/prj_01M7TMS0QVWAF5XB8H471KDEG3/rag.sqlite3",
+    "eval/real-world-01/store/scopes/prj_01M7TMSKQ61FW6XHZ3TQK1T8W8/rag.sqlite3",
+    "eval/real-world-01/verify.log",
+    "eval/remediation-redesign-01/ACCESSIBILITY-RESULTS.md",
+    "eval/remediation-redesign-01/BEFORE-AFTER-INDEX.md",
+    "eval/remediation-redesign-01/DEFECT-RESOLUTION-MATRIX.md",
+    "eval/remediation-redesign-01/DESIGN-SYSTEM.md",
+    "eval/remediation-redesign-01/EXECUTIVE-REPORT.md",
+    "eval/remediation-redesign-01/HASHES.txt",
+    "eval/remediation-redesign-01/PHASE-A-FUNCTIONAL-RESULTS.md",
+    "eval/remediation-redesign-01/PHASE-B-VISUAL-RESULTS.md",
+    "eval/remediation-redesign-01/RESPONSIVE-RESULTS.md",
+    "eval/remediation-redesign-01/SECURITY-INVARIANTS.md",
+    "eval/remediation-redesign-01/TEST-RESULTS.md",
+    "eval/remediation-redesign-01/before/client.js.snapshot.txt",
+    "eval/remediation-redesign-01/before/client.test.mjs.snapshot.txt",
+    "eval/remediation-redesign-01/logs/check.txt",
+    "eval/remediation-redesign-01/logs/client.txt",
+    "eval/remediation-redesign-01/logs/hermetic.txt",
+    "eval/remediation-redesign-01/logs/render.txt",
+    "eval/remediation-redesign-01/logs/suite.txt",
+    "eval/remediation-redesign-01/preview/connection.html",
+    "eval/remediation-redesign-01/preview/context.html",
+    "eval/remediation-redesign-01/preview/diagnostics.html",
+    "eval/remediation-redesign-01/preview/history.html",
+    "eval/remediation-redesign-01/preview/libraries.html",
+    "eval/remediation-redesign-01/preview/operations.html",
+    "eval/remediation-redesign-01/preview/project.html",
+    "eval/remediation-redesign-01/preview/search.html",
+    "eval/remediation-redesign-01/preview/source.html",
+    "eval/remediation-redesign-01/preview/sources.html",
+    "eval/remediation-redesign-01/screens-after/connection-1280.png",
+    "eval/remediation-redesign-01/screens-after/context-1280.png",
+    "eval/remediation-redesign-01/screens-after/diagnostics-1280.png",
+    "eval/remediation-redesign-01/screens-after/history-1280.png",
+    "eval/remediation-redesign-01/screens-after/libraries-1280.png",
+    "eval/remediation-redesign-01/screens-after/operations-1280.png",
+    "eval/remediation-redesign-01/screens-after/operations-390.png",
+    "eval/remediation-redesign-01/screens-after/project-1280.png",
+    "eval/remediation-redesign-01/screens-after/project-390.png",
+    "eval/remediation-redesign-01/screens-after/search-1280.png",
+    "eval/remediation-redesign-01/screens-after/search-390.png",
+    "eval/remediation-redesign-01/screens-after/source-1280.png",
+    "eval/remediation-redesign-01/screens-after/sources-1280.png",
+    "eval/remediation-redesign-01/screens-after/sources-390.png",
+    "eval/remediation-redesign-01/screens-before/01-project.png",
+    "eval/remediation-redesign-01/screens-before/02-libraries.png",
+    "eval/remediation-redesign-01/screens-before/03-sources.png",
+    "eval/remediation-redesign-01/screens-before/04-search.png",
+    "eval/remediation-redesign-01/screens-before/05-context.png",
+    "eval/remediation-redesign-01/screens-before/06-operations.png",
+    "eval/remediation-redesign-01/screens-before/07-diagnostics.png",
+    "eval/remediation-redesign-01/screens-before/08-connection.png",
+    "eval/remediation-redesign-01/screens-before/09-history.png",
+    "eval/remediation-redesign-01/screens-before/10-fleet-reference.png",
+    "eval/remediation-redesign-01/tools/render-html.mjs",
+    "tests/adapter.test.mjs",
+    "tests/atomicity.test.mjs",
+    "tests/audit-export.test.mjs",
+    "tests/auto-context.test.mjs",
+    "tests/automation.test.mjs",
+    "tests/backoff.test.mjs",
+    "tests/budget-exhaustion.test.mjs",
+    "tests/cli-registry.test.mjs",
+    "tests/client.test.mjs",
+    "tests/concurrency.test.mjs",
+    "tests/config-consumers.test.mjs",
+    "tests/config-resolve.test.mjs",
+    "tests/context-lossless.test.mjs",
+    "tests/conversation-events-edge.test.mjs",
+    "tests/conversation-events.test.mjs",
+    "tests/diagnose.test.mjs",
+    "tests/discovery.test.mjs",
+    "tests/doctor.test.mjs",
+    "tests/efficiency.test.mjs",
+    "tests/embed.test.mjs",
+    "tests/error-codes.test.mjs",
+    "tests/harness-projects.test.mjs",
+    "tests/helpers.mjs",
+    "tests/host-adapter.test.mjs",
+    "tests/ingest.test.mjs",
+    "tests/integration.test.mjs",
+    "tests/library-state.test.mjs",
+    "tests/metrics.test.mjs",
+    "tests/migrate.test.mjs",
+    "tests/pa-admin.test.mjs",
+    "tests/pa-api.test.mjs",
+    "tests/pa-auth.test.mjs",
+    "tests/pa-history.test.mjs",
+    "tests/pa-workspaces.test.mjs",
+    "tests/pa3-acceptance.test.mjs",
+    "tests/pa3-helpers.mjs",
+    "tests/pa4-helpers.mjs",
+    "tests/partial-results.test.mjs",
+    "tests/paths.test.mjs",
+    "tests/policy.test.mjs",
+    "tests/profile-identity.test.mjs",
+    "tests/recovery.test.mjs",
+    "tests/registry.test.mjs",
+    "tests/retention.test.mjs",
+    "tests/revocation.test.mjs",
+    "tests/roots-structure.test.mjs",
+    "tests/schema.test.mjs",
+    "tests/search-diversity.test.mjs",
+    "tests/search.test.mjs",
+    "tests/selection-cas.test.mjs",
+    "tests/sensitive-names.test.mjs",
+    "tests/server.test.mjs",
+    "tests/sessions.test.mjs",
+    "tests/standalone.test.mjs",
+    "tests/sync-scheduler.test.mjs",
+    "tests/sync.test.mjs",
+    "tests/text.test.mjs",
+    "tests/tool-golden.test.mjs",
+    "tests/worker-context.test.mjs",
+    "tests/workspaces-projection.test.mjs",
+    "tools/benchmark.mjs",
+    "tools/check.mjs",
+    "tools/harness.mjs",
+    "tools/hermetic.mjs",
+    "tools/screenshots.mjs"
+  ],
+  "prohibidas": [],
+  "hallazgos": [
+    {
+      "archivo": "bin/lifecode-rag.mjs",
+      "patron": "npmrc/.env",
+      "linea": 48,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "docs/AUTO-DISCOVERY.md",
+      "patron": "npmrc/.env",
+      "linea": 31,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "docs/AUTO-DISCOVERY.md",
+      "patron": "sqlite",
+      "linea": 20,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/CONTRATO-v0.1.md",
+      "patron": "sqlite",
+      "linea": 20,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/OBSERVABILITY.md",
+      "patron": "token",
+      "linea": 109,
+      "muestra": "token"
+    },
+    {
+      "archivo": "docs/OBSERVABILITY.md",
+      "patron": "sqlite",
+      "linea": 44,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PA-UI-0-API-CONTRACT.md",
+      "patron": "token",
+      "linea": 69,
+      "muestra": "token"
+    },
+    {
+      "archivo": "docs/PA-UI-0-API-CONTRACT.md",
+      "patron": "sqlite",
+      "linea": 44,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PA-UI-0-API-CONTRACT.md",
+      "patron": "evidencia local",
+      "linea": 774,
+      "muestra": "_audit"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+      "patron": "npmrc/.env",
+      "linea": 563,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+      "patron": "sqlite",
+      "linea": 27,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-DATA-CONTRACT.md",
+      "patron": "sqlite",
+      "linea": 13,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+      "patron": "sqlite",
+      "linea": 36,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/WORKSPACE-API.md",
+      "patron": "token",
+      "linea": 230,
+      "muestra": "token"
+    },
+    {
+      "archivo": "index.js",
+      "patron": "token",
+      "linea": 39,
+      "muestra": "token"
+    },
+    {
+      "archivo": "index.js",
+      "patron": "npmrc/.env",
+      "linea": 100,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "index.js",
+      "patron": "sqlite",
+      "linea": 144,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/auto-context.mjs",
+      "patron": "token",
+      "linea": 58,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/automation.mjs",
+      "patron": "npmrc/.env",
+      "linea": 65,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/config-resolve.mjs",
+      "patron": "npmrc/.env",
+      "linea": 28,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/context.mjs",
+      "patron": "token",
+      "linea": 5,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/conversation-events.mjs",
+      "patron": "token",
+      "linea": 23,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/conversation-events.mjs",
+      "patron": "password",
+      "linea": 23,
+      "muestra": "password"
+    },
+    {
+      "archivo": "lib/conversation-events.mjs",
+      "patron": "api-key",
+      "linea": 23,
+      "muestra": "SECRET_KEY"
+    },
+    {
+      "archivo": "lib/db.mjs",
+      "patron": "sqlite",
+      "linea": 6,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/diagnose.mjs",
+      "patron": "npmrc/.env",
+      "linea": 62,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/discovery.mjs",
+      "patron": "npmrc/.env",
+      "linea": 28,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/discovery.mjs",
+      "patron": "evidencia local",
+      "linea": 31,
+      "muestra": "_audit"
+    },
+    {
+      "archivo": "lib/doctor.mjs",
+      "patron": "npmrc/.env",
+      "linea": 27,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/embed.mjs",
+      "patron": "token",
+      "linea": 54,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/exec-context.mjs",
+      "patron": "npmrc/.env",
+      "linea": 73,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/library-state.mjs",
+      "patron": "sqlite",
+      "linea": 40,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/migrate.mjs",
+      "patron": "token",
+      "linea": 107,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/migrate.mjs",
+      "patron": "sqlite",
+      "linea": 2,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/pa-api.mjs",
+      "patron": "npmrc/.env",
+      "linea": 712,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/pa-api.mjs",
+      "patron": "sqlite",
+      "linea": 501,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/paths.mjs",
+      "patron": "npmrc/.env",
+      "linea": 92,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/paths.mjs",
+      "patron": "sqlite",
+      "linea": 111,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/policy.mjs",
+      "patron": "npmrc/.env",
+      "linea": 35,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/profile.mjs",
+      "patron": "npmrc/.env",
+      "linea": 37,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/profile.mjs",
+      "patron": "sqlite",
+      "linea": 17,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/registry.mjs",
+      "patron": "sqlite",
+      "linea": 2,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/scope-stores.mjs",
+      "patron": "sqlite",
+      "linea": 4,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/search.mjs",
+      "patron": "token",
+      "linea": 32,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/server.mjs",
+      "patron": "npmrc/.env",
+      "linea": 150,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/session-identity.mjs",
+      "patron": "npmrc/.env",
+      "linea": 30,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/sync-scheduler.mjs",
+      "patron": "npmrc/.env",
+      "linea": 56,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/sync.mjs",
+      "patron": "npmrc/.env",
+      "linea": 417,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/sync.mjs",
+      "patron": "sqlite",
+      "linea": 424,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/worker-context.mjs",
+      "patron": "npmrc/.env",
+      "linea": 15,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "README.md",
+      "patron": "npmrc/.env",
+      "linea": 159,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "README.md",
+      "patron": "sqlite",
+      "linea": 19,
+      "muestra": ".sqlite3"
+    }
+  ],
+  "entryCountDeclarado": [
+    "index.js",
+    "client.js",
+    "lib/",
+    "bin/",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "docs/CONTRATO-v0.1.md",
+    "docs/ARCHITECTURE-v0.2.md",
+    "docs/PROJECT-AWARE-ARCHITECTURE.md",
+    "docs/PROJECT-AWARE-DATA-CONTRACT.md",
+    "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+    "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
+    "docs/PA-UI-0-API-CONTRACT.md",
+    "docs/AUTO-DISCOVERY.md",
+    "docs/AUTOMATION-POLICIES.md",
+    "docs/EMBEDDING-PROVIDERS.md",
+    "docs/OBSERVABILITY.md",
+    "docs/PERFORMANCE-BUDGETS.md",
+    "docs/WORKSPACE-API.md"
+  ],
+  "extraidosDetalle": [
+    {
+      "ruta": "bin/lifecode-rag.mjs",
+      "bytes": 21941,
+      "sha256": "1b3045f6c8f7f880612dbd8d0d484f948dd6476e19524e549c16b016d62310dd",
+      "enWorktree": true,
+      "sha256Fuente": "1b3045f6c8f7f880612dbd8d0d484f948dd6476e19524e549c16b016d62310dd"
+    },
+    {
+      "ruta": "client.js",
+      "bytes": 243913,
+      "sha256": "ff8119dde0c1a41edbbe89b5247b3892a5eb4bfe870ba5d7a75e1562c143f3ca",
+      "enWorktree": true,
+      "sha256Fuente": "ff8119dde0c1a41edbbe89b5247b3892a5eb4bfe870ba5d7a75e1562c143f3ca"
+    },
+    {
+      "ruta": "cordis.patch.yml",
+      "bytes": 75,
+      "sha256": "6e73e72a86f6804434b022db34cdc7b5764ef7b0a1046e1d4549185997729d86",
+      "enWorktree": true,
+      "sha256Fuente": "6e73e72a86f6804434b022db34cdc7b5764ef7b0a1046e1d4549185997729d86"
+    },
+    {
+      "ruta": "docs/ARCHITECTURE-v0.2.md",
+      "bytes": 12860,
+      "sha256": "04a36624ea17d72be336fe92445d2f06e4f8de64f42ed0207a636961fb96b748",
+      "enWorktree": true,
+      "sha256Fuente": "04a36624ea17d72be336fe92445d2f06e4f8de64f42ed0207a636961fb96b748"
+    },
+    {
+      "ruta": "docs/AUTO-DISCOVERY.md",
+      "bytes": 6539,
+      "sha256": "2c5499a320bda90629d4f4c4cc223018ad308b87e6c02505e04488fe39d65a4f",
+      "enWorktree": true,
+      "sha256Fuente": "2c5499a320bda90629d4f4c4cc223018ad308b87e6c02505e04488fe39d65a4f"
+    },
+    {
+      "ruta": "docs/AUTOMATION-POLICIES.md",
+      "bytes": 12671,
+      "sha256": "80aef336ff28da79c0e8866cae9127f840fc3513e8c7ad14b270cdcb7af5488f",
+      "enWorktree": true,
+      "sha256Fuente": "80aef336ff28da79c0e8866cae9127f840fc3513e8c7ad14b270cdcb7af5488f"
+    },
+    {
+      "ruta": "docs/CONTRATO-v0.1.md",
+      "bytes": 10063,
+      "sha256": "a58db7d6cac0756e2711c5ef556111dc7d38cec206420021e2bc42e42b4068f1",
+      "enWorktree": true,
+      "sha256Fuente": "a58db7d6cac0756e2711c5ef556111dc7d38cec206420021e2bc42e42b4068f1"
+    },
+    {
+      "ruta": "docs/EMBEDDING-PROVIDERS.md",
+      "bytes": 6315,
+      "sha256": "10e646166a29084484654669ec45b8a613dfd9eed0e165a9bfc03c1ce046fee4",
+      "enWorktree": true,
+      "sha256Fuente": "10e646166a29084484654669ec45b8a613dfd9eed0e165a9bfc03c1ce046fee4"
+    },
+    {
+      "ruta": "docs/OBSERVABILITY.md",
+      "bytes": 13107,
+      "sha256": "85a92c7811b67a083d6ca4df6e77673ff0a9f039464b22756c759ec92f3dc007",
+      "enWorktree": true,
+      "sha256Fuente": "85a92c7811b67a083d6ca4df6e77673ff0a9f039464b22756c759ec92f3dc007"
+    },
+    {
+      "ruta": "docs/PA-UI-0-API-CONTRACT.md",
+      "bytes": 83585,
+      "sha256": "c0e063bce6683f36caa0149ec6e5d4376b4b289248e327eb88eaa065c834bc56",
+      "enWorktree": true,
+      "sha256Fuente": "c0e063bce6683f36caa0149ec6e5d4376b4b289248e327eb88eaa065c834bc56"
+    },
+    {
+      "ruta": "docs/PERFORMANCE-BUDGETS.md",
+      "bytes": 6997,
+      "sha256": "553687eb869501a4945af90acc05bbf901366a6a4e9659ae31871190a68294e4",
+      "enWorktree": true,
+      "sha256Fuente": "553687eb869501a4945af90acc05bbf901366a6a4e9659ae31871190a68294e4"
+    },
+    {
+      "ruta": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+      "bytes": 37656,
+      "sha256": "fb632fb09e75eab4411fd461a37f81e3e1fa0a7286b0fa86c21a300a21a68309",
+      "enWorktree": true,
+      "sha256Fuente": "fb632fb09e75eab4411fd461a37f81e3e1fa0a7286b0fa86c21a300a21a68309"
+    },
+    {
+      "ruta": "docs/PROJECT-AWARE-DATA-CONTRACT.md",
+      "bytes": 22385,
+      "sha256": "cd265bfd56be3997f656fb0f72ed323ab869d3a313e5489812002fbb67109088",
+      "enWorktree": true,
+      "sha256Fuente": "cd265bfd56be3997f656fb0f72ed323ab869d3a313e5489812002fbb67109088"
+    },
+    {
+      "ruta": "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+      "bytes": 10113,
+      "sha256": "72c50264f8e56e743256b946d6ac13fb5d6c7c88922939425dfbcc67a1c88155",
+      "enWorktree": true,
+      "sha256Fuente": "72c50264f8e56e743256b946d6ac13fb5d6c7c88922939425dfbcc67a1c88155"
+    },
+    {
+      "ruta": "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
+      "bytes": 8324,
+      "sha256": "c4927ea2eecbc2181256b053b1f1750631ee8930eb67b959485a26308db48895",
+      "enWorktree": true,
+      "sha256Fuente": "c4927ea2eecbc2181256b053b1f1750631ee8930eb67b959485a26308db48895"
+    },
+    {
+      "ruta": "docs/WORKSPACE-API.md",
+      "bytes": 12509,
+      "sha256": "452444939cc081bad7364d736443e2111f432e337b189d8f73bcea5a28da7075",
+      "enWorktree": true,
+      "sha256Fuente": "452444939cc081bad7364d736443e2111f432e337b189d8f73bcea5a28da7075"
+    },
+    {
+      "ruta": "icon.svg",
+      "bytes": 477,
+      "sha256": "d6e80a69b3b3d2f7d579f3f98ad2d410aadc9d3c10694202de13c9eb84ad7df7",
+      "enWorktree": true,
+      "sha256Fuente": "d6e80a69b3b3d2f7d579f3f98ad2d410aadc9d3c10694202de13c9eb84ad7df7"
+    },
+    {
+      "ruta": "index.js",
+      "bytes": 10833,
+      "sha256": "23ed69516f68774b3ba1d62651c2d548293b98d9edacd764124e324b5bf6d6bf",
+      "enWorktree": true,
+      "sha256Fuente": "23ed69516f68774b3ba1d62651c2d548293b98d9edacd764124e324b5bf6d6bf"
+    },
+    {
+      "ruta": "lib/audit-export.mjs",
+      "bytes": 3315,
+      "sha256": "067e0fdc957707c761e1f097e9a30801ae8d2958c699f188d16b29373c4c755c",
+      "enWorktree": true,
+      "sha256Fuente": "067e0fdc957707c761e1f097e9a30801ae8d2958c699f188d16b29373c4c755c"
+    },
+    {
+      "ruta": "lib/audit.mjs",
+      "bytes": 5077,
+      "sha256": "f553eb89958c6e2c883503f618916485338fc549c8dbee695af2c9945776c656",
+      "enWorktree": true,
+      "sha256Fuente": "f553eb89958c6e2c883503f618916485338fc549c8dbee695af2c9945776c656"
+    },
+    {
+      "ruta": "lib/auto-context.mjs",
+      "bytes": 14115,
+      "sha256": "963c57cfc0a124b1683b9e93e9b72ef0c35941f3940d7f3e2171d7de4580048c",
+      "enWorktree": true,
+      "sha256Fuente": "963c57cfc0a124b1683b9e93e9b72ef0c35941f3940d7f3e2171d7de4580048c"
+    },
+    {
+      "ruta": "lib/automation.mjs",
+      "bytes": 8775,
+      "sha256": "82658fa97d2688710ca50612e057ba8e41a7524aacc277e256ecd0a92b3d589e",
+      "enWorktree": true,
+      "sha256Fuente": "82658fa97d2688710ca50612e057ba8e41a7524aacc277e256ecd0a92b3d589e"
+    },
+    {
+      "ruta": "lib/chunk.mjs",
+      "bytes": 3625,
+      "sha256": "3e3bd4f98429eb1d6e679544d92e65a70c2f9dd7c2369b11e42e9b168213dd28",
+      "enWorktree": true,
+      "sha256Fuente": "3e3bd4f98429eb1d6e679544d92e65a70c2f9dd7c2369b11e42e9b168213dd28"
+    },
+    {
+      "ruta": "lib/config-resolve.mjs",
+      "bytes": 4760,
+      "sha256": "145970cc821795fa45dc8829a5ba3eaf508b0971d019389c287d6811b787f2bc",
+      "enWorktree": true,
+      "sha256Fuente": "145970cc821795fa45dc8829a5ba3eaf508b0971d019389c287d6811b787f2bc"
+    },
+    {
+      "ruta": "lib/context.mjs",
+      "bytes": 6319,
+      "sha256": "b0168d6ee32cd9f7a23ae55a125dacf740d10a62b2fbc638432c51955673ee44",
+      "enWorktree": true,
+      "sha256Fuente": "b0168d6ee32cd9f7a23ae55a125dacf740d10a62b2fbc638432c51955673ee44"
+    },
+    {
+      "ruta": "lib/conversation-events.mjs",
+      "bytes": 6693,
+      "sha256": "361af99ff4a14898ec0075859729ed55d6f8146e8f476910ee684debb8db0e96",
+      "enWorktree": true,
+      "sha256Fuente": "361af99ff4a14898ec0075859729ed55d6f8146e8f476910ee684debb8db0e96"
+    },
+    {
+      "ruta": "lib/db.mjs",
+      "bytes": 12279,
+      "sha256": "d43d69d364b1541da76d601c26f377baef5dbc4191bb86b177beced6e1cc0701",
+      "enWorktree": true,
+      "sha256Fuente": "d43d69d364b1541da76d601c26f377baef5dbc4191bb86b177beced6e1cc0701"
+    },
+    {
+      "ruta": "lib/diagnose.mjs",
+      "bytes": 9634,
+      "sha256": "57c3dd0e4861bae8d7a636019b75c99d1ccfa365c00be28eaab399f5b58cce22",
+      "enWorktree": true,
+      "sha256Fuente": "57c3dd0e4861bae8d7a636019b75c99d1ccfa365c00be28eaab399f5b58cce22"
+    },
+    {
+      "ruta": "lib/discovery.mjs",
+      "bytes": 16081,
+      "sha256": "96a068e4da32558a4ca803a98128f512033ac905a84a8dceac1bf425ecbc604d",
+      "enWorktree": true,
+      "sha256Fuente": "96a068e4da32558a4ca803a98128f512033ac905a84a8dceac1bf425ecbc604d"
+    },
+    {
+      "ruta": "lib/doctor.mjs",
+      "bytes": 4124,
+      "sha256": "b3bc2d287d912e00da9cd8e1e47ba91691e249463c9469c5cd6eb618d0a2864e",
+      "enWorktree": true,
+      "sha256Fuente": "b3bc2d287d912e00da9cd8e1e47ba91691e249463c9469c5cd6eb618d0a2864e"
+    },
+    {
+      "ruta": "lib/embed.mjs",
+      "bytes": 4060,
+      "sha256": "69b77d00a43aa04d3457acbb33cef9c872ef0c0dd01e6687bb18719d8564ccae",
+      "enWorktree": true,
+      "sha256Fuente": "69b77d00a43aa04d3457acbb33cef9c872ef0c0dd01e6687bb18719d8564ccae"
+    },
+    {
+      "ruta": "lib/embedders.mjs",
+      "bytes": 4204,
+      "sha256": "04869e2a01c8273533e94f4433e2cd409ae6d202181c9e9afce117fd64aef2a7",
+      "enWorktree": true,
+      "sha256Fuente": "04869e2a01c8273533e94f4433e2cd409ae6d202181c9e9afce117fd64aef2a7"
+    },
+    {
+      "ruta": "lib/errors.mjs",
+      "bytes": 6983,
+      "sha256": "4800a63e3c018a41cac5241aeb438b1c44cffbe54d79bcfdcb703c1c937fbf95",
+      "enWorktree": true,
+      "sha256Fuente": "4800a63e3c018a41cac5241aeb438b1c44cffbe54d79bcfdcb703c1c937fbf95"
+    },
+    {
+      "ruta": "lib/exec-context.mjs",
+      "bytes": 10460,
+      "sha256": "03e14543bc3924c13293508a5187c4a6b544b2011373da48d20dc04e24c1e8df",
+      "enWorktree": true,
+      "sha256Fuente": "03e14543bc3924c13293508a5187c4a6b544b2011373da48d20dc04e24c1e8df"
+    },
+    {
+      "ruta": "lib/extract.mjs",
+      "bytes": 10177,
+      "sha256": "5bbcee2d516bd4d9eb2c754402f52508f8f062fd0eac0236081c4e0e4393f73d",
+      "enWorktree": true,
+      "sha256Fuente": "5bbcee2d516bd4d9eb2c754402f52508f8f062fd0eac0236081c4e0e4393f73d"
+    },
+    {
+      "ruta": "lib/harness-workspaces.mjs",
+      "bytes": 8692,
+      "sha256": "6ca2b4671936ee38c0a32ea6b673aeb65e4e0526cdbb5ee9c88b7a8033d6bd4f",
+      "enWorktree": true,
+      "sha256Fuente": "6ca2b4671936ee38c0a32ea6b673aeb65e4e0526cdbb5ee9c88b7a8033d6bd4f"
+    },
+    {
+      "ruta": "lib/hash.mjs",
+      "bytes": 1487,
+      "sha256": "aa0e589a6778319ec90072cab197781d9fd2452fb312e4ff36786854f4ba46a1",
+      "enWorktree": true,
+      "sha256Fuente": "aa0e589a6778319ec90072cab197781d9fd2452fb312e4ff36786854f4ba46a1"
+    },
+    {
+      "ruta": "lib/ingest.mjs",
+      "bytes": 11855,
+      "sha256": "3b0ee00ab018a109f6c23dee422a7e7b0116805a7fe315603f0dcc4e7017bfc0",
+      "enWorktree": true,
+      "sha256Fuente": "3b0ee00ab018a109f6c23dee422a7e7b0116805a7fe315603f0dcc4e7017bfc0"
+    },
+    {
+      "ruta": "lib/inputs.mjs",
+      "bytes": 2844,
+      "sha256": "ce422a8903906f21f38c5fcd9750688ea32acbc4ad0282ba979581f513c78438",
+      "enWorktree": true,
+      "sha256Fuente": "ce422a8903906f21f38c5fcd9750688ea32acbc4ad0282ba979581f513c78438"
+    },
+    {
+      "ruta": "lib/library-state.mjs",
+      "bytes": 10756,
+      "sha256": "c93f17fcf42c1b9ef87bb30a16f4ce4602bc59400c9026eb761e078d7b74da71",
+      "enWorktree": true,
+      "sha256Fuente": "c93f17fcf42c1b9ef87bb30a16f4ce4602bc59400c9026eb761e078d7b74da71"
+    },
+    {
+      "ruta": "lib/maintenance.mjs",
+      "bytes": 5211,
+      "sha256": "1516fafeaa593b3774d703bff3f6d1fdda6b5357395b3cd07a484e0ee2b39947",
+      "enWorktree": true,
+      "sha256Fuente": "1516fafeaa593b3774d703bff3f6d1fdda6b5357395b3cd07a484e0ee2b39947"
+    },
+    {
+      "ruta": "lib/metrics.mjs",
+      "bytes": 6635,
+      "sha256": "4fe631fe61959d0a346c8b1fbe394c62b00768c8a47436b758e6a721e6af687f",
+      "enWorktree": true,
+      "sha256Fuente": "4fe631fe61959d0a346c8b1fbe394c62b00768c8a47436b758e6a721e6af687f"
+    },
+    {
+      "ruta": "lib/migrate.mjs",
+      "bytes": 15859,
+      "sha256": "7d85fc307c41d9af62d91301501940f510bf2104814e51fd801a462b00308ab0",
+      "enWorktree": true,
+      "sha256Fuente": "7d85fc307c41d9af62d91301501940f510bf2104814e51fd801a462b00308ab0"
+    },
+    {
+      "ruta": "lib/operations.mjs",
+      "bytes": 6294,
+      "sha256": "6dab0ba150f2444c4e7b3d9c63327260383670919bc0ef137127ff0bcbcfaed5",
+      "enWorktree": true,
+      "sha256Fuente": "6dab0ba150f2444c4e7b3d9c63327260383670919bc0ef137127ff0bcbcfaed5"
+    },
+    {
+      "ruta": "lib/pa-api.mjs",
+      "bytes": 46189,
+      "sha256": "14ff188d2bb59daf6ade6664d4c4f1497aeb7e48db43548c3647e6fa39c5e532",
+      "enWorktree": true,
+      "sha256Fuente": "14ff188d2bb59daf6ade6664d4c4f1497aeb7e48db43548c3647e6fa39c5e532"
+    },
+    {
+      "ruta": "lib/paths.mjs",
+      "bytes": 17155,
+      "sha256": "4ba5ad5ce93b238f101f2e71603986732ea1a34aa11787b649bad8dde47873d0",
+      "enWorktree": true,
+      "sha256Fuente": "4ba5ad5ce93b238f101f2e71603986732ea1a34aa11787b649bad8dde47873d0"
+    },
+    {
+      "ruta": "lib/policy.mjs",
+      "bytes": 6160,
+      "sha256": "c333e0e4b807cf537f441c578903a890f264cb83dadff2787b0d46e306daa271",
+      "enWorktree": true,
+      "sha256Fuente": "c333e0e4b807cf537f441c578903a890f264cb83dadff2787b0d46e306daa271"
+    },
+    {
+      "ruta": "lib/profile.mjs",
+      "bytes": 5647,
+      "sha256": "5227ba8cfc55e319f1fd5db70f5d715d6bd61b45531b81284448ea2bdfef4a09",
+      "enWorktree": true,
+      "sha256Fuente": "5227ba8cfc55e319f1fd5db70f5d715d6bd61b45531b81284448ea2bdfef4a09"
+    },
+    {
+      "ruta": "lib/readmodel.mjs",
+      "bytes": 6243,
+      "sha256": "1f89912fe04da2ef372ff012cbd964e97a80fd227e16ea796eda21ebbf1ef5c9",
+      "enWorktree": true,
+      "sha256Fuente": "1f89912fe04da2ef372ff012cbd964e97a80fd227e16ea796eda21ebbf1ef5c9"
+    },
+    {
+      "ruta": "lib/recovery.mjs",
+      "bytes": 23793,
+      "sha256": "0901387b9b0113f6cfbbed94cf998cd899db1d761d9c3e9603daceb4ade11496",
+      "enWorktree": true,
+      "sha256Fuente": "0901387b9b0113f6cfbbed94cf998cd899db1d761d9c3e9603daceb4ade11496"
+    },
+    {
+      "ruta": "lib/registry-schema.mjs",
+      "bytes": 9618,
+      "sha256": "6e9bafd0bbe5c345074a9afb78a4473c60a1edb3ac277c961a8975bff43ad56d",
+      "enWorktree": true,
+      "sha256Fuente": "6e9bafd0bbe5c345074a9afb78a4473c60a1edb3ac277c961a8975bff43ad56d"
+    },
+    {
+      "ruta": "lib/registry.mjs",
+      "bytes": 24603,
+      "sha256": "9c8cc0b0275356306aa231b8d431b3fc626441edd07717e7d8f2cd46151b5684",
+      "enWorktree": true,
+      "sha256Fuente": "9c8cc0b0275356306aa231b8d431b3fc626441edd07717e7d8f2cd46151b5684"
+    },
+    {
+      "ruta": "lib/resolve.mjs",
+      "bytes": 12907,
+      "sha256": "3a6338a26b88469108e103baf240044a4a4b0e4a3e06bfdf5533fdd5668bf9fc",
+      "enWorktree": true,
+      "sha256Fuente": "3a6338a26b88469108e103baf240044a4a4b0e4a3e06bfdf5533fdd5668bf9fc"
+    },
+    {
+      "ruta": "lib/retention.mjs",
+      "bytes": 6344,
+      "sha256": "df2b3bf1c70965c606418818ff28aec64ded05bc5c24fbe67154b96d6b1be843",
+      "enWorktree": true,
+      "sha256Fuente": "df2b3bf1c70965c606418818ff28aec64ded05bc5c24fbe67154b96d6b1be843"
+    },
+    {
+      "ruta": "lib/revocation.mjs",
+      "bytes": 5944,
+      "sha256": "6de9d46aef1f6d0b486063aca6c323997f0f522cce1758e73a536484e3713190",
+      "enWorktree": true,
+      "sha256Fuente": "6de9d46aef1f6d0b486063aca6c323997f0f522cce1758e73a536484e3713190"
+    },
+    {
+      "ruta": "lib/roots-structure.mjs",
+      "bytes": 8685,
+      "sha256": "0f3edc4d20d8ea19d60c7d9a95eec5ae985b482c77df37a8dcd09daf0265dd8b",
+      "enWorktree": true,
+      "sha256Fuente": "0f3edc4d20d8ea19d60c7d9a95eec5ae985b482c77df37a8dcd09daf0265dd8b"
+    },
+    {
+      "ruta": "lib/schema.mjs",
+      "bytes": 5696,
+      "sha256": "5d805e65df2a0605e3793051834bfc52202293f75da542c09dd31c6d510192e4",
+      "enWorktree": true,
+      "sha256Fuente": "5d805e65df2a0605e3793051834bfc52202293f75da542c09dd31c6d510192e4"
+    },
+    {
+      "ruta": "lib/scope-ops.mjs",
+      "bytes": 14337,
+      "sha256": "00fba8596920a249a6b4ecdea7ba3d5b5abe9a0549625699d694bdce95ac9168",
+      "enWorktree": true,
+      "sha256Fuente": "00fba8596920a249a6b4ecdea7ba3d5b5abe9a0549625699d694bdce95ac9168"
+    },
+    {
+      "ruta": "lib/scope-stores.mjs",
+      "bytes": 5425,
+      "sha256": "c7240f82d5f26f55c9dc81e15e7e89c3083013f336443c615ed2616d89a3cc4f",
+      "enWorktree": true,
+      "sha256Fuente": "c7240f82d5f26f55c9dc81e15e7e89c3083013f336443c615ed2616d89a3cc4f"
+    },
+    {
+      "ruta": "lib/search.mjs",
+      "bytes": 14122,
+      "sha256": "5e974fc64e67adc5eaf117921aa316b20bab98337d66fb9ee50250c47e7ce267",
+      "enWorktree": true,
+      "sha256Fuente": "5e974fc64e67adc5eaf117921aa316b20bab98337d66fb9ee50250c47e7ce267"
+    },
+    {
+      "ruta": "lib/selection.mjs",
+      "bytes": 9578,
+      "sha256": "18b6f420638aa02fdea85b5ae5b1ca4d2c3f3ee8cad95b3e0a2ab7f249a11dfd",
+      "enWorktree": true,
+      "sha256Fuente": "18b6f420638aa02fdea85b5ae5b1ca4d2c3f3ee8cad95b3e0a2ab7f249a11dfd"
+    },
+    {
+      "ruta": "lib/server.mjs",
+      "bytes": 18039,
+      "sha256": "b05f1024333df6dc93bc9e5c3465e2acb940eb01b5712fc81a50d88843f31355",
+      "enWorktree": true,
+      "sha256Fuente": "b05f1024333df6dc93bc9e5c3465e2acb940eb01b5712fc81a50d88843f31355"
+    },
+    {
+      "ruta": "lib/session-identity.mjs",
+      "bytes": 2140,
+      "sha256": "c6b5b11475628802ee81d8d86f695179723944e5132f98bb1c5e32e86daaae3b",
+      "enWorktree": true,
+      "sha256Fuente": "c6b5b11475628802ee81d8d86f695179723944e5132f98bb1c5e32e86daaae3b"
+    },
+    {
+      "ruta": "lib/sessions.mjs",
+      "bytes": 14044,
+      "sha256": "f770ec230373e94b2b22cbbab1755f00715171c2a83fc291b3530c592a99279b",
+      "enWorktree": true,
+      "sha256Fuente": "f770ec230373e94b2b22cbbab1755f00715171c2a83fc291b3530c592a99279b"
+    },
+    {
+      "ruta": "lib/sync-scheduler.mjs",
+      "bytes": 14219,
+      "sha256": "a9bcb667394f50578bfeb7a5c161aafe3eb133167e7e14656b6a872240b1f202",
+      "enWorktree": true,
+      "sha256Fuente": "a9bcb667394f50578bfeb7a5c161aafe3eb133167e7e14656b6a872240b1f202"
+    },
+    {
+      "ruta": "lib/sync.mjs",
+      "bytes": 38477,
+      "sha256": "2cabd7cc832d79a8a7faf08363c88c8f88fe22c878ea0a51195696d91665c859",
+      "enWorktree": true,
+      "sha256Fuente": "2cabd7cc832d79a8a7faf08363c88c8f88fe22c878ea0a51195696d91665c859"
+    },
+    {
+      "ruta": "lib/tags.mjs",
+      "bytes": 1364,
+      "sha256": "55c94d1641880dab082eea4e2b85ba8a40d7e061205bf3088a83753d8a3ccaf5",
+      "enWorktree": true,
+      "sha256Fuente": "55c94d1641880dab082eea4e2b85ba8a40d7e061205bf3088a83753d8a3ccaf5"
+    },
+    {
+      "ruta": "lib/tools.mjs",
+      "bytes": 15198,
+      "sha256": "2a3ac69b97a1f61f6c992e576e0a3e38c222eeb8434641012ce0a49e2c32fca6",
+      "enWorktree": true,
+      "sha256Fuente": "2a3ac69b97a1f61f6c992e576e0a3e38c222eeb8434641012ce0a49e2c32fca6"
+    },
+    {
+      "ruta": "lib/trusted-roots.mjs",
+      "bytes": 5690,
+      "sha256": "b4ec26c1974a250136d1f87574254f720613df72285b828800233b0cbb50b04a",
+      "enWorktree": true,
+      "sha256Fuente": "b4ec26c1974a250136d1f87574254f720613df72285b828800233b0cbb50b04a"
+    },
+    {
+      "ruta": "lib/worker-context.mjs",
+      "bytes": 1202,
+      "sha256": "1b6458e75526ea2d823e7b49fb747046836b8525ffb1f69e304c149a4a09615e",
+      "enWorktree": true,
+      "sha256Fuente": "1b6458e75526ea2d823e7b49fb747046836b8525ffb1f69e304c149a4a09615e"
+    },
+    {
+      "ruta": "lib/workspaces-projection.mjs",
+      "bytes": 8278,
+      "sha256": "0a79bdc5249aee75759e8136b964c4d070cfd4acdce3cc050ab711bf7475455f",
+      "enWorktree": true,
+      "sha256Fuente": "0a79bdc5249aee75759e8136b964c4d070cfd4acdce3cc050ab711bf7475455f"
+    },
+    {
+      "ruta": "LICENSE",
+      "bytes": 1070,
+      "sha256": "ca29489b2a5479cd65d412e8b583fcbad18b274eb4f39bbaa71ec902f30a114f",
+      "enWorktree": true,
+      "sha256Fuente": "ca29489b2a5479cd65d412e8b583fcbad18b274eb4f39bbaa71ec902f30a114f"
+    },
+    {
+      "ruta": "package.json",
+      "bytes": 2705,
+      "sha256": "1b87ca7ca6e9ea441d2d4320ab1f11d40adfc55162258cad86ab7af552492914",
+      "enWorktree": true,
+      "sha256Fuente": "1b87ca7ca6e9ea441d2d4320ab1f11d40adfc55162258cad86ab7af552492914"
+    },
+    {
+      "ruta": "README.md",
+      "bytes": 12712,
+      "sha256": "6b05c40641d9dd71b7e138b940d58cf4775d0e5cc7a75ceb9ff8cd9f45357a5c",
+      "enWorktree": true,
+      "sha256Fuente": "6b05c40641d9dd71b7e138b940d58cf4775d0e5cc7a75ceb9ff8cd9f45357a5c"
+    }
+  ]
+}

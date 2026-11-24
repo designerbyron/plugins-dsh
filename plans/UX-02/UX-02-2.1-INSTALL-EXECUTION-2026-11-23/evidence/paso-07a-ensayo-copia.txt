@@ -1,0 +1,70 @@
+=== PASO 7a-bis · check del patron sobre el perfil real (no escribe) · utc 2026-11-23T04:00:25Z ===
+{
+  "dir": "<DSH_HOME>/profiles/desktop",
+  "modo": "check",
+  "packageJson": {
+    "ok": true,
+    "sinCambios": false,
+    "informe": [
+      {
+        "archivo": "package.json",
+        "cambio": "package.json · dependencia a 1.3.0",
+        "coincidencias": 1
+      }
+    ]
+  },
+  "lock": {
+    "ok": true,
+    "sinCambios": false,
+    "informe": [
+      {
+        "archivo": "pnpm-lock.yaml",
+        "cambio": "lock · importer (specifier/version)",
+        "coincidencias": 1
+      },
+      {
+        "archivo": "pnpm-lock.yaml",
+        "cambio": "lock · packages (clave, integrity y engines)",
+        "coincidencias": 1
+      },
+      {
+        "archivo": "pnpm-lock.yaml",
+        "cambio": "lock · snapshots (clave)",
+        "coincidencias": 1
+      }
+    ]
+  },
+  "ok": true
+}
+exit=0
+--- aplicar SOLO en la copia ---
+      {
+        "archivo": "package.json",
+        "cambio": "package.json · dependencia a 1.3.0",
+        "coincidencias": 1
+      }
+    ]
+  },
+  "lock": {
+    "ok": true,
+    "sinCambios": false,
+    "informe": [
+      {
+        "archivo": "pnpm-lock.yaml",
+        "cambio": "lock · importer (specifier/version)",
+        "coincidencias": 1
+      },
+      {
+        "archivo": "pnpm-lock.yaml",
+        "cambio": "lock · packages (clave, integrity y engines)",
+        "coincidencias": 1
+      },
+      {
+        "archivo": "pnpm-lock.yaml",
+        "cambio": "lock · snapshots (clave)",
+        "coincidencias": 1
+      }
+    ]
+  },
+  "ok": true
+}

@@ -1,0 +1,105 @@
+{
+  "respaldo": "<DSH_HOME>/backups/inst-1.3.0-20261123T0355",
+  "paquete": {
+    "copia": 73,
+    "real": 73,
+    "faltan": [],
+    "sobran": [],
+    "distintos": [],
+    "ok": true
+  },
+  "almacen": {
+    "copia": 6,
+    "real": 6,
+    "faltan": [],
+    "sobran": [],
+    "distintos": [],
+    "ok": true,
+    "sidecars": []
+  },
+  "integridadOk": true,
+  "estado": {
+    "cuando": "2026-11-23T03:56:05.065Z",
+    "respaldo": "<DSH_HOME>/backups/inst-1.3.0-20261123T0355",
+    "perfil": {
+      "proyectos": [
+        {
+          "id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+          "name": "LifeCode RAG",
+          "status": "active"
+        },
+        {
+          "id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+          "name": "plugins-dhs",
+          "status": "active"
+        },
+        {
+          "id": "prj_01M82G7A9MGTQMRW15F0R5RVDP",
+          "name": "lifecode-brain",
+          "status": "active"
+        }
+      ],
+      "raices": [
+        {
+          "scope_kind": "prj",
+          "scope_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+          "path": "C:\\xampp\\htdocs\\plugins-dhs\\lifecode-rag",
+          "state": "authorized"
+        },
+        {
+          "scope_kind": "prj",
+          "scope_id": "prj_01M7TRDQYRAPJR03QTM3PP6PX2",
+          "path": "C:\\xampp\\htdocs\\plugins-dhs",
+          "state": "authorized"
+        },
+        {
+          "scope_kind": "prj",
+          "scope_id": "prj_01M82G7A9MGTQMRW15F0R5RVDP",
+          "path": "C:\\xampp\\htdocs\\lifecode-brain",
+          "state": "authorized"
+        }
+      ],
+      "seleccion": [
+        {
+          "selection_key": "profile",
+          "project_id": "prj_01M7RBSRD33M26HGBEFW51WPP6",
+          "revision": 5,
+          "selected_by": "human"
+        }
+      ],
+      "auditoria": {
+        "n": 88,
+        "head": 88
+      },
+      "integridad": {
+        "integrity_check": "ok"
+      }
+    },
+    "scopes": {
+      "prj_01M7RBSRD33M26HGBEFW51WPP6": {
+        "fuentes": 121,
+        "chunks": 964,
+        "vectores": 964,
+        "auditoria": {
+          "n": 141,
+          "head": 141
+        },
+        "integridad": {
+          "integrity_check": "ok"
+        }
+      },
+      "prj_01M7TRDQYRAPJR03QTM3PP6PX2": {
+        "fuentes": 0,
+        "chunks": 0,
+        "vectores": 0,
+        "auditoria": {
+          "n": 4,
+          "head": 4
+        },
+        "integridad": {
+          "integrity_check": "ok"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+=== PASO 8a · extraccion y verificacion del artefacto · utc 2026-11-23T04:01:36Z ===
+f848b73ed2a85d6cecffab694710f062bade3d13f912a52a7ab94b927d724ec3 *1.3.0.tgz
+--- contenido ---
+74
+nombre: @designerbyron/lifecode-rag | version: 1.3.0
+PA_VERSION: pa/1.4.0
+workspaces-projection: presente (8278 B)
+ruta /workspaces en el handler: presente
+ficheros: 74
+sin sqlite/tgz/secretos: si
+--- node --check de todos los .mjs/.js ---
+ficheros con error de sintaxis: 0

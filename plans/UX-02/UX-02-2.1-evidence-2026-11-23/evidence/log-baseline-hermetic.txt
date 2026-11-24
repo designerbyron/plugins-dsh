@@ -1,0 +1,18 @@
+✔ chunkText asigna el encabezado vigente y no inventa chunks vacíos (0.8529ms)
+✔ chunkText rechaza límites incoherentes (0.2694ms)
+✔ golden de herramienta: limit 8 == motor cap 16, recortado a 8 (fragment) (97.6086ms)
+✔ golden de herramienta: source da una fuente distinta por posición antes del relleno (79.5815ms)
+✔ nivel 1: la config inyectada manda sobre todo lo demás (0.5897ms)
+✔ nivel 2: dataRoot + perfil usan el resolvedor único (4.9001ms)
+✔ nivel 3: sin contexto, se conserva el contrato histórico (root/config.json) (3.8261ms)
+✔ el scheduler consume la config inyectada sin romper su contrato (15.0843ms)
+✔ automation acepta dataRoot explícito y conserva el contrato del root (4.3406ms)
+ℹ tests 483
+ℹ suites 0
+ℹ pass 483
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 56981.6579
+✓ hermético: el almacén real no cambió (8 fichero(s))

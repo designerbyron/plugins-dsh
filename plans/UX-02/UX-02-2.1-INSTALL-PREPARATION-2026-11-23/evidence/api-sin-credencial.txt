@@ -1,0 +1,7 @@
+=== API PA SIN CREDENCIAL (solo lectura) · utc 2026-11-23T03:48:42Z ===
+/lifecode-rag/pa/config      -> 401
+/lifecode-rag/pa/workspaces  -> 401
+/lifecode-rag/pa/snapshot    -> 401
+/nada                        -> 404
+--- cuerpo de /pa/config sin credencial (recortado) ---
+{"ok":false,"error":{"code":"unauthenticated","message":"la petición no está autenticada por el host"}}

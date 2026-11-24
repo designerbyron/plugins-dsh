@@ -1,0 +1,76 @@
+{
+  "cuando": "2026-11-23T03:27:43.575Z",
+  "fichero": "C:/xampp/htdocs/plugins-dhs-release/plans/UX-02/UX-02-2.1-PACKAGE-1.3.0-2026-11-23/artifact/designerbyron-lifecode-rag-1.3.0.tgz",
+  "compuertas": [
+    {
+      "id": "G1",
+      "control": "tamaño exacto",
+      "esperado": 310675,
+      "observado": 310675,
+      "ok": true
+    },
+    {
+      "id": "G2",
+      "control": "sha256 del artefacto",
+      "esperado": "f848b73ed2a85d6cecffab694710f062bade3d13f912a52a7ab94b927d724ec3",
+      "observado": "f848b73ed2a85d6cecffab694710f062bade3d13f912a52a7ab94b927d724ec3",
+      "ok": true
+    },
+    {
+      "id": "G2",
+      "control": "sha512 del artefacto",
+      "esperado": "43f12f0de1b12624e372ea220748869fe8246a9400d9b290adc3c9c25e5dc773c7e845a98f81d2868d57c094dca81cebb43ff4d9da91d02cf39eba8d156ea1d6",
+      "observado": "43f12f0de1b12624e372ea220748869fe8246a9400d9b290adc3c9c25e5dc773c7e845a98f81d2868d57c094dca81cebb43ff4d9da91d02cf39eba8d156ea1d6",
+      "ok": true
+    },
+    {
+      "id": "G2",
+      "control": "sha256 por certutil (instrumento independiente)",
+      "esperado": "f848b73ed2a85d6cecffab694710f062bade3d13f912a52a7ab94b927d724ec3",
+      "observado": "f848b73ed2a85d6cecffab694710f062bade3d13f912a52a7ab94b927d724ec3",
+      "ok": true
+    },
+    {
+      "id": "G3",
+      "control": "sesión npm",
+      "esperado": "designerbyron",
+      "observado": "designerbyron",
+      "ok": true
+    },
+    {
+      "id": "G5",
+      "control": "registro configurado",
+      "esperado": "https://registry.npmjs.org/",
+      "observado": "https://registry.npmjs.org/",
+      "ok": true
+    },
+    {
+      "id": "G4",
+      "control": "la versión sigue libre (fuente HTTP, no caché)",
+      "esperado": "no existe",
+      "observado": "no existe",
+      "ok": true
+    },
+    {
+      "id": "G6",
+      "control": "modo 2FA conocido (decisión: aprobación por operación)",
+      "esperado": "auth-and-writes o auth-only",
+      "observado": "auth-and-writes",
+      "ok": true
+    }
+  ],
+  "registro": {
+    "status": 200,
+    "versiones": [
+      "0.0.0-stage",
+      "1.0.0",
+      "1.1.0",
+      "1.2.0"
+    ],
+    "latest": "1.2.0",
+    "integridad130": null
+  },
+  "pass": 8,
+  "fail": 0,
+  "veredicto": "GO (presentar el comando al propietario)"
+}

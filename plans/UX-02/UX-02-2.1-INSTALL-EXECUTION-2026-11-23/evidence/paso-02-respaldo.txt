@@ -1,0 +1,15 @@
+=== PASO 2 · respaldos · utc 2026-11-23T03:55:50Z ===
+destino: /c/Users/BYRON/.dsh/backups/inst-1.3.0-20261123T0355
+perfil copiado
+paquete 1.2.0 copiado: 73 ficheros
+almacen copiado: 6 ficheros
+hash de cordis.patch.yml registrado (contenido NO copiado)
+--- contenido ---
+.
+./almacen
+./almacen/scopes
+./paquete-1.2.0
+./paquete-1.2.0/bin
+./paquete-1.2.0/docs
+./paquete-1.2.0/lib
+./perfil

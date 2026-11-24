@@ -1,0 +1,22 @@
+=== HUELLA DE REFERENCIA (antes de instalar) · utc 2026-11-23T03:46:40Z ===
+--- datos (solo .sqlite3, sin sidecars) ---
+4b67cadc9afee8f6c24fb92ab9e1e4742429bd745b4ffb68c1fb1e11b3e45fae *.dsh/lifecode-rag/profiles/desktop/registry.sqlite3
+4dcf31c4cb7058bb37528ad2c35ec33faa171ff003ad1faffb3bfec8b2472ae5 *.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7RBSRD33M26HGBEFW51WPP6/rag.sqlite3
+6130ecbae17b8e8241c792a036165ffa42902537dc838eeb649201e748ababcb *.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3
+--- config del plugin ---
+b15622c0ab9f790f71a4e7a1c3d4ef3d3c8a61279d60dfc2cbdac2751d01353c *.dsh/lifecode-rag/profiles/desktop/config.json
+--- perfil (config del host) ---
+50012c7fd12c3fdcd9f54d0c08e7c29ad6bb900eabb199ee49c1f15b53de248f *.dsh/profiles/desktop/package.json
+ff5ac0c9451dc45e04a5a0e3640ae45852632e2b0ef62ef9f5bb4d5d9da1c973 *.dsh/profiles/desktop/pnpm-lock.yaml
+5bcb2d94df3e88a5ba91d4a36dfc07ffbc70bf08bec64785f4b15ef36f76f8d7 *.dsh/profiles/desktop/pnpm-workspace.yaml
+fa644967234989e3392fab04000d1d11f7b4c0795a74312b813adac27e953834 *.dsh/profiles/desktop/cordis.patch.yml
+--- paquete instalado (manifiesto + 3 ficheros clave) ---
+e966b23a3a8925e8bda5f5e3a201ddc758318ec15eb6bc768be1b9e2a503df55 *.dsh/profiles/desktop/node_modules/@designerbyron/lifecode-rag/package.json
+df7b74d6c2e528ee3077f19dd24e9c1ae53fa149c77a62a96a7cffddefe4a7f1 *.dsh/profiles/desktop/node_modules/@designerbyron/lifecode-rag/lib/pa-api.mjs
+c5c1bea60d0bc1a64348a65d75302b86582ffb5b59efecc43b11724e54e3d94e *.dsh/profiles/desktop/node_modules/@designerbyron/lifecode-rag/index.js
+8144fe8c376741a9f761b534c0b1b18c3c299e0985c74bba115c08e1d07958a3 *.dsh/profiles/desktop/node_modules/@designerbyron/lifecode-rag/client.js
+--- recuento de ficheros del paquete instalado ---
+73
+--- sidecars presentes AHORA (no se tocan) ---
+32768	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-shm
+0	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-wal

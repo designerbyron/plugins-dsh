@@ -1,0 +1,16 @@
+=== PASO 5d · terminacion forzada (WAL a 0 B) · utc 2026-11-23T03:56:56Z ===
+0
+--- procesos restantes ---
+0
+--- puerto 57200 ---
+--- hashes de datos tras el cierre ---
+4b67cadc9afee8f6  *.dsh/lifecode-rag/profiles/desktop/registry.sqlite3
+4dcf31c4cb7058bb  *.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7RBSRD33M26HGBEFW51WPP6/rag.sqlite3
+6130ecbae17b8e82  *.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3
+--- sidecars tras el cierre ---
+32768	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-shm
+0	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-wal
+--- integridad (solo lectura) ---
+desktop/registry.sqlite3 -> ok
+prj_01M7RBSRD33M26HGBEFW51WPP6/rag.sqlite3 -> ok
+prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3 -> ok

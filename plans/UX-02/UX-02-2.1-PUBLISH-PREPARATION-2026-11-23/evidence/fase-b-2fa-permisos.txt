@@ -1,0 +1,9 @@
+=== FASE B (2) · 2FA y permisos, sin exponer datos personales ===
+--- 2FA (solo el modo) ---
+tfa.mode: auth-and-writes
+tfa.pending: (no declarado)
+--- permisos por paquete (json filtrado) ---
+dsh-lifecode-skill-center => read-write
+lifecode-rag => read-write
+--- tipo de token en uso (solo el tipo, nunca el valor) ---
+cuenta: designerbyron

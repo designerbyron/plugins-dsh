@@ -1,0 +1,13 @@
+=== PASO 11 · el lock INSTALADO pasa las politicas de pnpm (copia) · utc 2026-11-23T04:03:39Z ===
+c96f684e9e177688e287b88a1002b4d49833bd0939cfb918077c532b3797f74e *pnpm-lock.yaml
+9da3f005b2ae6aba5c4045b3e13495ad3853656f8a49f1a2320ba442f4910041 *package.json
+48395d64a2d4471fad889470219f06d57dd5239a1d1809a1ee67ab5ffd94aa76 *pnpm-workspace.yaml
+✓ Lockfile passes supply-chain policies (verified 2m ago)
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+Done in 36ms using pnpm v12.15.0
+exit=0
+--- diff: lock instalado vs lo que pnpm deja (debe ser solo la ruta relativa del link) ---
+-        version: link:../../../../../xampp/htdocs/plugins-dhs/skill-compiler
++        version: link:../../../../../../xampp/htdocs/plugins-dhs/skill-compiler
+--- veredicto ---
+pnpm solo ajusta la ruta relativa del link (artefacto de la copia)

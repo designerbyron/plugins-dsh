@@ -1,0 +1,12 @@
+=== PASO 5a · medicion previa al cierre · utc 2026-11-23T03:56:26Z ===
+--- procesos ---
+ 11816 7560 24120 11816 1424 11816 24224 11816 10308 11816 
+--- puerto ---
+(57200 no escucha)
+--- sidecars y tamanos ---
+32768	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-shm
+0	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-wal
+--- hashes de datos ---
+4b67cadc9afee8f6  *.dsh/lifecode-rag/profiles/desktop/registry.sqlite3
+4dcf31c4cb7058bb  *.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7RBSRD33M26HGBEFW51WPP6/rag.sqlite3
+6130ecbae17b8e82  *.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3

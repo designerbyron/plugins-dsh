@@ -1,0 +1,168 @@
+pkg	@borewit/text-codec@0.2.3	resolution: {integrity: sha512-49CycTz1aAZmvFcwkeFyhud1HUmRIB5Tabf7ALV+VA4Iu85MTfz2cUwzPagMFAdVBvrWdkCxG67I30tUwwpKsw==}
+pkg	@deepseek-ai/cosmokit@1.8.6	resolution: {integrity: sha512-ZSD/fN52L498LBIOYwjIOlaLv5veY6ZEwI2yzvZUKQtctn0QAPqu8tKdJ+OF5+Tv6NBq1U+wJWH+QI6OGy5EvQ==}
+pkg	@deepseek-ai/schemastery@3.18.5	resolution: {integrity: sha512-Mnobvqf9rHsZYv4g5edj5ddxS1oF1kIdSlz0DunUgnY3LWG5F26MqvH3YOOsSaodCgyzJ16OMN9O99/s5Crtdw==}
+pkg	@designerbyron/lifecode-rag@1.4.0	resolution: {integrity: sha512-mojAqRJhh6Hy+MLKNTK9VT+Je3VPtdZl7/vxvahQmPoIo6mzJMO2Wuaaj0TqgvYzfFPN9loR5l8RBM/PTsloBQ==}
+pkg	@jimp/core@1.6.1	resolution: {integrity: sha512-+BoKC5G6hkrSy501zcJ2EpfnllP+avPevcBfRcZe/CW+EwEfY6X1EZ8QWyT7NpDIvEEJb1fdJnMMfUnFkxmw9A==}
+pkg	@jimp/diff@1.6.1	resolution: {integrity: sha512-YkKDPdHjLgo1Api3+Bhc0GLAygldlpt97NfOKoNg1U6IUNXA6X2MgosCjPfSBiSvJvrrz1fsIR+/4cfYXBI/HQ==}
+pkg	@jimp/file-ops@1.6.1	resolution: {integrity: sha512-T+gX6osHjprbDRad0/B71Evyre7ZdVY1z/gFGEG9Z8KOtZPKboWvPeP2UjbZYWQLy9UKCPQX1FNAnDiOPkJL7w==}
+pkg	@jimp/js-bmp@1.6.1	resolution: {integrity: sha512-xzWzNT4/u5zGrTT3Tme9sGU7YzIKxi13+BCQwLqACbt5DXf9SAfdzRkopZQnmDko+6In5nqaT89Gjs43/WdnYQ==}
+pkg	@jimp/js-gif@1.6.1	resolution: {integrity: sha512-YjY2W26rQa05XhanYhRZ7dingCiNN+T2Ymb1JiigIbABY0B28wHE3v3Cf1/HZPWGu0hOg36ylaKgV5KxF2M58w==}
+pkg	@jimp/js-jpeg@1.6.1	resolution: {integrity: sha512-HT9H3yOmlOFzYmdI15IYdfy6ggQhSRIaHeA+OTJSEORXBqEo97sUZu/DsgHIcX5NJ7TkJBTgZ9BZXsV6UbsyMg==}
+pkg	@jimp/js-png@1.6.1	resolution: {integrity: sha512-SZ/KVhI5UjcSzzlXsXdIi/LhJ7UShf2NkMOtVrbZQcGzsqNtynAelrOXeoTxcanfVqmNhAoVHg8yR2cYoqrYjA==}
+pkg	@jimp/js-tiff@1.6.1	resolution: {integrity: sha512-jDG/eJquID1M4MBlKMmDRBmz2TpXMv7TUyu2nIRUxhlUc2ogC82T+VQUkca9GJH1BBJ9dx5sSE5dGkWNjIbZxw==}
+pkg	@jimp/plugin-blit@1.6.1	resolution: {integrity: sha512-MwnI7C7K81uWddY9FLw1fCOIy6SsPIUftUz36Spt7jisCn8/40DhQMlSxpxTNelnZb/2SnloFimQfRZAmHLOqQ==}
+pkg	@jimp/plugin-blur@1.6.1	resolution: {integrity: sha512-lIo7Tzp5jQu30EFFSK/phXANK3citKVEjepDjQ6ljHoIFtuMRrnybnmI2Md24ulvWlDaz+hh3n6qrMb8ydwhZQ==}
+pkg	@jimp/plugin-circle@1.6.1	resolution: {integrity: sha512-kK1PavY6cKHNNKce37vdV4Tmpc1/zDKngGoeOV3j+EMatoHFZUinV3s6F9aWryPs3A0xhCLZgdJ6Zeea1d5LCQ==}
+pkg	@jimp/plugin-color@1.6.1	resolution: {integrity: sha512-LtUN1vAP+LRlZAtTNVhDRSiXx+26Kbz3zJaG6a5k59gQ95jgT5mknnF8lxkHcqJthM4MEk3/tPxkdJpEybyF/A==}
+pkg	@jimp/plugin-contain@1.6.1	resolution: {integrity: sha512-m0qhrfA8jkTqretGv4w+T/ADFR4GwBpE0sCOC2uJ0dzr44/ddOMsIdrpi89kabqYiPYIrxkgdCVCLm3zn1Vkkg==}
+pkg	@jimp/plugin-cover@1.6.1	resolution: {integrity: sha512-hZytnsth0zoll6cPf434BrT+p/v569Wr5tyO6Dp0dH1IDPhzhB5F38sZGMLDo7bzQiN9JFVB3fxkcJ/WYCJ3Mg==}
+pkg	@jimp/plugin-crop@1.6.1	resolution: {integrity: sha512-EerRSLlclXyKDnYc/H9w/1amZW7b7v3OGi/VlerPd2M/pAu5X8TkyYWtfqYCXnNp1Ixtd8oCo9zGfY9zoXT4rg==}
+pkg	@jimp/plugin-displace@1.6.1	resolution: {integrity: sha512-K07QVl7xQwIfD6KfxRV/c3E9e7ZBXxUXdWuvoTWcKHL2qV48MOF5Nqbz/aJW4ThnQARIsxvYlZjPFiqkCjlU+g==}
+pkg	@jimp/plugin-dither@1.6.1	resolution: {integrity: sha512-+2V+GCV2WycMoX1/z977TkZ8Zq/4MVSKElHYatgUqtwXMi2fDK2gKYU2g9V39IqFvTJsTIsK0+58VFz/ROBVew==}
+pkg	@jimp/plugin-fisheye@1.6.1	resolution: {integrity: sha512-XtS5ZyoZ0vxZxJ6gkqI63SivhtI58vX95foMPM+cyzYkRsJXMOYCr8DScxF5bp4Xr003NjYm/P+7+08tibwzHA==}
+pkg	@jimp/plugin-flip@1.6.1	resolution: {integrity: sha512-ws38W/sGj7LobNRayQ83garxiktOyWxM5vO/y4a/2cy9v65SLEUzVkrj+oeAaUSSObdz4HcCEla7XtGlnAGAaA==}
+pkg	@jimp/plugin-hash@1.6.1	resolution: {integrity: sha512-sZt6ZcMX6i8vFWb4GYnw0pR/o9++ef0dTVcboTB5B/g7nrxCODIB4wfEkJ/YqZM5wUvol77K1qeS0/rVO6z21A==}
+pkg	@jimp/plugin-mask@1.6.1	resolution: {integrity: sha512-SIG0/FcmEj3tkwFxc7fAGLO8o4uNzMpSOdQOhbCgxefQKq5wOVMk9BQx/sdMPBwtMLr9WLq0GzLA/rk6t2v20A==}
+pkg	@jimp/plugin-print@1.6.1	resolution: {integrity: sha512-BYVz/X3Xzv8XYilVeDy11NOp0h7BTDjlOtu0BekIFHP1yHVd24AXNzbOy52XlzYZWQ0Dl36HOHEpl/nSNrzc6w==}
+pkg	@jimp/plugin-quantize@1.6.1	resolution: {integrity: sha512-J2En9PLURfP+vwYDtuZ9T8yBW6BWYZBScydAjRiPBmJfEhTcNQqiiQODrZf7EqbbX/Sy5H6dAeRiqkgoV9N6Ww==}
+pkg	@jimp/plugin-resize@1.6.1	resolution: {integrity: sha512-CLkrtJoIz2HdWnpYiN6p8KYcPc00rCH/SUu6o+lfZL05Q4uhecJlnvXuj9x+U6mDn3ldPmJj6aZqMHuUJzdVqg==}
+pkg	@jimp/plugin-rotate@1.6.1	resolution: {integrity: sha512-nOjVjbbj705B02ksysKnh0POAwEBXZtJ9zQ5qC+X7Tavl3JNn+P3BzQovbBxLPSbUSld6XID9z5ijin4PtOAUg==}
+pkg	@jimp/plugin-threshold@1.6.1	resolution: {integrity: sha512-JOKv9F8s6tnVLf4sB/2fF0F339EFnHvgEdFYugO6VhowKLsap0pEZmLyE/DlRnYtIj2RddHZVxVMp/eKJ04l2Q==}
+pkg	@jimp/types@1.6.1	resolution: {integrity: sha512-leI7YbveTNi565m910XgIOwXyuu074H5qazAD1357HImJSv2hqxnWXpwxQbadGWZ7goZRYBDZy5lpqud0p7q5w==}
+pkg	@jimp/utils@1.6.1	resolution: {integrity: sha512-veFPRd93FCnS7AgmCkPgARVGoDRrJ9cm1ujuNyA+UfQ5VKbED2002sm5XfFLFwTsKC8j04heTrwe+tU1dluXOw==}
+pkg	@local/lifecode-skill-center@https://codeload.github.com/designerbyron/plugins-dsh/tar.gz/827b84e35311881052140d886f4de4e95f5e6b1c#path:/lifecode-skill-center	resolution: {gitHosted: true, integrity: sha512-MEjmxg+Ry2Hbhdh9BqoOfD4F4Kn47iUfwzvF5MY0FrskIBTeUDb6rdgj24Pcu95IvquBgZ3u2WsjyjD5H7XDiw==, path: /lifecode-skill-center, tarball: https://codeload.github.com/designerbyron/plugins-dsh/tar.gz/827b84e35311881052140d886f4de4e95f5e6b1c}
+pkg	@standard-schema/spec@1.1.0	resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+pkg	@tokenizer/inflate@0.4.1	resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
+pkg	@tokenizer/token@0.3.0	resolution: {integrity: sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A==}
+pkg	@tuhengyu/dsh-full-life-memory@https://codeload.github.com/Toctsu/dsh-full-life-memory/tar.gz/4da62b237618f0ba4fc0d873e5bca074b918116b	resolution: {gitHosted: true, integrity: sha512-wbAR3q2DDXmC7kOmpvzAOYs8gRhfHJ2Sk+k9Mb2jw35oTROS9mgdXU0SK7/gZjd8B9KTNtfrMJ1aiDhehEnBMw==, tarball: https://codeload.github.com/Toctsu/dsh-full-life-memory/tar.gz/4da62b237618f0ba4fc0d873e5bca074b918116b}
+pkg	@types/node@16.9.1	resolution: {integrity: sha512-QpLcX9ZSsq3YYUUnD3nFDY8H7wctAhQj/TFKL8Ya8v5fMm3CFXxo8zStsLAl780ltoYoo1WvKUVGBQK+1ifr7g==}
+pkg	any-base@1.1.0	resolution: {integrity: sha512-uMgjozySS8adZZYePpaWs8cxB9/kdzmpX6SgJZ+wbz1K5eYk5QMYDVJaZKhxyIHUdnnJkfR7SVgStgH7LkGUyg==}
+pkg	await-to-js@3.0.0	resolution: {integrity: sha512-zJAaP9zxTcvTHRlejau3ZOY4V7SRpiByf3/dxx2uyKxxor19tpmpV2QRsTKikckwhaPmr2dVpxxMr7jOCYVp5g==}
+pkg	aws-ssl-profiles@1.1.2	resolution: {integrity: sha512-NZKeq9AfyQvEeNlN0zSYAaWrmBffJh3IELMZfRpJVWgrpEbtEpnjvzqBPf+mxoI287JohRDoa+/nsfqqiZmF6g==}
+pkg	billion-context@0.1.216	resolution: {integrity: sha512-98Q5eSqk0LyemCJ45OrYmZvEd0qpzBjLokthZlQ4yA7yvgUlzuM7fp6iq9dPAJ4N4vaplnvZeld0JxM4S7Ti1A==}
+pkg	bmp-ts@1.0.9	resolution: {integrity: sha512-cTEHk2jLrPyi+12M3dhpEbnnPOsaZuq7C45ylbbQIiWgDFZq4UVYPEY5mlqjvsj/6gJv9qX5sa+ebDzLXT28Vw==}
+pkg	debug@4.4.3	resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
+pkg	dsh-context@0.87.1	resolution: {integrity: sha512-8VvNjcznzfC5asutEeFL+2al5JIXho6prUHNJe9BrQR50BkXuaChqi8fupi/r4lCwi0LJs4Ne7Q3phyjExHxDw==}
+pkg	dsh-plugins-update@https://codeload.github.com/fengzhiyushui/dsh-plugins-update/tar.gz/ca3f3b60f422a41bf7097c52f9b9f44422c4c8d4	resolution: {gitHosted: true, integrity: sha512-KX4Tmm+DVhwwAi2QFrwCJjk/b9fqs8H7G3ps9azp4bmkVoTd4M3dpd09JACuVSbyyQ0FtwiZMKyBsVl0d+/ihw==, tarball: https://codeload.github.com/fengzhiyushui/dsh-plugins-update/tar.gz/ca3f3b60f422a41bf7097c52f9b9f44422c4c8d4}
+pkg	exif-parser@0.1.12	resolution: {integrity: sha512-c2bQfLNbMzLPmzQuOr8fy0csy84WmwnER81W88DzTp9CYNPJ6yzOj2EZAh9pywYpqHnshVLHQJ8WzldAyfY+Iw==}
+pkg	file-type@21.3.4	resolution: {integrity: sha512-Ievi/yy8DS3ygGvT47PjSfdFoX+2isQueoYP1cntFW1JLYAuS4GD7NUPGg4zv2iZfV52uDyk5w5Z0TdpRS6Q1g==}
+pkg	generate-function@2.3.1	resolution: {integrity: sha512-eeB5GfMNeevm/GRYq20ShmsaGcmI81kIX2K9XQx5miC8KdHaC6Jm0qQ8ZNeGOi7wYB8OsdxKs+Y2oVuTFuVwKQ==}
+pkg	gifwrap@0.10.1	resolution: {integrity: sha512-2760b1vpJHNmLzZ/ubTtNnEx5WApN/PYWJvXvgS+tL1egTTthayFYIQQNi136FLEDcN/IyEY2EcGpIITD6eYUw==}
+pkg	iconv-lite@0.7.3	resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
+pkg	ieee754@1.2.1	resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
+pkg	image-q@4.0.0	resolution: {integrity: sha512-PfJGVgIfKQJuq3s0tTDOKtztksibuUEbJQIYT3by6wctQo+Rdlh7ef4evJ5NCdxY4CfMbvFkocEwbl4BF8RlJw==}
+pkg	is-property@1.0.2	resolution: {integrity: sha512-Ks/IoX00TtClbGQr4TWXemAnktAQvYB7HzcCxDGqEZU6oCmb2INHuOoKxbtR+HFkmYWBKv/dOZtGRiAjDhj92g==}
+pkg	jimp@1.6.1	resolution: {integrity: sha512-hNQh6rZtWfSVWSNVmvq87N5BPJsNH7k7I7qyrXf9DOma9xATQk3fsyHazCQe51nCjdkoWdTmh0vD7bjVSLoxxw==}
+pkg	jpeg-js@0.4.4	resolution: {integrity: sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg==}
+pkg	long@5.3.2	resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
+pkg	lru.min@1.1.5	resolution: {integrity: sha512-5J9ysMYUpYIg9RF2vJpy9SinEmSviFSe0GyPpCQ4L5QSkLAgeLXlTAOu2ZwWUU5m+0SBl6gUU1R1ZQB3aKypfA==}
+pkg	mime@3.0.0	resolution: {integrity: sha512-jSCU7/VB1loIWBZe14aEYHU/+1UMEHoaO7qxCOVJOw9GgH72VAWppxNcjU+x9a2k3GSIBXNKxXQFqRvvZ7vr3A==}
+pkg	ms@2.1.3	resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
+pkg	mysql2@3.24.6	resolution: {integrity: sha512-enu73KhbAua2L3dIxjc6qg6ZJ7H3pt1BImZASWNWY5xSsmJ1ZuUPULTDGXgmJbI61vb+nJAG19IZclIq19UidQ==}
+pkg	named-placeholders@1.1.6	resolution: {integrity: sha512-Tz09sEL2EEuv5fFowm419c1+a/jSMiBjI9gHxVLrVdbUkkNUUfjsVYs9pVZu5oCon/kmRh9TfLEObFtkVxmY0w==}
+pkg	omggif@1.0.10	resolution: {integrity: sha512-LMJTtvgc/nugXj0Vcrrs68Mn2D1r0zf630VNtqtpI1FEO7e+O9FP4gqs9AcnBaSEeoHIPm28u6qgPR0oyEpGSw==}
+pkg	pako@1.0.11	resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
+pkg	parse-bmfont-ascii@1.0.6	resolution: {integrity: sha512-U4RrVsUFCleIOBsIGYOMKjn9PavsGOXxbvYGtMOEfnId0SVNsgehXh1DxUdVPLoxd5mvcEtvmKs2Mmf0Mpa1ZA==}
+pkg	parse-bmfont-binary@1.0.6	resolution: {integrity: sha512-GxmsRea0wdGdYthjuUeWTMWPqm2+FAd4GI8vCvhgJsFnoGhTrLhXDDupwTo7rXVAgaLIGoVHDZS9p/5XbSqeWA==}
+pkg	parse-bmfont-xml@1.1.6	resolution: {integrity: sha512-0cEliVMZEhrFDwMh4SxIyVJpqYoOWDJ9P895tFuS+XuNzI5UBmBk5U5O4KuJdTnZpSBI4LFA2+ZiJaiwfSwlMA==}
+pkg	pixelmatch@5.3.0	resolution: {integrity: sha512-o8mkY4E/+LNUf6LzX96ht6k6CEDi65k9G2rjMtBe9Oo+VPKSvl+0GKHuH/AlG+GA5LPG/i5hrekkxUc3s2HU+Q==}
+pkg	pngjs@6.0.0	resolution: {integrity: sha512-TRzzuFRRmEoSW/p1KVAmiOgPco2Irlah+bGFCeNfJXxxYGwSw7YwAOAcd7X28K/m5bjBWKsC29KyoMfHbypayg==}
+pkg	pngjs@7.0.0	resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+pkg	safer-buffer@2.1.2	resolution: {integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==}
+pkg	sax@1.6.1	resolution: {integrity: sha512-42tBVwLWnaQvW5zc4HbZrTuWccECCZfBi92FDuwtqxasH+JbPB3/FOKb1m222K42R4WxuxzzMsTswfzgtSu64Q==}
+pkg	simple-xml-to-json@1.2.7	resolution: {integrity: sha512-mz9VXphOxQWX3eQ/uXCtm6upltoN0DLx8Zb5T4TFC4FHB7S9FDPGre8CfLWqPWQQH/GrQYd2AXhhVM5LDpYx6Q==}
+pkg	sql-escaper@1.7.0	resolution: {integrity: sha512-ZgP6E9SPnhrhWXxd8+nLKPot3Euzyo3Rpxe6EFAYz2Ffaq9Xg2SH+6d4yJi7vsQDHaQlhzQ1phAopgE6+a1UCQ==}
+pkg	strtok3@10.8.0	resolution: {integrity: sha512-e6bW3fD6V01DPmcbLfNtn0cjsiHvTKS/hivgbzqYMfHb/nLes4QQ0H5QBxlkPQayF4xv08AvlSgptGwN86Eemw==}
+pkg	tinycolor2@1.6.0	resolution: {integrity: sha512-XPaBkWQJdsf3pLKJV9p4qN/S+fm2Oj8AIPo1BTUhg5oxkvm9+SVEGFdhyOz7tTdUTfvxMiAs4sp6/eZO2Ew+pw==}
+pkg	token-types@6.2.0	resolution: {integrity: sha512-s9euYHM//T3loJtbNUYdbAzsMlvKBeRS+XCLFy+UGosMQH19Hwjap5k19i4PPAEJJBsVIpMpVTxl4fIqCuNfUg==}
+pkg	uint8array-extras@1.6.0	resolution: {integrity: sha512-8iAasVS4wUx0gPLjH8Xtz2PeDzTSiy8QiLGu2DT3X5GU+egFEQhpnbtkehbAwjvDcxIERmCYcysiODFmE3Ud0Q==}
+pkg	utif2@4.1.0	resolution: {integrity: sha512-+oknB9FHrJ7oW7A2WZYajOcv4FcDR4CfoGB0dPNfxbi4GO05RRnFmt5oa23+9w32EanrYcSJWspUiJkLMs+37w==}
+pkg	xml-parse-from-string@1.0.1	resolution: {integrity: sha512-ErcKwJTF54uRzzNMXq2X5sMIy88zJvfN2DmdoQvy7PAFJ+tPRU6ydWuOKNMyfmOjdyBQTFREi60s0Y0SyI0G0g==}
+pkg	xml2js@0.5.0	resolution: {integrity: sha512-drPFnkQJik/O+uPKpqSgr22mpuFHqKdbS835iAQrUC73L2F5WkboIRd63ai/2Yg6I1jzifPFKH2NTK+cfglkIA==}
+pkg	xmlbuilder@11.0.1	resolution: {integrity: sha512-fDlsI/kFEx7gLvbecc0/ohLG50fugQp8ryHzMTuW9vSa1GJ0XYWKnhsUx7oie3G98+r56aTQIUB4kht42R3JvA==}
+pkg	zod@3.25.76	resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+pkg	zod@4.6.7	resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+snap	@borewit/text-codec@0.2.3
+snap	@deepseek-ai/cosmokit@1.8.6
+snap	@deepseek-ai/schemastery@3.18.5
+snap	@designerbyron/lifecode-rag@1.4.0
+snap	@jimp/core@1.6.1
+snap	@jimp/diff@1.6.1
+snap	@jimp/file-ops@1.6.1
+snap	@jimp/js-bmp@1.6.1
+snap	@jimp/js-gif@1.6.1
+snap	@jimp/js-jpeg@1.6.1
+snap	@jimp/js-png@1.6.1
+snap	@jimp/js-tiff@1.6.1
+snap	@jimp/plugin-blit@1.6.1
+snap	@jimp/plugin-blur@1.6.1
+snap	@jimp/plugin-circle@1.6.1
+snap	@jimp/plugin-color@1.6.1
+snap	@jimp/plugin-contain@1.6.1
+snap	@jimp/plugin-cover@1.6.1
+snap	@jimp/plugin-crop@1.6.1
+snap	@jimp/plugin-displace@1.6.1
+snap	@jimp/plugin-dither@1.6.1
+snap	@jimp/plugin-fisheye@1.6.1
+snap	@jimp/plugin-flip@1.6.1
+snap	@jimp/plugin-hash@1.6.1
+snap	@jimp/plugin-mask@1.6.1
+snap	@jimp/plugin-print@1.6.1
+snap	@jimp/plugin-quantize@1.6.1
+snap	@jimp/plugin-resize@1.6.1
+snap	@jimp/plugin-rotate@1.6.1
+snap	@jimp/plugin-threshold@1.6.1
+snap	@jimp/types@1.6.1
+snap	@jimp/utils@1.6.1
+snap	@local/lifecode-skill-center@https://codeload.github.com/designerbyron/plugins-dsh/tar.gz/827b84e35311881052140d886f4de4e95f5e6b1c#path:/lifecode-skill-center
+snap	@standard-schema/spec@1.1.0
+snap	@tokenizer/inflate@0.4.1
+snap	@tokenizer/token@0.3.0
+snap	@tuhengyu/dsh-full-life-memory@https://codeload.github.com/Toctsu/dsh-full-life-memory/tar.gz/4da62b237618f0ba4fc0d873e5bca074b918116b
+snap	@types/node@16.9.1
+snap	any-base@1.1.0
+snap	await-to-js@3.0.0
+snap	aws-ssl-profiles@1.1.2
+snap	billion-context@0.1.216(@types/node@16.9.1)
+snap	bmp-ts@1.0.9
+snap	debug@4.4.3
+snap	dsh-context@0.87.1(@deepseek-ai/schemastery@3.18.5)
+snap	dsh-plugins-update@https://codeload.github.com/fengzhiyushui/dsh-plugins-update/tar.gz/ca3f3b60f422a41bf7097c52f9b9f44422c4c8d4
+snap	exif-parser@0.1.12
+snap	file-type@21.3.4
+snap	generate-function@2.3.1
+snap	gifwrap@0.10.1
+snap	iconv-lite@0.7.3
+snap	ieee754@1.2.1
+snap	image-q@4.0.0
+snap	is-property@1.0.2
+snap	jimp@1.6.1
+snap	jpeg-js@0.4.4
+snap	long@5.3.2
+snap	lru.min@1.1.5
+snap	mime@3.0.0
+snap	ms@2.1.3
+snap	mysql2@3.24.6(@types/node@16.9.1)
+snap	named-placeholders@1.1.6
+snap	omggif@1.0.10
+snap	pako@1.0.11
+snap	parse-bmfont-ascii@1.0.6
+snap	parse-bmfont-binary@1.0.6
+snap	parse-bmfont-xml@1.1.6
+snap	pixelmatch@5.3.0
+snap	pngjs@6.0.0
+snap	pngjs@7.0.0
+snap	safer-buffer@2.1.2
+snap	sax@1.6.1
+snap	simple-xml-to-json@1.2.7
+snap	sql-escaper@1.7.0
+snap	strtok3@10.8.0
+snap	tinycolor2@1.6.0
+snap	token-types@6.2.0
+snap	uint8array-extras@1.6.0
+snap	utif2@4.1.0
+snap	xml-parse-from-string@1.0.1
+snap	xml2js@0.5.0
+snap	xmlbuilder@11.0.1
+snap	zod@3.25.76
+snap	zod@4.6.7

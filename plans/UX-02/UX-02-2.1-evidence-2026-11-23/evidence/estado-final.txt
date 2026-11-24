@@ -1,0 +1,95 @@
+=== FECHA (local / UTC) ===
+local 2026-11-22 18:42:29 HAC
+utc   2026-11-23 00:42:29Z
+=== HEAD ===
+7d7e839d514cca27044d595218bf8c67ec5a1f7d
+=== BRANCH ===
+release/lifecode-rag-1.0.0
+=== INDICE (debe estar vacio) ===
+0
+=== STATUS ===
+ M lifecode-rag/README.md
+ M lifecode-rag/client.js
+ M lifecode-rag/docs/PA-UI-0-API-CONTRACT.md
+ M lifecode-rag/index.js
+ M lifecode-rag/lib/errors.mjs
+ M lifecode-rag/lib/harness-workspaces.mjs
+ M lifecode-rag/lib/pa-api.mjs
+ M lifecode-rag/lib/registry.mjs
+ M lifecode-rag/lib/resolve.mjs
+ M lifecode-rag/lib/selection.mjs
+ M lifecode-rag/lib/server.mjs
+ M lifecode-rag/package.json
+ M lifecode-rag/tests/adapter.test.mjs
+ M lifecode-rag/tests/client.test.mjs
+ M lifecode-rag/tests/discovery.test.mjs
+ M lifecode-rag/tests/harness-projects.test.mjs
+ M lifecode-rag/tests/registry.test.mjs
+?? _audit/ACP-04-CLEAN-CONSUMER-INSTALLATION.md
+?? _audit/ACP-04-DELIVERABLES.sha256
+?? _audit/ACP-04-NPM-REGISTRY-VERIFICATION.md
+?? _audit/ACP-04-PUBLIC-API-COMPATIBILITY.md
+?? _audit/ACP-04-RELEASE-CLOSURE.md
+?? _audit/ACP-05-CLEAN-CONSUMER-VERIFICATION.md
+?? _audit/ACP-05-DELIVERABLES.sha256
+?? _audit/ACP-05-PUBLICATION-REPORT.md
+?? _audit/ACP-05-REGISTRY-INTEGRITY.md
+?? _audit/ACP-05-RELEASE-CLOSURE.md
+?? lifecode-rag/lib/workspaces-projection.mjs
+?? lifecode-rag/tests/pa-admin.test.mjs
+?? lifecode-rag/tests/pa-workspaces.test.mjs
+?? lifecode-rag/tests/workspaces-projection.test.mjs
+?? plans/UX-02/
+=== DIFFSTAT ===
+ lifecode-rag/README.md                       |   56 +-
+ lifecode-rag/client.js                       | 1727 +++++++++++++++++++++++++-
+ lifecode-rag/docs/PA-UI-0-API-CONTRACT.md    |  238 +++-
+ lifecode-rag/index.js                        |   20 +
+ lifecode-rag/lib/errors.mjs                  |    4 +
+ lifecode-rag/lib/harness-workspaces.mjs      |  132 ++
+ lifecode-rag/lib/pa-api.mjs                  |  474 ++++++-
+ lifecode-rag/lib/registry.mjs                |  200 +++
+ lifecode-rag/lib/resolve.mjs                 |   81 +-
+ lifecode-rag/lib/selection.mjs               |   77 +-
+ lifecode-rag/lib/server.mjs                  |    7 +-
+ lifecode-rag/package.json                    |    2 +-
+ lifecode-rag/tests/adapter.test.mjs          |   82 ++
+ lifecode-rag/tests/client.test.mjs           |  664 +++++++++-
+ lifecode-rag/tests/discovery.test.mjs        |   37 +-
+ lifecode-rag/tests/harness-projects.test.mjs |   54 +-
+ lifecode-rag/tests/registry.test.mjs         |  222 +++-
+ 17 files changed, 3929 insertions(+), 148 deletions(-)
+=== HASHES FINALES (producto) ===
+0a79bdc5249aee75759e8136b964c4d070cfd4acdce3cc050ab711bf7475455f *lib/workspaces-projection.mjs
+6ca2b4671936ee38c0a32ea6b673aeb65e4e0526cdbb5ee9c88b7a8033d6bd4f *lib/harness-workspaces.mjs
+14ff188d2bb59daf6ade6664d4c4f1497aeb7e48db43548c3647e6fa39c5e532 *lib/pa-api.mjs
+23ed69516f68774b3ba1d62651c2d548293b98d9edacd764124e324b5bf6d6bf *index.js
+ff8119dde0c1a41edbbe89b5247b3892a5eb4bfe870ba5d7a75e1562c143f3ca *client.js
+c0e063bce6683f36caa0149ec6e5d4376b4b289248e327eb88eaa065c834bc56 *docs/PA-UI-0-API-CONTRACT.md
+6b05c40641d9dd71b7e138b940d58cf4775d0e5cc7a75ceb9ff8cd9f45357a5c *README.md
+1b87ca7ca6e9ea441d2d4320ab1f11d40adfc55162258cad86ab7af552492914 *package.json
+febeee8ffd07c4db3d608ff99e7b8f99fdccb185c25ca67586200127b23169a3 *tests/workspaces-projection.test.mjs
+d89fcd716b7e4c8ff542cfd391254cb451a930fde581c7155850725410913657 *tests/pa-workspaces.test.mjs
+41a91577855488f1622b06fb095a0c1398c814207f6d6e1e63de590c00e6c43f *tests/client.test.mjs
+71564d43df37f13e15c27a4a38197a0a9b812633206c4ffe2b763417cb237f20 *tests/adapter.test.mjs
+d06cbe4eca500e30a62249ec76eabe1b0595a2b884b767cb802fd5aca3b5a7f1 *tests/pa-admin.test.mjs
+=== MTIMES (editados hoy vs preexistentes) ===
+2026-11-22 18:24:09  lifecode-rag/lib/workspaces-projection.mjs
+2026-11-22 18:22:56  lifecode-rag/lib/harness-workspaces.mjs
+2026-11-22 18:23:21  lifecode-rag/lib/pa-api.mjs
+2026-11-22 18:23:33  lifecode-rag/index.js
+2026-11-22 18:28:57  lifecode-rag/client.js
+2026-11-22 18:30:01  lifecode-rag/docs/PA-UI-0-API-CONTRACT.md
+2026-11-22 18:36:23  lifecode-rag/README.md
+2026-11-22 18:29:55  lifecode-rag/package.json
+2026-11-22 18:28:47  lifecode-rag/tests/client.test.mjs
+2026-11-22 18:34:05  lifecode-rag/tests/adapter.test.mjs
+2026-11-22 18:31:09  lifecode-rag/tests/pa-admin.test.mjs
+2026-11-22 01:30:32  lifecode-rag/lib/errors.mjs
+2026-11-22 01:07:35  lifecode-rag/lib/registry.mjs
+2026-11-22 01:13:30  lifecode-rag/lib/resolve.mjs
+2026-11-22 01:06:10  lifecode-rag/lib/selection.mjs
+2026-11-22 02:12:10  lifecode-rag/lib/server.mjs
+2026-11-22 01:15:05  lifecode-rag/tests/discovery.test.mjs
+2026-11-22 01:16:00  lifecode-rag/tests/harness-projects.test.mjs
+2026-11-22 01:07:26  lifecode-rag/tests/registry.test.mjs

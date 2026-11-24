@@ -1,0 +1,19 @@
+=== COMANDO PRESENTADO AL PROPIETARIO · utc 2026-11-23T03:28:01Z ===
+directorio:
+  C:\xampp\htdocs\plugins-dhs-release\plans\UX-02\UX-02-2.1-PACKAGE-1.3.0-2026-11-23\artifact
+comando:
+  npm publish designerbyron-lifecode-rag-1.3.0.tgz --access public
+
+=== COMPUERTAS G1-G6 (resumen de evidence/gates-antes.json) ===
+cuando: 2026-11-23T03:27:43.575Z
+PASS 8 | FAIL 0 | GO (presentar el comando al propietario)
+PASS G1 - tamaño exacto
+PASS G2 - sha256 del artefacto
+PASS G2 - sha512 del artefacto
+PASS G2 - sha256 por certutil (instrumento independiente)
+PASS G3 - sesión npm
+PASS G5 - registro configurado
+PASS G4 - la versión sigue libre (fuente HTTP, no caché)
+PASS G6 - modo 2FA conocido (decisión: aprobación por operación)
+
+NOTA: la publicacion y el 2FA los ejecuta el propietario; el agente no pide ni consume OTP.

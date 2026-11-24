@@ -1,0 +1,18 @@
+=== PASO 5c Â· taskkill /T sin /F Â· utc 2026-11-23T03:56:46Z ===
+CORRECTO: se¤al de terminaci¢n enviada para procesar con PID 24120, secundario de PID 11816.
+CORRECTO: se¤al de terminaci¢n enviada para procesar con PID 1424, secundario de PID 11816.
+ERROR: el proceso con PID 24224 (proceso secundario de PID 11816)
+no se pudo terminar.
+Motivo: Este proceso se puede terminar solo de forma forzada (con la opci¢n /F).
+ERROR: el proceso con PID 10308 (proceso secundario de PID 11816)
+no se pudo terminar.
+Motivo: Este proceso se puede terminar solo de forma forzada (con la opci¢n /F).
+ERROR: el proceso con PID 11816 (proceso secundario de PID 7560)
+no se pudo terminar.
+Motivo: Uno o m s procesos secundarios de este proceso a£n se est n ejecutando.
+exit=0
+--- procesos 4 s despues ---
+ 11816 24120 1424 24224 10308 
+--- WAL (deben estar a 0 B antes de forzar) ---
+32768	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-shm
+0	.dsh/lifecode-rag/profiles/desktop/scopes/prj_01M7TRDQYRAPJR03QTM3PP6PX2/rag.sqlite3-wal

@@ -1,0 +1,11 @@
+# Paquetes instalados — antes vs después
+
+antes: 82 · después: 83 · comunes: 82
+
+## Retirados
+
+(ninguno)
+
+## Añadidos
+
+dsh-data-quality@0.3.29

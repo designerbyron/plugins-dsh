@@ -1,0 +1,5 @@
+
+> @designerbyron/lifecode-rag@1.3.0 check
+> node tools/check.mjs
+
+✓ 7 herramientas, sin dependencias de @deepseek-ai/*, manifiesto y parche correctos (G3: exports["./client"] resoluble, cliente con la API de slots vigente)

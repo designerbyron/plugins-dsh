@@ -1,0 +1,322 @@
+{
+  "ficherosExtraidos": 74,
+  "identicos": 74,
+  "distintos": 0,
+  "sinFuenteEnWorktree": [],
+  "noPublicados": 375,
+  "prohibidas": [],
+  "hallazgos": [
+    {
+      "archivo": "bin/lifecode-rag.mjs",
+      "patron": "npmrc/.env",
+      "linea": 48,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "docs/AUTO-DISCOVERY.md",
+      "patron": "npmrc/.env",
+      "linea": 31,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "docs/AUTO-DISCOVERY.md",
+      "patron": "sqlite",
+      "linea": 20,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/CONTRATO-v0.1.md",
+      "patron": "sqlite",
+      "linea": 20,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/OBSERVABILITY.md",
+      "patron": "token",
+      "linea": 109,
+      "muestra": "token"
+    },
+    {
+      "archivo": "docs/OBSERVABILITY.md",
+      "patron": "sqlite",
+      "linea": 44,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PA-UI-0-API-CONTRACT.md",
+      "patron": "token",
+      "linea": 69,
+      "muestra": "token"
+    },
+    {
+      "archivo": "docs/PA-UI-0-API-CONTRACT.md",
+      "patron": "sqlite",
+      "linea": 44,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PA-UI-0-API-CONTRACT.md",
+      "patron": "evidencia local",
+      "linea": 774,
+      "muestra": "_audit"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+      "patron": "npmrc/.env",
+      "linea": 563,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+      "patron": "sqlite",
+      "linea": 27,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-DATA-CONTRACT.md",
+      "patron": "sqlite",
+      "linea": 13,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+      "patron": "sqlite",
+      "linea": 36,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "docs/WORKSPACE-API.md",
+      "patron": "token",
+      "linea": 230,
+      "muestra": "token"
+    },
+    {
+      "archivo": "index.js",
+      "patron": "token",
+      "linea": 39,
+      "muestra": "token"
+    },
+    {
+      "archivo": "index.js",
+      "patron": "npmrc/.env",
+      "linea": 100,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "index.js",
+      "patron": "sqlite",
+      "linea": 144,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/auto-context.mjs",
+      "patron": "token",
+      "linea": 58,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/automation.mjs",
+      "patron": "npmrc/.env",
+      "linea": 65,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/config-resolve.mjs",
+      "patron": "npmrc/.env",
+      "linea": 28,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/context.mjs",
+      "patron": "token",
+      "linea": 5,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/conversation-events.mjs",
+      "patron": "token",
+      "linea": 23,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/conversation-events.mjs",
+      "patron": "password",
+      "linea": 23,
+      "muestra": "password"
+    },
+    {
+      "archivo": "lib/conversation-events.mjs",
+      "patron": "api-key",
+      "linea": 23,
+      "muestra": "SECRET_KEY"
+    },
+    {
+      "archivo": "lib/db.mjs",
+      "patron": "sqlite",
+      "linea": 6,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/diagnose.mjs",
+      "patron": "npmrc/.env",
+      "linea": 62,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/discovery.mjs",
+      "patron": "npmrc/.env",
+      "linea": 28,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/discovery.mjs",
+      "patron": "evidencia local",
+      "linea": 31,
+      "muestra": "_audit"
+    },
+    {
+      "archivo": "lib/doctor.mjs",
+      "patron": "npmrc/.env",
+      "linea": 27,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/embed.mjs",
+      "patron": "token",
+      "linea": 54,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/exec-context.mjs",
+      "patron": "npmrc/.env",
+      "linea": 73,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/library-state.mjs",
+      "patron": "sqlite",
+      "linea": 40,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/migrate.mjs",
+      "patron": "token",
+      "linea": 107,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/migrate.mjs",
+      "patron": "sqlite",
+      "linea": 2,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/pa-api.mjs",
+      "patron": "npmrc/.env",
+      "linea": 712,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/pa-api.mjs",
+      "patron": "sqlite",
+      "linea": 501,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/paths.mjs",
+      "patron": "npmrc/.env",
+      "linea": 92,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/paths.mjs",
+      "patron": "sqlite",
+      "linea": 111,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/policy.mjs",
+      "patron": "npmrc/.env",
+      "linea": 35,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/profile.mjs",
+      "patron": "npmrc/.env",
+      "linea": 37,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/profile.mjs",
+      "patron": "sqlite",
+      "linea": 17,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/registry.mjs",
+      "patron": "sqlite",
+      "linea": 2,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/scope-stores.mjs",
+      "patron": "sqlite",
+      "linea": 4,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/search.mjs",
+      "patron": "token",
+      "linea": 32,
+      "muestra": "token"
+    },
+    {
+      "archivo": "lib/server.mjs",
+      "patron": "npmrc/.env",
+      "linea": 150,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/session-identity.mjs",
+      "patron": "npmrc/.env",
+      "linea": 30,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/sync-scheduler.mjs",
+      "patron": "npmrc/.env",
+      "linea": 56,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/sync.mjs",
+      "patron": "npmrc/.env",
+      "linea": 417,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "lib/sync.mjs",
+      "patron": "sqlite",
+      "linea": 424,
+      "muestra": ".sqlite3"
+    },
+    {
+      "archivo": "lib/worker-context.mjs",
+      "patron": "npmrc/.env",
+      "linea": 15,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "README.md",
+      "patron": "npmrc/.env",
+      "linea": 159,
+      "muestra": ".env"
+    },
+    {
+      "archivo": "README.md",
+      "patron": "sqlite",
+      "linea": 19,
+      "muestra": ".sqlite3"
+    }
+  ]
+}

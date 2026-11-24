@@ -1,0 +1,10 @@
+=== certutil SHA256 ===
+f848b73ed2a85d6cecffab694710f062bade3d13f912a52a7ab94b927d724ec3
+=== certutil SHA512 ===
+43f12f0de1b12624e372ea220748869fe8246a9400d9b290adc3c9c25e5dc773c7e845a98f81d2868d57c094dca81cebb43ff4d9da91d02cf39eba8d156ea1d6
+=== node crypto (sha256 / sha512 hex / sha512 base64) ===
+sha256: f848b73ed2a85d6cecffab694710f062bade3d13f912a52a7ab94b927d724ec3
+sha512hex: 43f12f0de1b12624e372ea220748869fe8246a9400d9b290adc3c9c25e5dc773c7e845a98f81d2868d57c094dca81cebb43ff4d9da91d02cf39eba8d156ea1d6
+sha512b64: Q/EvDeGxJiTjcuoiB0iGn+gkapQA2bKQrcPJwl5dx3PH6EWpj4HSho1XwJTcqBzrtD/02dqR0CzznrqNFW6h1g==
+integrity: sha512-Q/EvDeGxJiTjcuoiB0iGn+gkapQA2bKQrcPJwl5dx3PH6EWpj4HSho1XwJTcqBzrtD/02dqR0CzznrqNFW6h1g==
+bytes: 310675

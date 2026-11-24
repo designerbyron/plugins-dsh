@@ -1,0 +1,386 @@
+[
+  {
+    "id": "@designerbyron/lifecode-rag@1.3.0",
+    "name": "@designerbyron/lifecode-rag",
+    "version": "1.3.0",
+    "size": 310675,
+    "unpackedSize": 1078261,
+    "shasum": "26286f79a3ab742fb666971d55dfdc52186d1132",
+    "integrity": "sha512-Q/EvDeGxJiTjcuoiB0iGn+gkapQA2bKQrcPJwl5dx3PH6EWpj4HSho1XwJTcqBzrtD/02dqR0CzznrqNFW6h1g==",
+    "filename": "designerbyron-lifecode-rag-1.3.0.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1070,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 12712,
+        "mode": 420
+      },
+      {
+        "path": "bin/lifecode-rag.mjs",
+        "size": 21941,
+        "mode": 420
+      },
+      {
+        "path": "client.js",
+        "size": 243913,
+        "mode": 420
+      },
+      {
+        "path": "cordis.patch.yml",
+        "size": 75,
+        "mode": 420
+      },
+      {
+        "path": "docs/ARCHITECTURE-v0.2.md",
+        "size": 12860,
+        "mode": 420
+      },
+      {
+        "path": "docs/AUTO-DISCOVERY.md",
+        "size": 6539,
+        "mode": 420
+      },
+      {
+        "path": "docs/AUTOMATION-POLICIES.md",
+        "size": 12671,
+        "mode": 420
+      },
+      {
+        "path": "docs/CONTRATO-v0.1.md",
+        "size": 10063,
+        "mode": 420
+      },
+      {
+        "path": "docs/EMBEDDING-PROVIDERS.md",
+        "size": 6315,
+        "mode": 420
+      },
+      {
+        "path": "docs/OBSERVABILITY.md",
+        "size": 13107,
+        "mode": 420
+      },
+      {
+        "path": "docs/PA-UI-0-API-CONTRACT.md",
+        "size": 83585,
+        "mode": 420
+      },
+      {
+        "path": "docs/PERFORMANCE-BUDGETS.md",
+        "size": 6997,
+        "mode": 420
+      },
+      {
+        "path": "docs/PROJECT-AWARE-ARCHITECTURE.md",
+        "size": 37656,
+        "mode": 420
+      },
+      {
+        "path": "docs/PROJECT-AWARE-DATA-CONTRACT.md",
+        "size": 22385,
+        "mode": 420
+      },
+      {
+        "path": "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+        "size": 10113,
+        "mode": 420
+      },
+      {
+        "path": "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
+        "size": 8324,
+        "mode": 420
+      },
+      {
+        "path": "docs/WORKSPACE-API.md",
+        "size": 12509,
+        "mode": 420
+      },
+      {
+        "path": "icon.svg",
+        "size": 477,
+        "mode": 420
+      },
+      {
+        "path": "index.js",
+        "size": 10833,
+        "mode": 420
+      },
+      {
+        "path": "lib/audit-export.mjs",
+        "size": 3315,
+        "mode": 420
+      },
+      {
+        "path": "lib/audit.mjs",
+        "size": 5077,
+        "mode": 420
+      },
+      {
+        "path": "lib/auto-context.mjs",
+        "size": 14115,
+        "mode": 420
+      },
+      {
+        "path": "lib/automation.mjs",
+        "size": 8775,
+        "mode": 420
+      },
+      {
+        "path": "lib/chunk.mjs",
+        "size": 3625,
+        "mode": 420
+      },
+      {
+        "path": "lib/config-resolve.mjs",
+        "size": 4760,
+        "mode": 420
+      },
+      {
+        "path": "lib/context.mjs",
+        "size": 6319,
+        "mode": 420
+      },
+      {
+        "path": "lib/conversation-events.mjs",
+        "size": 6693,
+        "mode": 420
+      },
+      {
+        "path": "lib/db.mjs",
+        "size": 12279,
+        "mode": 420
+      },
+      {
+        "path": "lib/diagnose.mjs",
+        "size": 9634,
+        "mode": 420
+      },
+      {
+        "path": "lib/discovery.mjs",
+        "size": 16081,
+        "mode": 420
+      },
+      {
+        "path": "lib/doctor.mjs",
+        "size": 4124,
+        "mode": 420
+      },
+      {
+        "path": "lib/embed.mjs",
+        "size": 4060,
+        "mode": 420
+      },
+      {
+        "path": "lib/embedders.mjs",
+        "size": 4204,
+        "mode": 420
+      },
+      {
+        "path": "lib/errors.mjs",
+        "size": 6983,
+        "mode": 420
+      },
+      {
+        "path": "lib/exec-context.mjs",
+        "size": 10460,
+        "mode": 420
+      },
+      {
+        "path": "lib/extract.mjs",
+        "size": 10177,
+        "mode": 420
+      },
+      {
+        "path": "lib/harness-workspaces.mjs",
+        "size": 8692,
+        "mode": 420
+      },
+      {
+        "path": "lib/hash.mjs",
+        "size": 1487,
+        "mode": 420
+      },
+      {
+        "path": "lib/ingest.mjs",
+        "size": 11855,
+        "mode": 420
+      },
+      {
+        "path": "lib/inputs.mjs",
+        "size": 2844,
+        "mode": 420
+      },
+      {
+        "path": "lib/library-state.mjs",
+        "size": 10756,
+        "mode": 420
+      },
+      {
+        "path": "lib/maintenance.mjs",
+        "size": 5211,
+        "mode": 420
+      },
+      {
+        "path": "lib/metrics.mjs",
+        "size": 6635,
+        "mode": 420
+      },
+      {
+        "path": "lib/migrate.mjs",
+        "size": 15859,
+        "mode": 420
+      },
+      {
+        "path": "lib/operations.mjs",
+        "size": 6294,
+        "mode": 420
+      },
+      {
+        "path": "lib/pa-api.mjs",
+        "size": 46189,
+        "mode": 420
+      },
+      {
+        "path": "lib/paths.mjs",
+        "size": 17155,
+        "mode": 420
+      },
+      {
+        "path": "lib/policy.mjs",
+        "size": 6160,
+        "mode": 420
+      },
+      {
+        "path": "lib/profile.mjs",
+        "size": 5647,
+        "mode": 420
+      },
+      {
+        "path": "lib/readmodel.mjs",
+        "size": 6243,
+        "mode": 420
+      },
+      {
+        "path": "lib/recovery.mjs",
+        "size": 23793,
+        "mode": 420
+      },
+      {
+        "path": "lib/registry-schema.mjs",
+        "size": 9618,
+        "mode": 420
+      },
+      {
+        "path": "lib/registry.mjs",
+        "size": 24603,
+        "mode": 420
+      },
+      {
+        "path": "lib/resolve.mjs",
+        "size": 12907,
+        "mode": 420
+      },
+      {
+        "path": "lib/retention.mjs",
+        "size": 6344,
+        "mode": 420
+      },
+      {
+        "path": "lib/revocation.mjs",
+        "size": 5944,
+        "mode": 420
+      },
+      {
+        "path": "lib/roots-structure.mjs",
+        "size": 8685,
+        "mode": 420
+      },
+      {
+        "path": "lib/schema.mjs",
+        "size": 5696,
+        "mode": 420
+      },
+      {
+        "path": "lib/scope-ops.mjs",
+        "size": 14337,
+        "mode": 420
+      },
+      {
+        "path": "lib/scope-stores.mjs",
+        "size": 5425,
+        "mode": 420
+      },
+      {
+        "path": "lib/search.mjs",
+        "size": 14122,
+        "mode": 420
+      },
+      {
+        "path": "lib/selection.mjs",
+        "size": 9578,
+        "mode": 420
+      },
+      {
+        "path": "lib/server.mjs",
+        "size": 18039,
+        "mode": 420
+      },
+      {
+        "path": "lib/session-identity.mjs",
+        "size": 2140,
+        "mode": 420
+      },
+      {
+        "path": "lib/sessions.mjs",
+        "size": 14044,
+        "mode": 420
+      },
+      {
+        "path": "lib/sync-scheduler.mjs",
+        "size": 14219,
+        "mode": 420
+      },
+      {
+        "path": "lib/sync.mjs",
+        "size": 38477,
+        "mode": 420
+      },
+      {
+        "path": "lib/tags.mjs",
+        "size": 1364,
+        "mode": 420
+      },
+      {
+        "path": "lib/tools.mjs",
+        "size": 15198,
+        "mode": 420
+      },
+      {
+        "path": "lib/trusted-roots.mjs",
+        "size": 5690,
+        "mode": 420
+      },
+      {
+        "path": "lib/worker-context.mjs",
+        "size": 1202,
+        "mode": 420
+      },
+      {
+        "path": "lib/workspaces-projection.mjs",
+        "size": 8278,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 2705,
+        "mode": 420
+      }
+    ],
+    "entryCount": 74,
+    "bundled": []
+  }
+]

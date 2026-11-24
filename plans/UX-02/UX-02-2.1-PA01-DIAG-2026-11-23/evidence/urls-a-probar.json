@@ -1,0 +1,22 @@
+[
+  {
+    "id": "dsh-plugins-update",
+    "url": "/plugins/??dsh-plugins-update/client.js&rev=4e1882cdc67f"
+  },
+  {
+    "id": "@tuhengyu/dsh-full-life-memory",
+    "url": "/plugins/??@tuhengyu/dsh-full-life-memory/client.js&rev=c4fd5f2ed225"
+  },
+  {
+    "id": "billion-context",
+    "url": "/plugins/??billion-context/client.js&rev=2d5cfe723194"
+  },
+  {
+    "id": "@local/lifecode-skill-center",
+    "url": "/plugins/??@local/lifecode-skill-center/client.js&rev=3575352e6f83"
+  },
+  {
+    "id": "@designerbyron/lifecode-rag",
+    "url": "/plugins/??@designerbyron/lifecode-rag/client.js&rev=c30d85c59345"
+  }
+]

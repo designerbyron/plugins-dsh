@@ -1,0 +1,17 @@
+=== PRUEBA DE URLs ANUNCIADAS POR EL GRAFO (solo lectura) · utc 2026-11-23T04:51:01Z ===
+grafo rev: 1e3caec0cf41  | release: {"version":"0.2.2-rc.5","commit":"3f85d88"}  | entradas: 83
+
+dsh-plugins-update                         200 64565 text/javascript; charset=utf-8
+@tuhengyu/dsh-full-life-memory             200 38945 text/javascript; charset=utf-8
+billion-context                            200 34259 text/javascript; charset=utf-8
+@local/lifecode-skill-center               200 539243 text/javascript; charset=utf-8
+@designerbyron/lifecode-rag                200 243997 text/javascript; charset=utf-8
+
+=== contraste rev vieja (placeholder 000000000000) ===
+rev=000000000000 -> 404
+rev=c30d85c59345 -> 200
+@designerbyron/lifecode-rag        disco:  243913 | servido:  243997 | delta:  84 (cola sourcemap) | sha256 disco: ff8119dde0c1
+@local/lifecode-skill-center       disco:  539158 | servido:  539243 | delta:  85 (cola sourcemap) | sha256 disco: 2490839c737d
+@tuhengyu/dsh-full-life-memory     disco:   38858 | servido:   38945 | delta:  87 (cola sourcemap) | sha256 disco: 87b5495797c9
+dsh-plugins-update                 disco:   64490 | servido:   64565 | delta:  75 (cola sourcemap) | sha256 disco: 231ade53b057
+billion-context                    disco:   34187 | servido:   34259 | delta:  72 (cola sourcemap) | sha256 disco: a3f762e8759b

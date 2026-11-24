@@ -1,0 +1,19 @@
+=== FASE B · entorno e identidad npm ===
+utc 2026-11-23T02:56:55Z
+node: v24.21.0
+npm:  11.19.0
+--- registro configurado ---
+https://registry.npmjs.org/
+--- fichero de usuario (ruta) ---
+C:\Users\BYRON\.npmrc
+existe ~/.npmrc (contenido NO leido)
+--- npm whoami ---
+designerbyron
+exit whoami: 0
+--- npm profile get tfa (si hay sesion) ---
+
+exit profile: 0
+--- acceso al paquete con la cuenta (requiere sesion) ---
+@designerbyron/lifecode-rag: read-write
+dsh-lifecode-skill-center: read-write
+exit access: 0

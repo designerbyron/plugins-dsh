@@ -1,0 +1,21 @@
+=== PASO 8b · instalacion quirurgica · utc 2026-11-23T04:01:46Z ===
+antes: 1.2.0
+--- 1. apartar 1.2.0 ---
+apartado: /c/Users/BYRON/.dsh/profiles/desktop/node_modules/@designerbyron/lifecode-rag.bak-1.2.0 (73 ficheros)
+--- 2. copiar 1.3.0 ---
+copiado: 74 ficheros
+--- 3. verificar ---
+instalados: 74 | artefacto: 74 | faltan: 0 | sobran: 0 | distintos: 0
+version: 1.3.0
+PA_VERSION: pa/1.4.0
+--- 4. editar lock y manifiesto ---
+        "archivo": "pnpm-lock.yaml",
+        "cambio": "lock · snapshots (clave)",
+        "coincidencias": 1
+      }
+    ]
+  },
+  "ok": true
+}
+--- 5. exclusion del gate de edad para 1.3.0 ---
+exclusion 1.3.0 insertada tras la de 1.1.0

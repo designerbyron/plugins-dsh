@@ -1,0 +1,6 @@
+=== huellas del perfil tras instalar, antes de arrancar ===
+439c0711deda9695d373cb29ec84c0e68c8f7c3bc0b6c669ed62068790dce3c7 *package.json
+f7c118986620674203452b05e41a82bd82ba8fc2dcd0b1dd98d1743111d4fb15 *pnpm-lock.yaml
+0a5f31d702917aec6f87b35a817a106255adbef8bdb8d960c51fc60a65e4aae8 *pnpm-workspace.yaml
+ad2d6941da0cb53543bff72c22efa3f33319c4a7d1dfdec1a20cbda1cdbb3796 *node_modules/.modules.yaml
+0aa73e000037647036ccd4199463be2d4c173c4043f64330645abe53e97a9196 *node_modules/.pnpm-workspace-state-v1.json

@@ -1,0 +1,10 @@
+=== PROCESOS, PUERTOS Y MARCADOR DEL HOST · utc 2026-11-23T03:48:42Z ===
+"DeepSeek Harness.exe","11816","Console","1","120,528 KB"
+"DeepSeek Harness.exe","24120","Console","1","90,788 KB"
+"DeepSeek Harness.exe","1424","Console","1","54,384 KB"
+"DeepSeek Harness.exe","24224","Console","1","109,944 KB"
+"DeepSeek Harness.exe","10308","Console","1","145,076 KB"
+--- escucha ---
+  TCP    127.0.0.1:57200        0.0.0.0:0              LISTENING       10308
+--- marcador ---
+-rw-r--r-- 1 BYRON 197121 0 oct. 12 16:23 AppData/Roaming/@deepseek-ai/dsh-desktop/background-close-confirmed

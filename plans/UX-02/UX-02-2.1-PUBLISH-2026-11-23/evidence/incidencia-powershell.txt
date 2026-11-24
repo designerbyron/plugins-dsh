@@ -1,0 +1,36 @@
+=== INCIDENCIA: PowerShell bloqueo npm.ps1 · utc 2026-11-23T03:30:09Z ===
+--- el registro sigue igual? (fuente HTTP) ---
+status 200
+versiones: 0.0.0-stage, 1.0.0, 1.1.0, 1.2.0
+existe 1.3.0: false
+latest: 1.2.0
+modified: 2026-11-22T19:59:55.679Z
+--- logs de npm de los ultimos minutos ---
+2026-11-23T03_27_45_326Z-debug-0.log
+2026-11-23T03_27_44_680Z-debug-0.log
+2026-11-23T03_27_43_866Z-debug-0.log
+2026-11-23T03_27_25_159Z-debug-0.log
+2026-11-23T03_27_15_974Z-debug-0.log
+--- politica de ejecucion (solo lectura) ---
+
+        Scope ExecutionPolicy
+        ----- ---------------
+MachinePolicy       Undefined
+   UserPolicy       Undefined
+      Process       Undefined
+  CurrentUser       Undefined
+ LocalMachine       Undefined
+
+
+=== REMEDIO SIN TOCAR LA POLITICA ===
+--- existe el shim .cmd? ---
+-rw-r--r-- 1 BYRON 197121  538 nov.  7  2024 /c/Program Files/nodejs/npm.cmd
+-rwxr-xr-x 1 BYRON 197121 1700 jun. 17 08:22 /c/Program Files/nodejs/npm.ps1
+--- el shim responde (lectura) ---
+11.19.0
+exit: 0
+--- el shim ve la sesion ---
+designerbyron
+exit: 0
+--- no hay publicacion: registro intacto ---
+versiones: 0.0.0-stage, 1.0.0, 1.1.0, 1.2.0 | 1.3.0: false | latest: 1.2.0

@@ -1,0 +1,6 @@
+=== ejecucion de los modulos EMPAQUETADOS desde el directorio extraido (sin instalar) ===
+herramientas declaradas: 7
+lifecode_rag_context, lifecode_rag_forget, lifecode_rag_get, lifecode_rag_ingest, lifecode_rag_list, lifecode_rag_reindex, lifecode_rag_search
+PA_VERSION empaquetado: pa/1.4.0
+modulo de proyeccion exporta: MAX_WORKSPACE_LIMIT, WORKSPACE_RELATIONS, WORKSPACE_STATES, countWorkspaces, pathKeyOf, projectForPathKey, projectWorkspaceRow, projectWorkspaces
+=== residuos ===
