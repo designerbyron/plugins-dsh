@@ -98,9 +98,6 @@ function scopeLabel(scope) {
 export function createToolDefinitions({ config = effectiveConfig().config, services = {} } = {}) {
   const now = () => (typeof services.now === 'function' ? services.now() : Date.now());
   const definitions = [];
-  // Número de chunks del último `forget`, para el texto de respuesta: el valor devuelto respeta el
-  // contrato v0.1 y no expone `chunks`.
-  let renderForget = null;
 
   definitions.push({
     name: `${NAMESPACE}ingest`,
@@ -326,13 +323,12 @@ export function createToolDefinitions({ config = effectiveConfig().config, servi
         await requireApproval(services, exec, `${NAMESPACE}forget`,
           `Eliminar la fuente ${pending.preview.id} (${pending.preview.uri}) de ${scopeLabel(pending.scope)} y todo su índice`);
         const removed = await pending.run();
-        // Proyección al contrato v0.1; `chunks` es útil pero no forma parte del contrato público, así
-        // que el render no puede leerlo del valor devuelto: se guarda sólo para el texto de respuesta.
-        renderForget = Number(removed.chunks ?? 0);
-        return { forgotten: true, sourceId: removed.sourceId, uri: removed.uri };
+        // El recuento viaja **en el valor** de esta llamada: antes vivía en una variable del cierre y dos
+        // `forget` concurrentes podían cruzar sus números. Campo aditivo sobre el contrato v0.1.
+        return { forgotten: true, sourceId: removed.sourceId, uri: removed.uri, chunks: Number(removed.chunks ?? 0) };
       });
     },
-    output: { schema: OBJECT, render: (args, value) => textBlock(`eliminada ${value.uri} (${renderForget ?? 0} chunks)`) },
+    output: { schema: OBJECT, render: (args, value) => textBlock(`eliminada ${value.uri} (${value.chunks ?? 0} chunks)`) },
   });
 
   definitions.push({

@@ -12,7 +12,7 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -41,6 +41,7 @@ const REGISTRY_TABLES = Object.freeze([
   'roots',
   'session_scope',
   'sync_state',
+  'workspace_tracking',
 ]);
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -206,6 +207,40 @@ export function closeRegistry(db) {
   }
 }
 
+/**
+ * Garantiza que el perfil tenga registro. Devuelve `{ path, created, tables, version }`.
+ *
+ * `D-IMPL-12`: el registro es el **contenedor** de todo lo demás (proyectos, raíces, selección,
+ * seguimiento), así que se crea al cargar el plugin en vez de esperar a que alguien ejecute la
+ * migración. Idempotente por construcción: `openRegistry` sólo escribe cuando el fichero no existe
+ * (o está vacío); con un registro ya en `REGISTRY_VERSION` abre, valida y no toca nada. `created`
+ * dice si esta llamada fue la que lo creó.
+ *
+ * Crea el contenedor, **nunca** contenido: ni proyectos, ni bibliotecas, ni raíces, ni filas de
+ * seguimiento. Los errores reales (permisos, registro corrupto, versión más nueva) se propagan tal
+ * cual: quien llama decide si eso impide arrancar, en lugar de tragárselos aquí.
+ */
+export function ensureRegistry({ root, now = Date.now() } = {}) {
+  if (typeof root !== 'string' || !isAbsolute(root)) {
+    throw new RagError('invalid-config', 'la raíz del perfil debe ser una ruta absoluta');
+  }
+  const path = registryPath(root);
+  // Un fichero de cero bytes no es un registro: SQLite lo inicializa igual que uno ausente y el
+  // resumen tiene que decirlo. (Al cerrar la conexión, WAL deja el contenido en el fichero.)
+  const created = !existsSync(path) || statSync(path).size === 0;
+  const { db } = openRegistry({ root, create: true, now });
+  try {
+    return {
+      path,
+      created,
+      tables: registryTables(db),
+      version: Number(db.prepare('PRAGMA user_version').get().user_version),
+    };
+  } finally {
+    closeRegistry(db);
+  }
+}
+
 function requireName(name) {
   if (typeof name !== 'string' || name.trim() === '' || name.trim().length > 120) {
     throw new RagError('invalid-argument', 'el nombre debe tener entre 1 y 120 caracteres');
@@ -303,6 +338,206 @@ export function listRoots(db, { scopeKind, scopeId } = {}) {
     return db.prepare('SELECT * FROM roots WHERE scope_kind = ? AND scope_id = ? ORDER BY path').all(scopeKind, scopeId);
   }
   return db.prepare('SELECT * FROM roots ORDER BY path').all();
+}
+
+/* ------------------------------------------------------------------ administración de proyectos
+ *
+ * ACP-07 F1. Las cinco operaciones son de **registro**, no de contenido: ninguna abre el almacén de
+ * ámbito (`scopes/<id>/rag.sqlite3`), así que archivar o quitar una raíz no puede tocar fuentes ni
+ * ficheros del usuario.
+ *
+ * Todas escriben dentro de una transacción `IMMEDIATE` (o reutilizan la del llamador, igual que
+ * `appendRegistryAudit`) y dejan su entrada en la cadena de auditoría del registro.
+ */
+
+/** Ejecuta `work` en una transacción sólo si el llamador no está ya dentro de una. */
+function transactional(db, work) {
+  return db.isTransaction ? work() : withTransaction(db, work, { immediate: true });
+}
+
+function requireActor(actor) {
+  if (!['human', 'host'].includes(actor)) {
+    throw new RagError('invalid-argument', 'sólo una persona o el host pueden administrar proyectos');
+  }
+  return actor;
+}
+
+/** Fila del proyecto o `project-not-found` (404). */
+function requireProjectRow(db, id) {
+  if (typeof id !== 'string' || !id.startsWith('prj_')) {
+    throw new RagError('invalid-argument', 'id no es un identificador de proyecto', {
+      details: { reason: 'invalid-field', field: 'project' },
+    });
+  }
+  const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+  if (!row) {
+    throw new RagError('project-not-found', 'el proyecto no existe en este perfil', { details: { project: id } });
+  }
+  return row;
+}
+
+function projectRow(db, id) {
+  const row = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+  return row
+    ? {
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+      archivedAt: row.archived_at === null ? null : Number(row.archived_at),
+    }
+    : null;
+}
+
+/** Cambia el nombre de un proyecto. No toca raíces, selección ni almacenes. */
+export function updateProject(db, { id, name, now = Date.now(), actor = 'human' } = {}) {
+  requireActor(actor);
+  const nextName = requireName(name);
+  return transactional(db, () => {
+    const before = requireProjectRow(db, id);
+    if (before.name === nextName) {
+      return { changed: false, project: projectRow(db, id) };
+    }
+    db.prepare('UPDATE projects SET name = ?, updated_at = ? WHERE id = ?').run(nextName, now, id);
+    appendRegistryAudit(db, {
+      at: now,
+      actor,
+      sessionId: null,
+      action: 'project.update',
+      target: id,
+      outcome: 'ok',
+      detail: { before: { name: before.name }, after: { name: nextName } },
+    });
+    return { changed: true, project: projectRow(db, id) };
+  });
+}
+
+/**
+ * Archiva un proyecto (eliminación lógica). No borra la fila, ni las raíces, ni el almacén del ámbito:
+ * sólo cambia `status` y `archived_at`, que el esquema obliga a mantener coherentes.
+ *
+ * Se niega si la selección del perfil apunta a este proyecto: mover o limpiar la selección es
+ * responsabilidad de `archiveProjectWithSelection` (lib/selection.mjs), que hace ambas cosas en una
+ * sola transacción. Así no puede quedar una selección colgando por llamar a la función suelta.
+ */
+export function archiveProject(db, { id, now = Date.now(), actor = 'human' } = {}) {
+  requireActor(actor);
+  return transactional(db, () => {
+    const row = requireProjectRow(db, id);
+    if (row.status === 'archived') {
+      return { changed: false, project: projectRow(db, id) };
+    }
+    const selected = db.prepare('SELECT project_id FROM pa_selection WHERE selection_key = ?').get('profile');
+    if (selected && selected.project_id === id) {
+      throw new RagError('invalid-argument', 'el proyecto está seleccionado: usa archiveProjectWithSelection', {
+        details: { reason: 'selection-attached', project: id },
+      });
+    }
+    db.prepare("UPDATE projects SET status = 'archived', archived_at = ?, updated_at = ? WHERE id = ?")
+      .run(now, now, id);
+    appendRegistryAudit(db, {
+      at: now,
+      actor,
+      sessionId: null,
+      action: 'project.archive',
+      target: id,
+      outcome: 'ok',
+      detail: { name: row.name, roots: db.prepare("SELECT COUNT(*) AS n FROM roots WHERE scope_kind='prj' AND scope_id = ?").get(id).n },
+    });
+    return { changed: true, project: projectRow(db, id) };
+  });
+}
+
+/** Devuelve un proyecto archivado a `active`. Conserva identidad, raíces y referencias RAG. */
+export function restoreProject(db, { id, now = Date.now(), actor = 'human' } = {}) {
+  requireActor(actor);
+  return transactional(db, () => {
+    const row = requireProjectRow(db, id);
+    if (row.status === 'active') {
+      return { changed: false, project: projectRow(db, id) };
+    }
+    db.prepare("UPDATE projects SET status = 'active', archived_at = NULL, updated_at = ? WHERE id = ?")
+      .run(now, id);
+    appendRegistryAudit(db, {
+      at: now,
+      actor,
+      sessionId: null,
+      action: 'project.restore',
+      target: id,
+      outcome: 'ok',
+      detail: { name: row.name, archivedAt: row.archived_at === null ? null : Number(row.archived_at) },
+    });
+    return { changed: true, project: projectRow(db, id) };
+  });
+}
+
+/**
+ * Quita una raíz del registro. Sólo borra la fila: no toca ficheros del usuario ni fuentes RAG.
+ *
+ * Guarda: no deja un proyecto activo sin ninguna raíz salvo `allowEmpty`, porque a partir de ahí sus
+ * herramientas dejarían de resolver sin un motivo evidente.
+ */
+export function removeRoot(db, { rootId, allowEmpty = false, now = Date.now(), actor = 'human' } = {}) {
+  requireActor(actor);
+  return transactional(db, () => {
+    const row = typeof rootId === 'string'
+      ? db.prepare('SELECT * FROM roots WHERE id = ?').get(rootId)
+      : null;
+    if (!row) {
+      throw new RagError('source-not-found', 'la raíz no existe en este perfil', {
+        details: { root: typeof rootId === 'string' ? rootId : null },
+      });
+    }
+    const siblings = db.prepare('SELECT COUNT(*) AS n FROM roots WHERE scope_kind = ? AND scope_id = ?')
+      .get(row.scope_kind, row.scope_id).n;
+    if (siblings <= 1 && !allowEmpty) {
+      throw new RagError('invalid-argument', 'es la última raíz del ámbito: pide allowEmpty para dejarlo sin raíces', {
+        details: { reason: 'last-root', scopeId: row.scope_id, path: row.path },
+      });
+    }
+    db.prepare('DELETE FROM roots WHERE id = ?').run(row.id);
+    appendRegistryAudit(db, {
+      at: now,
+      actor,
+      sessionId: null,
+      action: 'root.remove',
+      target: row.id,
+      outcome: 'ok',
+      detail: { scopeKind: row.scope_kind, scopeId: row.scope_id, path: row.path },
+    });
+    return { removed: { id: row.id, scopeKind: row.scope_kind, scopeId: row.scope_id, path: row.path } };
+  });
+}
+
+/**
+ * Listado de proyectos con su estado y el recuento de raíces. Es la consulta que comparten la CLI y
+ * la API del panel; no depende del descubrimiento, así que un proyecto registrado sigue apareciendo
+ * aunque su carpeta ya no se descubra.
+ */
+export function listProjects(db, { status = 'active' } = {}) {
+  if (status !== 'active' && status !== 'archived' && status !== 'all') {
+    throw new RagError('invalid-argument', 'status debe ser active, archived o all', { details: { status } });
+  }
+  const rows = status === 'all'
+    ? db.prepare('SELECT * FROM projects ORDER BY created_at, id').all()
+    : db.prepare('SELECT * FROM projects WHERE status = ? ORDER BY created_at, id').all(status);
+  const counts = new Map(
+    db.prepare(`SELECT scope_id, COUNT(*) AS total, SUM(state = 'authorized') AS authorized
+      FROM roots WHERE scope_kind = 'prj' GROUP BY scope_id`).all()
+      .map((row) => [row.scope_id, { total: Number(row.total), authorized: Number(row.authorized ?? 0) }]),
+  );
+  return {
+    projects: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      createdAt: Number(row.created_at),
+      updatedAt: Number(row.updated_at),
+      archivedAt: row.archived_at === null ? null : Number(row.archived_at),
+      roots: counts.get(row.id) ?? { total: 0, authorized: 0 },
+    })),
+  };
 }
 
 function registryAuditPayload(entry) {

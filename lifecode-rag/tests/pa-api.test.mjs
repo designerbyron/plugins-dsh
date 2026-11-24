@@ -1,11 +1,14 @@
 /** LE-RAG-10 · API PA (solo lectura) sobre un mundo aislado. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { makeWorld } from './pa3-helpers.mjs';
 import { createPaHandler, PA_PREFIX } from '../lib/pa-api.mjs';
+import { addTrustedRoot } from '../lib/trusted-roots.mjs';
 
-function reqRes(url, method = 'GET', body) {
+function reqRes(url, method = 'GET', body, headers = {}) {
   const res = {
     statusCode: 0, headers: {}, body: '',
     setHeader(k, v) { this.headers[k] = v; },
@@ -15,7 +18,7 @@ function reqRes(url, method = 'GET', body) {
   const req = {
     url: PA_PREFIX + url,
     method,
-    headers: {},
+    headers,
     async *[Symbol.asyncIterator]() {
       if (payload !== '') yield Buffer.from(payload, 'utf8');
     },
@@ -23,8 +26,8 @@ function reqRes(url, method = 'GET', body) {
   return { req, res };
 }
 
-async function call(handler, url, method = 'GET', body) {
-  const { req, res } = reqRes(url, method, body);
+async function call(handler, url, method = 'GET', body, headers = {}) {
+  const { req, res } = reqRes(url, method, body, headers);
   await handler(req, res);
   return { status: res.statusCode, json: JSON.parse(res.body || '{}'), headers: res.headers };
 }
@@ -219,7 +222,11 @@ test('PA: paginación y límites del snapshot', async () => {
     // Parámetros no declarados: rechazo, nunca silencio.
     assert.equal((await call(handler, '/snapshot' + P + '&nope=1')).status, 400);
     assert.equal((await call(handler, '/nope' + P)).status, 404);
-    assert.equal((await call(handler, '/snapshot')).status, 403);
+    // F-1 (1.5.11): sin `project` y con dos activos, el retrato pide selección en vez de dar 403;
+    // un `project` que no existe sigue siendo 403 (esa petición sí es un error del cliente).
+    const sinProyecto = await call(handler, '/snapshot');
+    assert.equal(sinProyecto.status, 200);
+    assert.equal(sinProyecto.json.data.needsProjectSelection, true);
     assert.equal((await call(handler, '/snapshot?project=prj_noexiste')).status, 403);
   } finally { world.cleanup(); }
 });
@@ -316,5 +323,260 @@ test('PA: respuesta que supera el tope declara response-too-large con 500', asyn
     const control = await call(normal, '/snapshot' + P);
     assert.equal(control.status, 200);
     assert.equal(control.json.ok, true);
+  } finally { world.cleanup(); }
+});
+
+/* -------------------------------------------------------------------------------------------- */
+/* P-UX22-01 · fence CSRF de TODAS las mutaciones humanas de la API PA                           */
+/*                                                                                              */
+/* Las siete rutas POST que mutan estado (una de selección + seis de administración) exigen la   */
+/* cabecera del panel y `content-type: application/json`; sin ellas, 403 `forbidden` con          */
+/* `details.reason === 'csrf'` y **sin** ejecutar la mutación (ni escritura ni auditoría).        */
+/* `/search` y `/context` son lecturas y quedan fuera a propósito. El orden es compuerta del     */
+/* host → CSRF → validación → operación, y la compuerta del host no se toca.                     */
+/* -------------------------------------------------------------------------------------------- */
+
+/** Cabeceras que el panel manda en toda mutación (`client.js` · `request` con `mutation`/`body`). */
+const CSRF = { 'x-lifecode-rag': '1', 'content-type': 'application/json' };
+const allowGate = async () => ({ ok: true, peer: { id: 'host', principal: { kind: 'host' } } });
+
+function gatedHandler(world) {
+  return createPaHandler({ profileRoot: world.root, profileKey: 'pa3-test', authorize: allowGate });
+}
+
+/**
+ * Estado lógico del registro. Cualquier mutación de estas rutas toca al menos una de las tres
+ * tablas (proyectos, raíces, selección) y deja asiento en `audit_registry`; comparar el estado
+ * entero antes/después demuestra que un rechazo no escribe nada.
+ */
+function registryState(world) {
+  return world.withRegistry((db) => ({
+    audit: db.prepare('select coalesce(max(seq), 0) n from audit_registry').get().n,
+    projects: db.prepare('select id, name, status from projects order by id').all(),
+    roots: db.prepare('select id, scope_id, path, state from roots order by id').all(),
+    selection: db.prepare('select project_id, revision from pa_selection').get() ?? null,
+  }));
+}
+
+/** Una pareja (ruta, cuerpo válido) por cada POST mutador que el fence debe cubrir. */
+function mutationCases(world) {
+  return [
+    ['/selection', { projectId: world.projectB.id, expectedRevision: 0 }],
+    ['/projects', { name: 'Proyecto CSRF' }],
+    ['/projects/archive', { id: world.projectB.id }],
+    ['/projects/restore', { id: world.projectB.id }],
+    ['/roots', { projectId: world.projectA.id, path: join(world.base, 'raiz-csrf') }],
+    ['/roots/remove', { projectId: world.projectA.id, path: world.dirA }],
+    ['/projects/register', { path: world.dirA }],
+  ];
+}
+
+test('P-UX22-01: los siete POST que mutan exigen CSRF y sin él no escriben ni auditan', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    for (const [route, body] of mutationCases(world)) {
+      const before = registryState(world);
+      const response = await call(handler, route, 'POST', body);
+      assert.equal(response.status, 403, route + ' sin cabecera: ' + JSON.stringify(response.json));
+      assert.equal(response.json.ok, false, route);
+      assert.equal(response.json.error.code, 'forbidden', route);
+      assert.equal(response.json.error.details.reason, 'csrf', route);
+      assert.deepEqual(response.json.error.details.missing, ['x-lifecode-rag', 'content-type'], route);
+      assert.deepEqual(registryState(world), before, route + ' no debe ejecutar la mutación');
+    }
+  } finally { world.cleanup(); }
+});
+
+test('P-UX22-01: hacen falta las DOS cabeceras, con el valor exacto', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    const before = registryState(world);
+    const onlyHeader = await call(handler, '/projects', 'POST', { name: 'x' }, { 'x-lifecode-rag': '1' });
+    assert.equal(onlyHeader.status, 403);
+    assert.deepEqual(onlyHeader.json.error.details.missing, ['content-type']);
+    const onlyType = await call(handler, '/projects', 'POST', { name: 'x' }, { 'content-type': 'application/json' });
+    assert.equal(onlyType.status, 403);
+    assert.deepEqual(onlyType.json.error.details.missing, ['x-lifecode-rag']);
+    const wrongValue = await call(handler, '/projects', 'POST', { name: 'x' }, { 'x-lifecode-rag': 'true', 'content-type': 'application/json' });
+    assert.equal(wrongValue.status, 403);
+    assert.deepEqual(wrongValue.json.error.details.missing, ['x-lifecode-rag']);
+    assert.deepEqual(registryState(world), before, 'ningún intento rechazado deja rastro');
+  } finally { world.cleanup(); }
+});
+
+test('P-UX22-01: con la cabecera del panel las siete mutaciones conservan su comportamiento', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    const auditBefore = registryState(world).audit;
+
+    const selection = await call(handler, '/selection', 'POST', { projectId: world.projectA.id, expectedRevision: 0 }, CSRF);
+    assert.equal(selection.status, 200, JSON.stringify(selection.json));
+    assert.equal(selection.json.data.selection.projectId, world.projectA.id);
+
+    const created = await call(handler, '/projects', 'POST', { name: 'Proyecto CSRF' }, CSRF);
+    assert.equal(created.status, 201, JSON.stringify(created.json));
+    assert.equal(created.json.data.created, true);
+    const newId = created.json.data.project.id;
+
+    const archived = await call(handler, '/projects/archive', 'POST', { id: newId }, CSRF);
+    assert.equal(archived.status, 200, JSON.stringify(archived.json));
+    assert.equal(archived.json.data.project.status, 'archived');
+
+    const restored = await call(handler, '/projects/restore', 'POST', { id: newId }, CSRF);
+    assert.equal(restored.status, 200, JSON.stringify(restored.json));
+    assert.equal(restored.json.data.project.status, 'active');
+
+    const extra = join(world.base, 'raiz-csrf');
+    mkdirSync(extra, { recursive: true });
+    const root = await call(handler, '/roots', 'POST', { projectId: world.projectA.id, path: extra }, CSRF);
+    assert.equal(root.status, 201, JSON.stringify(root.json));
+    const rootId = root.json.data.root.id;
+
+    const removed = await call(handler, '/roots/remove', 'POST', { rootId }, CSRF);
+    assert.equal(removed.status, 200, JSON.stringify(removed.json));
+    assert.equal(removed.json.data.removed.id, rootId);
+
+    const candidate = join(world.base, 'candidato-csrf');
+    mkdirSync(candidate, { recursive: true });
+    writeFileSync(join(candidate, 'package.json'), JSON.stringify({ name: 'candidato-csrf' }), 'utf8');
+    world.withRegistry((db) => addTrustedRoot(db, { path: world.base, readAuthorization: true }));
+    const registered = await call(handler, '/projects/register', 'POST', { path: candidate, name: 'Registrado' }, CSRF);
+    assert.equal(registered.status, 201, JSON.stringify(registered.json));
+    assert.equal(registered.json.data.created, true);
+
+    // `content-type` con parámetros (charset) también es JSON: el panel lo manda tal cual.
+    const charset = await call(handler, '/projects', 'POST', { name: 'Proyecto charset' },
+      { 'x-lifecode-rag': '1', 'content-type': 'application/json; charset=utf-8' });
+    assert.equal(charset.status, 201, JSON.stringify(charset.json));
+
+    assert.ok(registryState(world).audit > auditBefore, 'cada mutación aceptada deja su asiento');
+  } finally { world.cleanup(); }
+});
+
+test('P-UX22-01: orden autenticación → CSRF → validación', async () => {
+  const world = await makeWorld();
+  try {
+    // La compuerta del host sigue siendo la primera: sin credencial es 401, no 403 de CSRF.
+    const denyGate = async () => ({ ok: false, status: 401, code: 'unauthenticated', message: 'sin credencial' });
+    const denied = createPaHandler({ profileRoot: world.root, profileKey: 'pa3-test', authorize: denyGate });
+    const anonymous = await call(denied, '/projects', 'POST', { name: 'x' });
+    assert.equal(anonymous.status, 401);
+    assert.equal(anonymous.json.error.code, 'unauthenticated');
+
+    // Autenticado y sin testigo: 403 CSRF, sin llegar a parsear el cuerpo (no es 400).
+    const handler = gatedHandler(world);
+    const noToken = await call(handler, '/projects', 'POST', '{no es json');
+    assert.equal(noToken.status, 403);
+    assert.equal(noToken.json.error.details.reason, 'csrf');
+    // Con testigo, el mismo cuerpo inválido sí se valida: la puerta deja pasar y falla la validación.
+    const withToken = await call(handler, '/projects', 'POST', '{no es json', CSRF);
+    assert.equal(withToken.status, 400);
+    assert.equal(withToken.json.error.details.reason, 'invalid-json');
+  } finally { world.cleanup(); }
+});
+
+test('P-UX22-01: /search y /context son lecturas y siguen sirviendo SIN la cabecera', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    const P = '?project=' + world.projectA.id;
+    // /candidates es lectura administrativa: exige raíz confiable (D-05), no la cabecera CSRF.
+    world.withRegistry((db) => addTrustedRoot(db, { path: world.base, readAuthorization: true }));
+    const before = await call(handler, '/snapshot' + P);
+
+    const search = await call(handler, '/search' + P, 'POST', { query: 'alfa' });
+    assert.equal(search.status, 200, JSON.stringify(search.json));
+    assert.ok(search.json.data.results.length >= 1);
+
+    const context = await call(handler, '/context' + P, 'POST', { query: 'alfa', budgetTokens: 200 });
+    assert.equal(context.status, 200, JSON.stringify(context.json));
+    assert.ok(context.json.data.text.length > 0);
+
+    // GET sigue igual: ni el snapshot ni las rutas de administración de lectura piden CSRF.
+    assert.equal((await call(handler, '/snapshot' + P)).status, 200);
+    assert.equal((await call(handler, '/candidates?path=' + encodeURIComponent(world.dirA))).status, 200);
+
+    const after = await call(handler, '/snapshot' + P);
+    assert.equal(after.json.data.audit.head, before.json.data.audit.head, 'las lecturas POST no auditan');
+  } finally { world.cleanup(); }
+});
+
+/* ───────────────────── F-1 (1.5.11) · varios proyectos activos sin selección ───────────────── */
+
+test('F-1: dos proyectos activos sin selección → 200 con needsProjectSelection, no 403 ni «sin conexión»', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    const snap = await call(handler, '/snapshot');
+    assert.equal(snap.status, 200, 'falta de decisión no es un fallo del servicio: ' + JSON.stringify(snap.json));
+    const data = snap.json.data;
+    assert.equal(data.needsProjectSelection, true);
+    assert.equal(data.needsProjectSelectionReason, 'scope-ambiguous');
+    assert.equal(data.project, null, 'no se elige ninguno en silencio');
+    assert.equal(data.service, 'ok', 'la API está sana y el registro abrió');
+    assert.deepEqual(data.candidates.map((row) => row.id).sort(), [world.projectA.id, world.projectB.id].sort());
+    assert.deepEqual(data.sources.rows, [], 'sin proyecto no se leen documentos de ninguno');
+    assert.deepEqual(data.scopes, []);
+    // El registro sigue sin selección de perfil: el panel no ha elegido nada por su cuenta.
+    const profileSelection = world.withRegistry((db) => db.prepare('select count(*) as n from pa_selection where selection_key not like ?').get('session:%'));
+    assert.equal(profileSelection.n, 0, 'la ambigüedad no escribe selección');
+  } finally { world.cleanup(); }
+});
+
+test('F-1: tras elegir proyecto, el retrato vuelve a la normalidad y sólo ve SU documento', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    const before = await call(handler, '/snapshot');
+    assert.equal(before.json.data.needsProjectSelection, true);
+
+    const chosen = await call(handler, '/selection', 'POST', { projectId: world.projectA.id, expectedRevision: 0 }, CSRF);
+    assert.equal(chosen.status, 200, JSON.stringify(chosen.json));
+
+    const after = await call(handler, '/snapshot');
+    assert.equal(after.status, 200);
+    const data = after.json.data;
+    assert.equal(data.needsProjectSelection, false);
+    assert.equal(data.project.id, world.projectA.id);
+    assert.equal(data.selection.projectId, world.projectA.id);
+    assert.equal(data.selection.revision, 1);
+    const uris = data.sources.rows.map((row) => row.uri);
+    assert.equal(uris.length, 1, 'un único documento en A');
+    assert.match(uris[0], /a\.md$/, 'y es el de A, no el de B');
+  } finally { world.cleanup(); }
+});
+
+test('F-1: un solo proyecto activo se resuelve solo — nunca se pide selección', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    const archived = await call(handler, '/projects/archive', 'POST', { id: world.projectB.id }, CSRF);
+    assert.equal(archived.status, 200, JSON.stringify(archived.json));
+
+    const snap = await call(handler, '/snapshot');
+    assert.equal(snap.status, 200);
+    assert.equal(snap.json.data.needsProjectSelection, false);
+    assert.equal(snap.json.data.project.id, world.projectA.id);
+    assert.equal(snap.json.data.candidates, undefined, 'sin ambigüedad no se publican candidatos');
+  } finally { world.cleanup(); }
+});
+
+test('F-1: perfil sin proyectos activos → retrato vacío, y tampoco es «falta selección»', async () => {
+  const world = await makeWorld();
+  try {
+    const handler = gatedHandler(world);
+    for (const id of [world.projectA.id, world.projectB.id]) {
+      const archived = await call(handler, '/projects/archive', 'POST', { id }, CSRF);
+      assert.equal(archived.status, 200, JSON.stringify(archived.json));
+    }
+    const snap = await call(handler, '/snapshot');
+    assert.equal(snap.status, 200, 'un perfil vacío se retrata, no se cae');
+    assert.equal(snap.json.data.needsProjectSelection, false);
+    assert.equal(snap.json.data.project, null);
+    assert.deepEqual(snap.json.data.projects, []);
+    assert.equal(snap.json.data.archived.length, 2, 'los archivados se publican para poder restaurarlos');
   } finally { world.cleanup(); }
 });

@@ -14,6 +14,13 @@ import { createPaHandler, PA_PREFIX } from '../lib/pa-api.mjs';
 import { openRegistry, closeRegistry, verifyRegistryAudit } from '../lib/registry.mjs';
 import { expireSession } from '../lib/sessions.mjs';
 
+/**
+ * P-UX22-01: `/pa/selection` es una mutación humana y exige el testigo CSRF del panel más
+ * `content-type: application/json`; el doble lleva ambas por defecto, como `client.js`. El caso
+ * «sin cabecera → 403 y sin escribir» se prueba en `pa-api.test.mjs`.
+ */
+const CSRF_HEADERS = Object.freeze({ 'x-lifecode-rag': '1', 'content-type': 'application/json' });
+
 function reqRes(url, { method = 'GET', body } = {}) {
   const res = {
     statusCode: 0, headers: {}, body: '',
@@ -24,7 +31,7 @@ function reqRes(url, { method = 'GET', body } = {}) {
   const req = {
     url: PA_PREFIX + url,
     method,
-    headers: {},
+    headers: { ...CSRF_HEADERS },
     async *[Symbol.asyncIterator]() {
       if (payload !== '') yield Buffer.from(payload, 'utf8');
     },
@@ -218,16 +225,23 @@ test('CR-1: la selección sobrevive al cierre de las sesiones y al reinicio del 
   } finally { world.cleanup(); }
 });
 
-test('CR-1: con dos proyectos y sin selección el snapshot es ambiguo, nunca elige uno', async () => {
+test('CR-1/F-1: con dos proyectos y sin selección el snapshot no elige uno — pide la decisión (200 + needsProjectSelection)', async () => {
   const world = await makeWorld();
   try {
     const handler = handlerFor(world);
     const snapshot = await call(handler, '/snapshot');
-    assert.equal(snapshot.status, 403);
-    assert.equal(snapshot.json.error.code, 'scope-ambiguous');
+    // 1.5.11 (F-1): la ambigüedad ya no es un 403 que el panel leía como «sin conexión». La regla que
+    // importa sigue intacta: NO se elige ninguno en silencio.
+    assert.equal(snapshot.status, 200);
+    assert.equal(snapshot.json.data.needsProjectSelection, true);
+    assert.equal(snapshot.json.data.project, null, 'ninguno elegido');
     assert.deepEqual(
-      snapshot.json.error.details.candidates.sort(),
+      snapshot.json.data.candidates.map((row) => row.id).sort(),
       [world.projectA.id, world.projectB.id].sort(),
     );
+    // Y ninguna ruta de contenido se resuelve sola por detrás.
+    const search = await call(handler, '/search', { method: 'POST', body: { query: 'alfa' } });
+    assert.equal(search.status, 403);
+    assert.equal((await call(handler, '/history')).status, 403);
   } finally { world.cleanup(); }
 });

@@ -294,6 +294,41 @@ export function verifyScopeStore(db, { model = null, checkFts = true } = {}) {
 }
 
 /**
+ * Colección de cada fichero del lote.
+ *
+ * La identidad de una fuente incluye la colección (`UNIQUE (collection, uri)`), así que un lote no puede
+ * resolverse con una sola colección cuando sus ficheros ya viven en colecciones distintas: eso duplicaría
+ * los ya indexados. Se consulta en tramos (para no agotar los parámetros de SQLite con lotes grandes) y se
+ * agrupa: cada fichero va a la colección donde ya está, y a `default` si no está o es ambiguo.
+ *
+ * @returns {Map<string, Array<object>>} colección → elementos del lote
+ */
+export function resolveCollections(db, batch) {
+  const collectionsByUri = new Map();
+  const paths = batch.map((item) => item.abs);
+  const CHUNK = 80;
+  for (let start = 0; start < paths.length; start += CHUNK) {
+    const slice = paths.slice(start, start + CHUNK);
+    const placeholders = slice.map(() => '?').join(',');
+    const rows = db.prepare(`SELECT uri, collection FROM sources WHERE uri IN (${placeholders})`).all(...slice);
+    for (const row of rows) {
+      const seen = collectionsByUri.get(row.uri) ?? new Set();
+      seen.add(row.collection);
+      collectionsByUri.set(row.uri, seen);
+    }
+  }
+  const groups = new Map();
+  for (const item of batch) {
+    const seen = collectionsByUri.get(item.abs);
+    const collection = seen && seen.size === 1 ? [...seen][0] : 'default';
+    const group = groups.get(collection) ?? [];
+    group.push(item);
+    groups.set(collection, group);
+  }
+  return groups;
+}
+
+/**
  * Un ciclo de sincronización sobre un ámbito.
  *
  * @returns {Promise<{scope_kind:string, scope_id:string, operation:string|null, dry_run:boolean,
@@ -502,33 +537,41 @@ export async function syncScope({
         const db = openScopeStore({ profileRoot, profileKey, scope: { kind: scopeKind, id: scopeId }, create: true, now: started });
         try {
           const batch = pending.slice(0, maxFiles);
-          let result = null;
+          // Cada fichero va a la colección donde ya está indexado (o a `default` si no está): un lote
+          // mixto no puede resolverse con una sola colección sin duplicar lo que ya existía.
+          const groups = resolveCollections(db, batch);
+          const result = { ingested: [], skipped: [], errors: [] };
           let budgetStopped = false;
           try {
-            result = await ingestFiles({
-              db,
-              files: batch.map((item) => item.abs),
-              collection: 'default',
-              now: started,
-              config,
-              embedder: provider,
-              actor,
-              authorize: async (file) => {
-                if (signal?.aborted) {
-                  throw new RagError('cancelled', 'la sincronización se canceló', { details: { reason: 'signal-aborted', where: 'sync:file' } });
-                }
-                // Presupuesto del tick: se corta entre fichero y fichero, nunca a mitad de una
-                // transacción. Se lanza desde `authorize` (antes de preparar el fichero), así que
-                // `ingestFiles` no llega a escribir nada del fichero siguiente.
-                if (budget !== null && clock() >= deadline) {
-                  throw new RagError('cancelled', 'la sincronización agotó el presupuesto del tick', {
-                    details: { reason: 'budget-exhausted', where: 'sync:file', budget_ms: budget },
-                  });
-                }
-                // Revalidación por fichero: una revocación o un archivado a mitad para el ciclo.
-                assertScopeSyncable({ registryDb, scope, sessionId, now });
-              },
-            });
+            for (const [collection, items] of groups) {
+              const partial = await ingestFiles({
+                db,
+                files: items.map((item) => item.abs),
+                collection,
+                now: started,
+                config,
+                embedder: provider,
+                actor,
+                authorize: async (file) => {
+                  if (signal?.aborted) {
+                    throw new RagError('cancelled', 'la sincronización se canceló', { details: { reason: 'signal-aborted', where: 'sync:file' } });
+                  }
+                  // Presupuesto del tick: se corta entre fichero y fichero, nunca a mitad de una
+                  // transacción. Se lanza desde `authorize` (antes de preparar el fichero), así que
+                  // `ingestFiles` no llega a escribir nada del fichero siguiente.
+                  if (budget !== null && clock() >= deadline) {
+                    throw new RagError('cancelled', 'la sincronización agotó el presupuesto del tick', {
+                      details: { reason: 'budget-exhausted', where: 'sync:file', budget_ms: budget },
+                    });
+                  }
+                  // Revalidación por fichero: una revocación o un archivado a mitad para el ciclo.
+                  assertScopeSyncable({ registryDb, scope, sessionId, now });
+                },
+              });
+              result.ingested.push(...partial.ingested);
+              result.skipped.push(...partial.skipped);
+              result.errors.push(...partial.errors);
+            }
           } catch (error) {
             // Una ingesta interrumpida no devuelve lista de confirmados: se publica lo que el almacén
             // demuestra que sí entró (una transacción por fichero), y el resto queda para reintentar.

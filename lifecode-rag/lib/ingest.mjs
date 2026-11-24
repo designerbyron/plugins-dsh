@@ -24,9 +24,37 @@ import { contentDigest, sha256Hex } from './hash.mjs';
 import { openDatabase, storeFailure, withTransaction } from './db.mjs';
 import { recordMetrics } from './metrics.mjs';
 
-/** Id estable y legible derivado de la URI canónica: reingerir la misma ruta sustituye, no duplica. */
-export function sourceIdFor(uri) {
-  return `src_${createHash('sha256').update(String(uri), 'utf8').digest('hex').slice(0, 16)}`;
+/**
+ * Id estable y legible derivado de la URI canónica. La identidad **incluye la colección** porque el
+ * esquema declara `UNIQUE (collection, uri)`: el mismo fichero puede vivir en dos colecciones del mismo
+ * proyecto sin colisionar. Para la colección por defecto el identificador es el histórico, de modo que
+ * los datos existentes no cambian.
+ */
+export function sourceIdFor(uri, collection = 'default') {
+  const key = String(collection) === 'default' ? String(uri) : `${collection}\u0000${uri}`;
+  return `src_${createHash('sha256').update(key, 'utf8').digest('hex').slice(0, 16)}`;
+}
+
+/**
+ * Patrones de **alta confianza** de material sensible. No son un control de seguridad: son una
+ * advertencia para quien ingiere. Bloquear por heurística débil rompería documentación legítima, así
+ * que el resultado se acompaña de `warnings` y la ingesta continúa.
+ */
+const SECRET_PATTERNS = Object.freeze([
+  [/-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/, 'private-key'],
+  [/\bAKIA[0-9A-Z]{16}\b/, 'aws-access-key'],
+  [/\bsk-[A-Za-z0-9_-]{20,}\b/, 'api-key'],
+  [/\bghp_[A-Za-z0-9]{36}\b/, 'github-token'],
+  [/\bxox[baprs]-[A-Za-z0-9-]{10,}\b/, 'slack-token'],
+]);
+
+/** Advertencias de secretos encontradas en el texto, sin duplicar el mismo tipo. */
+export function scanForSecrets(text) {
+  const found = new Map();
+  for (const [pattern, kind] of SECRET_PATTERNS) {
+    if (pattern.test(text) && !found.has(kind)) found.set(kind, { code: 'possible-secret', kind });
+  }
+  return [...found.values()];
 }
 
 /** Título legible: primer encabezado Markdown o `<title>` HTML; si no, el nombre del fichero. */
@@ -70,14 +98,20 @@ export async function prepareDocument(filePath, { config, uri = undefined, embed
   } catch (cause) {
     throw new RagError('source-unreadable', 'fallo de lectura', { cause, details: { path: absolutePath } });
   }
+  const extractStarted = process.hrtime.bigint();
   const { text, mime } = extractText(bytes, { path: absolutePath });
+  const extractMs = Number(process.hrtime.bigint() - extractStarted) / 1e6;
+  const chunkStarted = process.hrtime.bigint();
   const chunks = chunkText(text, config.chunk);
+  const chunkMs = Number(process.hrtime.bigint() - chunkStarted) / 1e6;
   if (chunks.length === 0) throw new RagError('source-unreadable', 'el texto no produjo chunks', { details: { path: absolutePath } });
   const title = titleOf(text, absolutePath, mime);
 
   // Los vectores se calculan aquí, antes de abrir transacción: un fallo de embedding no toca el almacén.
   const provider = embedder ?? createEmbedder(config);
+  const embedStarted = process.hrtime.bigint();
   const vectors = await provider.embed(chunks.map((chunk) => chunk.text));
+  const embedMs = Number(process.hrtime.bigint() - embedStarted) / 1e6;
 
   return {
     path: absolutePath,
@@ -92,6 +126,8 @@ export async function prepareDocument(filePath, { config, uri = undefined, embed
     vectors,
     embeddingModel: provider.model,
     embeddingKind: provider.kind,
+    timings: { extract: extractMs, chunk: chunkMs, embed: embedMs },
+    warnings: scanForSecrets(text),
   };
 }
 
@@ -100,7 +136,8 @@ export async function prepareDocument(filePath, { config, uri = undefined, embed
  * El llamador debe estar dentro de una transacción o usar `upsertDocument`.
  */
 export function writeDocument(db, prepared, { collection = 'default', tags = [], now = Date.now(), force = false, config } = {}) {
-  const existing = db.prepare('SELECT id, sha256 FROM sources WHERE uri = ?').get(prepared.uri);
+  const existing = db.prepare('SELECT id, sha256, collection FROM sources WHERE collection = ? AND uri = ?')
+    .get(collection, prepared.uri);
   if (existing && existing.sha256 === prepared.sha256 && !force) {
     // AC16: cambiar sólo las etiquetas no re-trocea, no toca FTS/vectores y no sube index_revision.
     const current = db.prepare('SELECT tag FROM source_tags WHERE source_id = ? ORDER BY tag').all(existing.id).map((row) => row.tag);
@@ -114,7 +151,7 @@ export function writeDocument(db, prepared, { collection = 'default', tags = [],
     }
     return { id: existing.id, uri: prepared.uri, chunks: 0, skipped: true, tagsUpdated: false, reason: 'unchanged' };
   }
-  const id = existing?.id ?? sourceIdFor(prepared.uri);
+  const id = existing?.id ?? sourceIdFor(prepared.uri, collection);
 
   const previous = existing ? db.prepare('SELECT COUNT(*) AS n FROM chunks WHERE source_id = ?').get(id).n : 0;
   if (existing) db.prepare('DELETE FROM chunks WHERE source_id = ?').run(id);
@@ -168,6 +205,8 @@ export async function ingestFiles({
   const ingested = [];
   const skipped = [];
   const errors = [];
+  const stageMs = { extract: 0, chunk: 0, embed: 0, write: 0 };
+  let preparedCount = 0;
   const started = Date.now();
   try {
     for (const file of files) {
@@ -176,6 +215,7 @@ export async function ingestFiles({
       if (authorize) await authorize(file);
       try {
         const prepared = await prepareDocument(file, { config, embedder: provider });
+        const writeStarted = process.hrtime.bigint();
         const result = withTransaction(opened.db, () => {
           const written = writeDocument(opened.db, prepared, { collection, tags: normalizedTags, now, force, config });
           appendAudit(opened.db, {
@@ -196,7 +236,16 @@ export async function ingestFiles({
           recordMetrics(opened.db, entries);
           return written;
         });
-        (result.skipped ? skipped : ingested).push({ id: result.id, uri: result.uri, chunks: result.chunks, title: prepared.title, tagsUpdated: result.tagsUpdated === true, reason: result.reason ?? null });
+        preparedCount += 1;
+        stageMs.write += Number(process.hrtime.bigint() - writeStarted) / 1e6;
+        stageMs.extract += prepared.timings?.extract ?? 0;
+        stageMs.chunk += prepared.timings?.chunk ?? 0;
+        stageMs.embed += prepared.timings?.embed ?? 0;
+        (result.skipped ? skipped : ingested).push({
+          id: result.id, uri: result.uri, chunks: result.chunks, title: prepared.title,
+          tagsUpdated: result.tagsUpdated === true, reason: result.reason ?? null,
+          warnings: prepared.warnings ?? [],
+        });
       } catch (error) {
         // Un fallo de SQLite o de disco no puede tumbar la ingesta de los demás ficheros; se normaliza
         // al contrato de errores para que el resultado sea uniforme y auditable. La contención se
@@ -230,6 +279,14 @@ export async function ingestFiles({
     try {
       withTransaction(opened.db, () => recordMetrics(opened.db, [
         { metric: 'ingest.ms', value: Math.max(1, Date.now() - started), dim: collection, at: now },
+        // Desglose por etapa (UX-2.2 · P1-5): permite responder «¿dónde se fue el tiempo?» sin
+        // instrumentar de nuevo. Valores en milisegundos, acumulados del lote.
+        // Sin ningún fichero preparado no hay etapas que medir: no se escriben ceros.
+        ...(preparedCount > 0
+          ? Object.entries(stageMs).map(([stage, value]) => ({
+            metric: 'ingest.stage_ms', value: Math.max(0, Math.round(value * 100) / 100), dim: stage, at: now,
+          }))
+          : []),
       ]));
     } catch { /* la métrica no puede convertir una ingesta correcta en un fallo */ }
     return { ingested, skipped, errors };

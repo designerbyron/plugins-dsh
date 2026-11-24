@@ -19,6 +19,9 @@
 
 import { RagError } from './errors.mjs';
 import { assembleContextAsync } from './context.mjs';
+import { blobToVector } from './embed.mjs';
+import { createEmbedder } from './embedders.mjs';
+import { relativeToRoots } from './paths.mjs';
 import { getSource, listSources, search, selectBySource } from './search.mjs';
 import { forgetSource, reindex as reindexStore } from './maintenance.mjs';
 import { clearSyncState } from './sync.mjs';
@@ -72,6 +75,7 @@ export async function searchScopes(ctx, {
   const perScope = Math.min(config.search.maxLimit, Math.max(max, max * 2));
   const collected = [];
   const scopes = [];
+  const fallbacks = [];
   const started = Date.now();
   let mode = 'empty';
 
@@ -94,12 +98,22 @@ export async function searchScopes(ctx, {
       now,
       record: scope.kind === 'prj',
     });
+    if (result.diagnostics?.degraded === true) {
+      // Con varios ámbitos, un canal caído degrada la búsqueda entera: se declara una vez y con el código,
+      // nunca con el mensaje del proveedor (que puede arrastrar detalles internos).
+      fallbacks.push({ scopeId: scope.id, scopeKind: scope.kind, code: result.diagnostics.semantic.error ?? 'embedding-failed' });
+    } else {
+      mode = result.mode;
+    }
     for (const row of result.results) {
       collected.push({ ...row, scopeId: scope.id, scopeKind: scope.kind });
     }
-    mode = result.mode;
     scopes.push(scopeMeta(scope, 'searched', { results: result.results.length, truncated: result.vectors.truncated }));
   }
+
+  // Un solo ámbar no se pinta de verde: si cualquier ámbito degradó, la respuesta no es exhaustiva por la
+  // vía semántica y así se declara.
+  const degraded = fallbacks.length > 0;
 
   // Punto de control de PA4-B: si la autorización cambió mientras se consultaba, no se devuelve nada.
   ctx.checkpoint('search:return');
@@ -111,12 +125,51 @@ export async function searchScopes(ctx, {
     : collected;
   return {
     results: ordered.slice(0, max),
-    mode,
+    mode: degraded ? 'lexical-fallback' : mode,
     elapsedMs: Math.round((Date.now() - started) * 100) / 100,
     scopes,
     partial: false,
     errors: [],
+    diagnostics: { degraded, fallbacks },
   };
+}
+
+/**
+ * Carga los vectores ya guardados de los fragmentos recuperados, por ámbito y con el modelo **exacto**.
+ *
+ * UX-2.2 · P0-2: la ingesta ya escribió estos vectores; recalcularlos para la diversidad de MMR pagaba
+ * dos veces por el mismo texto (y con proveedor remoto, egreso y coste duplicados). Sólo se reutiliza lo
+ * que coincide en `chunk_key`, `model` y `dim`; lo ausente o incompatible sigue el camino de generación
+ * existente.
+ */
+function loadVectorsFor(ctx, rows, { model, dim }) {
+  const vectors = new Map();
+  if (!model || !Number.isInteger(dim) || dim <= 0) return vectors;
+  const byScope = new Map();
+  for (const row of rows) {
+    if (!row?.chunkKey || !row?.scopeId) continue;
+    const keys = byScope.get(row.scopeId) ?? new Set();
+    keys.add(row.chunkKey);
+    byScope.set(row.scopeId, keys);
+  }
+  for (const [scopeId, keys] of byScope) {
+    const scope = ctx.scopes.find((candidate) => candidate.id === scopeId);
+    if (!scope) continue;
+    const db = openForRead(ctx, scope);
+    if (!db) continue;
+    const placeholders = [...keys].map(() => '?').join(',');
+    const found = db.prepare(
+      `SELECT chunk_key, vec, dim FROM vectors WHERE model = ? AND dim = ? AND chunk_key IN (${placeholders})`,
+    ).all(model, dim, ...keys);
+    for (const row of found) {
+      try {
+        vectors.set(row.chunk_key, blobToVector(row.vec, { dim }));
+      } catch {
+        // Vector guardado con otra forma: no se rompe la consulta, se recalcula en el ensamblado.
+      }
+    }
+  }
+  return vectors;
 }
 
 /** Contexto ensamblado sobre los ámbitos efectivos. */
@@ -134,10 +187,15 @@ export async function contextScopes(ctx, {
     strategy,
     scopes: only,
   });
+  const provider = embedder ?? createEmbedder(config);
+  const vectors = loadVectorsFor(ctx, candidates.results, { model: provider.model, dim: provider.dim });
   const assembled = await assembleContextAsync({
     results: candidates.results,
     config,
+    // Se pasa **el embedder del llamante**, no el creado aquí: si no lo hay, el ensamblado usa vectores
+    // locales para MMR y no egresa. Crear el proveedor sólo sirve para conocer modelo y dimensión.
     embedder,
+    vectors,
     budgetTokens,
     maxChunks,
   });
@@ -183,7 +241,12 @@ export function getAcross(ctx, { ref, limit = 50 } = {}) {
       const source = getSource(db, String(ref));
       matches.push({ scope, db, source });
     } catch (error) {
-      if (!(error instanceof RagError) || error.code !== 'source-not-found') throw error;
+      if (!(error instanceof RagError)) throw error;
+      // F-4: un `chunkKey` cuya FUENTE existe en este ámbito pero cuyo ordinal no, no es «sigue
+      // buscando»: la referencia ya está resuelta y el fragmento pedido no está. Se propaga para que
+      // el error diga qué pasó (motivo `chunk-not-found`) en vez de un «no existe la fuente» que
+      // miente. El resto de `source-not-found` sigue significando «prueba en el siguiente ámbito».
+      if (error.code !== 'source-not-found' || error.details?.reason === 'chunk-not-found') throw error;
     }
   }
   // Antes de decidir «no existe» o «es ambiguo» se confirma que la autorización sigue en pie. Se
@@ -207,18 +270,27 @@ export function getAcross(ctx, { ref, limit = 50 } = {}) {
   }
   const [{ scope, db, source }] = matches;
   const capped = Math.min(Number.isInteger(limit) && limit > 0 ? limit : 50, 200);
+  // F-4 (1.5.11): si la referencia era un `chunkKey`, se devuelve ESE fragmento, no la lista entera.
+  // Quien preguntó por `src_x#3` pidió el 3; devolverle todo el documento es otra cosa. El marcador
+  // `matched` es aditivo y dice por qué forma se resolvió la referencia.
+  const matchedOrdinal = Number.isInteger(source.matchedChunkOrdinal) ? source.matchedChunkOrdinal : null;
+  const chunks = chunksOf(db, source.id, capped)
+    .filter((chunk) => matchedOrdinal === null || chunk.ordinal === matchedOrdinal)
+    .map((chunk) => ({
+      chunkKey: chunk.chunk_key, ordinal: chunk.ordinal, heading: chunk.heading,
+      charStart: chunk.char_start, charEnd: chunk.char_end, text: chunk.text,
+    }));
   const payload = {
     scopeId: scope.id,
     scopeKind: scope.kind,
     source: {
       id: source.id, collection: source.collection, uri: source.uri, title: source.title, mime: source.mime,
       sha256: source.sha256, bytes: source.bytes, indexedAt: source.indexed_at,
+      relUri: relativeToRoots(source.uri, scope.roots),
     },
-    chunks: chunksOf(db, source.id, capped).map((chunk) => ({
-      chunkKey: chunk.chunk_key, ordinal: chunk.ordinal, heading: chunk.heading,
-      charStart: chunk.char_start, charEnd: chunk.char_end, text: chunk.text,
-    })),
+    chunks,
   };
+  if (matchedOrdinal !== null) payload.matched = { by: 'chunk-key', ordinal: matchedOrdinal };
   ctx.checkpoint('get:return');
   return payload;
 }
@@ -239,7 +311,12 @@ export function listProject(ctx, { collection, tag, limit = 50, offset = 0 } = {
     offset: Number.isInteger(offset) && offset >= 0 ? offset : 0,
   });
   ctx.checkpoint('list:return');
-  return listed;
+  const roots = scope.roots ?? [];
+  return {
+    ...listed,
+    // Aditivo: la ruta relativa a la raíz del ámbito, sin quitar la absoluta que ya consumían los clientes.
+    rows: listed.rows.map((row) => ({ ...row, relUri: relativeToRoots(row.uri, roots) })),
+  };
 }
 
 /** ¿Existe la fuente en alguna biblioteca concedida? Se usa para rechazar borrados cruzados. */

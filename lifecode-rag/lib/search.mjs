@@ -7,6 +7,12 @@
  * - Fusión: Reciprocal Rank Fusion **ponderada** (`peso / (k + rango)`), porque BM25 y coseno no son
  *   comparables; los pesos permiten priorizar una vía sin calibrar escalas.
  *
+ * Degradación (UX-2.2 · P0-1): si el proveedor de embeddings falla por una causa **recuperable**
+ * (`embedding-failed`), la búsqueda sirve lo que el canal léxico tenga y lo declara en
+ * `mode='lexical-fallback'` y `diagnostics.degraded`. Nunca se degrada ante cancelaciones,
+ * denegaciones de autorización o egreso, corrupción del almacén ni errores internos: esos se propagan
+ * tal cual, porque presentarlos como una búsqueda «vacía» sería mentir sobre el estado del sistema.
+ *
  * La consulta vectorial está acotada (`search.maxVectorScan`) y lo declara. `minScore` se aplica sobre la
  * puntuación normalizada 0..1 de la lista fusionada; `maxPerSource` limita cuántos fragmentos aporta una
  * misma fuente. Ambas cosas se documentan como parte del resultado (`diagnostics`).
@@ -20,6 +26,16 @@ import { latencyBucket, recordMetrics } from './metrics.mjs';
 
 export const RRF_K = 60;
 export const SNIPPET_CHARS = 240;
+
+/**
+ * Códigos que justifican degradar a léxico. Es una lista **cerrada** a propósito: ampliarla sin criterio
+ * convertiría el fallback en una forma de ocultar fallos que deben llegar a quien llama.
+ */
+export const RECOVERABLE_EMBEDDING_CODES = Object.freeze(['embedding-failed']);
+
+function isRecoverableEmbeddingFailure(error) {
+  return error instanceof RagError && RECOVERABLE_EMBEDDING_CODES.includes(error.code);
+}
 
 /** Tokens de consulta; vacío es un error de argumento, no «devuelve todo». */
 export function queryTokens(query) {
@@ -197,13 +213,15 @@ export function selectBySource(rows, { limit, maxPerSource = 0 } = {}) {
   return out.slice(0, max);
 }
 
-function recordQuery(db, { elapsedMs, count, strategy, mode, now }) {
+function recordQuery(db, { elapsedMs, count, strategy, mode, degraded = false, now }) {
   try {
     recordMetrics(db, [
       { metric: 'query.count', value: 1, dim: strategy, at: now },
       { metric: 'query.ms', value: Math.max(0, elapsedMs), dim: strategy, at: now },
       { metric: 'query.ms_bucket', value: 1, dim: latencyBucket(elapsedMs), at: now },
       ...(count === 0 ? [{ metric: 'query.empty', value: 1, dim: strategy, at: now }] : []),
+      // Un canal caído no se mide como «consulta vacía»: se cuenta aparte para que el operador lo vea.
+      ...(degraded ? [{ metric: 'query.fallback', value: 1, dim: strategy, at: now }] : []),
     ]);
   } catch (error) {
     if (error instanceof RagError && error.code === 'store-busy') return;
@@ -248,29 +266,44 @@ export async function search(db, {
     }
   }
   const ftsMs = Number(process.hrtime.bigint() - ftsStarted) / 1e6;
+  // Modo léxico real (`and`/`or`/`none`), separado del modo global: cuando se degrada, el valor de
+  // `mode` pasa a `lexical-fallback` y el diagnóstico no debe perder qué hizo el canal léxico.
+  const lexicalMode = mode;
 
   let vectorResult = { rows: [], truncated: false, scanned: 0 };
   let vectorMs = 0;
+  let semanticError = null;
   if (chosen !== 'fts') {
     const vectorStarted = process.hrtime.bigint();
-    const provider = embedder ?? createEmbedder(config);
-    const [queryVector] = await provider.embed([String(query)]);
-    vectorResult = vectorSearch(db, {
-      queryVector,
-      limit: cap * 3,
-      collection,
-      tags: normalizedTags,
-      tagMode,
-      model: provider.model,
-      dim: provider.dim,
-      config,
-    });
+    try {
+      const provider = embedder ?? createEmbedder(config);
+      const [queryVector] = await provider.embed([String(query)]);
+      vectorResult = vectorSearch(db, {
+        queryVector,
+        limit: cap * 3,
+        collection,
+        tags: normalizedTags,
+        tagMode,
+        model: provider.model,
+        dim: provider.dim,
+        config,
+      });
+    } catch (error) {
+      // Sólo el fallo recuperable del proveedor degrada a léxico. Cancelación, autorización,
+      // aislamiento, integridad y errores internos suben sin tocar.
+      if (!isRecoverableEmbeddingFailure(error)) throw error;
+      semanticError = error;
+    }
     vectorMs = Number(process.hrtime.bigint() - vectorStarted) / 1e6;
   }
 
   let results;
   let fusion = null;
-  if (chosen === 'fts') {
+  const degraded = semanticError !== null;
+  if (chosen === 'fts' || degraded) {
+    // Si el canal que falló era el único que podía traer algo (vectorial puro), o el léxico tampoco
+    // encontró nada, no hay búsqueda que servir: se propaga la causa real en vez de un «vacío» falso.
+    if (degraded && fts.length === 0) throw semanticError;
     const ftsPool = fts.map((row, index) => ({
       chunkKey: row.chunk_key,
       sourceId: row.source_id,
@@ -308,16 +341,23 @@ export async function search(db, {
     results = selected.slice(0, cap).map((row) => ({ ...row, score: Math.round(row.score * 1000) / 1000 }));
   }
 
+  if (degraded) mode = 'lexical-fallback';
   const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
-  if (record) recordQuery(db, { elapsedMs, count: results.length, strategy: chosen, mode, now });
+  if (record) recordQuery(db, { elapsedMs, count: results.length, strategy: chosen, mode, degraded, now });
 
   return {
     results,
     vectors: { scanned: vectorResult.scanned, truncated: vectorResult.truncated },
     diagnostics: {
       strategy: chosen,
-      lexical: { hits: fts.length, ms: Math.round(ftsMs * 100) / 100, mode },
-      semantic: { hits: vectorResult.scanned, ms: Math.round(vectorMs * 100) / 100, truncated: vectorResult.truncated },
+      degraded,
+      lexical: { hits: fts.length, ms: Math.round(ftsMs * 100) / 100, mode: lexicalMode },
+      semantic: {
+        hits: vectorResult.scanned,
+        ms: Math.round(vectorMs * 100) / 100,
+        truncated: vectorResult.truncated,
+        error: degraded ? semanticError.code : null,
+      },
       fusion: { k: config.search.rrfK, weights, minScore: config.search.minScore, maxPerSource: config.search.maxPerSource },
     },
     elapsedMs,
@@ -325,11 +365,51 @@ export async function search(db, {
   };
 }
 
-/** Fuente por id o URI. */
+/**
+ * Fuente por id, `chunkKey`, URI o título.
+ *
+ * El `id` se resuelve primero porque está indexado por la clave primaria: es la ruta que usan las
+ * herramientas cuando el modelo reutiliza un `sourceId`. Después, la forma de `chunkKey`
+ * (`<sourceId>#<ordinal>`) —extensión ADITIVA, contrato v0.1.0 intacto, ver
+ * `docs/CONTRATO-EXTENSIONES-1.4.md`—: `lifecode_rag_search` devuelve ese identificador en cada
+ * resultado, así que `get` tiene que poder consumirlo en vez de obligar al modelo a traducirlo a un
+ * `sourceId` que no ha pedido. El orden importa y está probado: un id nunca contiene `#`, y sólo si
+ * la forma de `chunkKey` no casa se sigue con la URI, de modo que un fichero cuya ruta contenga `#`
+ * no se confunde con un fragmento. En la búsqueda por `uri` se exige que sea **inequívoca**: con la
+ * identidad por colección, el mismo `uri` puede existir dos veces en el mismo almacén y elegir una en
+ * silencio devolvería el origen equivocado.
+ */
+const CHUNK_KEY_RE = /^(src_[A-Za-z0-9_-]+)#(\d+)$/;
+
 export function getSource(db, ref) {
-  const row = db.prepare('SELECT * FROM sources WHERE id = ? OR uri = ?').get(ref, ref);
-  if (!row) throw new RagError('source-not-found', `no existe la fuente: ${ref}`, { details: { ref } });
-  return row;
+  const text = String(ref);
+  const byId = db.prepare('SELECT * FROM sources WHERE id = ?').get(text);
+  if (byId) return byId;
+  const asChunk = CHUNK_KEY_RE.exec(text);
+  if (asChunk) {
+    const owner = db.prepare('SELECT * FROM sources WHERE id = ?').get(asChunk[1]);
+    if (owner) {
+      const ordinal = Number(asChunk[2]);
+      const chunk = db.prepare('SELECT 1 FROM chunks WHERE source_id = ? AND ordinal = ?').get(owner.id, ordinal);
+      if (!chunk) {
+        throw new RagError('source-not-found', `la fuente ${owner.id} no tiene el fragmento ${ordinal}`, {
+          details: { ref: text, sourceId: owner.id, ordinal, reason: 'chunk-not-found' },
+        });
+      }
+      // El fragmento pedido viaja con la fuente: quien preguntó por él no tiene que volver a buscarlo.
+      return { ...owner, matchedChunkOrdinal: ordinal };
+    }
+    // El prefijo no es una fuente de este almacén: se sigue con la resolución normal (URI/título),
+    // para no convertir una referencia ajena en un error distinto del contractual.
+  }
+  const byUri = db.prepare('SELECT * FROM sources WHERE uri = ? LIMIT 2').all(text);
+  if (byUri.length === 0) throw new RagError('source-not-found', `no existe la fuente: ${text}`, { details: { ref: text } });
+  if (byUri.length > 1) {
+    throw new RagError('invalid-argument', 'la referencia existe en más de una colección y no es inequívoca', {
+      details: { ref, reason: 'ambiguous-ref', collections: byUri.map((row) => row.collection) },
+    });
+  }
+  return byUri[0];
 }
 
 /** Lista de fuentes con filtros y paginación acotada. */
@@ -339,7 +419,11 @@ export function listSources(db, { collection = undefined, tag = undefined, limit
   if (collection !== undefined) { where += ' AND s.collection = ?'; params.push(collection); }
   if (tag !== undefined) { where += ' AND EXISTS (SELECT 1 FROM source_tags t WHERE t.source_id = s.id AND t.tag = ?)'; params.push(tag); }
   const total = db.prepare(`SELECT COUNT(*) AS n FROM sources s ${where}`).get(...params).n;
-  const rows = db.prepare(`SELECT s.*, (SELECT COUNT(*) FROM chunks c WHERE c.source_id = s.id) AS chunks
-    FROM sources s ${where} ORDER BY s.updated_at DESC, s.id ASC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  // Un agregado por JOIN en vez de una subconsulta correlacionada por fila (N+1): el plan deja de
+  // ejecutar el recuento una vez por fuente y se mantiene el mismo resultado.
+  const rows = db.prepare(`SELECT s.*, COALESCE(c.n, 0) AS chunks
+    FROM sources s
+    LEFT JOIN (SELECT source_id, COUNT(*) AS n FROM chunks GROUP BY source_id) c ON c.source_id = s.id
+    ${where} ORDER BY s.updated_at DESC, s.id ASC LIMIT ? OFFSET ?`).all(...params, limit, offset);
   return { total, rows };
 }

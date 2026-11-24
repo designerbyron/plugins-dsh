@@ -1,12 +1,45 @@
 /**
  * DDL del registro Project-Aware (PA1). Es la traducción literal del contrato de datos
  * `docs/PROJECT-AWARE-DATA-CONTRACT.md` §3. Cualquier cambio aquí debe reflejarse allí y en
- * `eval/pa0/sql-check.mjs`.
+ * `tests/tracking-migration.test.mjs` (recuentos por tabla y migración idempotente).
  */
 
 export const REGISTRY_APPLICATION_ID = 1_279_480_402; // 'LCRR'
-/** v2: añade `pa_selection` (selección de proyecto persistida con revisión monotónica, CR-1). */
-export const REGISTRY_VERSION = 2;
+/**
+ * v1: esquema inicial PA1.
+ * v2: añade `pa_selection` (selección de proyecto persistida con revisión monotónica, CR-1).
+ * v3: añade `workspace_tracking` (seguimiento de workspace por perfil, UX-2.2). Aditiva: ninguna
+ *     tabla ni fila existente se toca; la vuelta atrás se documenta (no se hace `DROP`).
+ */
+export const REGISTRY_VERSION = 3;
+
+/**
+ * Tabla del seguimiento (UX-2.2, `D-IMPL-01`). Una fila por `path_key` —la identidad— y dos ejes
+ * independientes con CHECK: `state` (decisión humana) y `last_status` (disponibilidad del Host).
+ * `bound_by='human'` es deliberado: en UX-2.2 ni el Host ni el modelo crean filas.
+ *
+ * La forma es la misma en la creación de un registro nuevo y en la migración v2 → v3: una sola
+ * definición evita que el esquema recién creado y el migrado divergan.
+ */
+const WORKSPACE_TRACKING_TABLE = `CREATE TABLE IF NOT EXISTS workspace_tracking (
+  path_key      TEXT PRIMARY KEY,
+  path          TEXT,
+  workspace_id  TEXT,
+  project_id    TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  state         TEXT NOT NULL CHECK (state IN ('on','off','paused')),
+  association   TEXT NOT NULL CHECK (association IN ('explicit','pending','conflict')),
+  bound_by      TEXT NOT NULL CHECK (bound_by IN ('human')),
+  bound_at      TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  last_seen_at  TEXT,
+  last_status   TEXT CHECK (last_status IN ('ok','missing','unknown')),
+  revision      INTEGER NOT NULL DEFAULT 1
+) STRICT`;
+
+const WORKSPACE_TRACKING_INDEXES = Object.freeze([
+  `CREATE INDEX IF NOT EXISTS workspace_tracking_project ON workspace_tracking(project_id)`,
+  `CREATE INDEX IF NOT EXISTS workspace_tracking_state ON workspace_tracking(state, last_status)`,
+]);
 
 export const REGISTRY_DDL = Object.freeze([
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT`,
@@ -119,6 +152,8 @@ export const REGISTRY_DDL = Object.freeze([
     updated_at       TEXT NOT NULL
   ) STRICT`,
 
+  WORKSPACE_TRACKING_TABLE,
+
   `CREATE TABLE sync_state (
     scope_kind   TEXT NOT NULL CHECK (scope_kind IN ('prj','lib')),
     scope_id     TEXT NOT NULL,
@@ -180,6 +215,7 @@ export const REGISTRY_DDL = Object.freeze([
   `CREATE INDEX session_scope_project ON session_scope(project_id, state)`,
   `CREATE INDEX session_scope_expiry  ON session_scope(state, expires_at)`,
   `CREATE INDEX pa_selection_project  ON pa_selection(project_id)`,
+  ...WORKSPACE_TRACKING_INDEXES,
   `CREATE INDEX sync_state_status     ON sync_state(scope_kind, scope_id, status)`,
   `CREATE INDEX audit_registry_at     ON audit_registry(at)`,
 ]);
@@ -202,5 +238,12 @@ export const REGISTRY_MIGRATIONS = Object.freeze({
       updated_at       TEXT NOT NULL
     ) STRICT`,
     `CREATE INDEX IF NOT EXISTS pa_selection_project ON pa_selection(project_id)`,
+  ]),
+
+  // v3 · UX-2.2: sólo crea la tabla del seguimiento y sus índices. Nunca `ALTER`, nunca reescribe
+  // filas; un registro v2 sigue siendo legible tras migrar porque nada existente cambia.
+  3: Object.freeze([
+    WORKSPACE_TRACKING_TABLE,
+    ...WORKSPACE_TRACKING_INDEXES,
   ]),
 });

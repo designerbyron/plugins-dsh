@@ -132,18 +132,21 @@ export function assembleContext(options = {}) {
  * Sin embedder —el camino automático no tiene canal de aprobación para egresar— se usan vectores
  * locales sólo para la diversidad de MMR: es cálculo puro, no una llamada a un tercero.
  */
-export async function assembleContextAsync({ results, config, embedder, ...options } = {}) {
+export async function assembleContextAsync({ results, config, embedder, vectors: prefetched = undefined, ...options } = {}) {
   if (!Array.isArray(results)) throw new RagError('internal', 'assembleContextAsync espera resultados');
   const candidates = results.filter((row) => row && typeof row.text === 'string' && row.text !== '');
-  const vectors = new Map();
-  if (candidates.length > 0) {
+  // Los vectores que ya existen en el almacén (mismo chunk, modelo y dimensión) se reutilizan tal cual;
+  // sólo se calculan los que faltan. Con un proveedor remoto eso evita egreso y coste duplicados.
+  const vectors = new Map(prefetched instanceof Map ? prefetched : []);
+  const missing = candidates.filter((row) => !vectors.has(row.chunkKey));
+  if (missing.length > 0) {
     if (embedder && typeof embedder.embed === 'function') {
-      const embedded = await embedder.embed(candidates.map((row) => row.text));
-      candidates.forEach((row, index) => vectors.set(row.chunkKey, embedded[index]));
+      const embedded = await embedder.embed(missing.map((row) => row.text));
+      missing.forEach((row, index) => vectors.set(row.chunkKey, embedded[index]));
     } else {
       // MMR con vectores locales aunque el proveedor configurado sea remoto: aquí no se egresa.
       const localEmbedding = { ...(config?.embedding ?? {}), provider: 'local-hash-v1' };
-      for (const row of candidates) vectors.set(row.chunkKey, embedText(row.text, localEmbedding));
+      for (const row of missing) vectors.set(row.chunkKey, embedText(row.text, localEmbedding));
     }
   }
   return assembleContextWithVectors({ results, config, vectors, ...options });

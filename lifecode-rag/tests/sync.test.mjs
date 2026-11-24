@@ -16,6 +16,7 @@ import { createProject } from '../lib/registry.mjs';
 import { closeRegistry, openRegistry } from '../lib/registry.mjs';
 import { listRoots } from '../lib/registry.mjs';
 import { openScopeStore } from '../lib/scope-stores.mjs';
+import { ingestFiles } from '../lib/ingest.mjs';
 import { activeSyncScopes, assertScopeSyncable, markSyncOutcome, readSyncRows, syncScope, syncStatus, verifyScopeStore, walkRoot, probeFile } from '../lib/sync.mjs';
 import { makeEightWorld, write } from './pa4-helpers.mjs';
 
@@ -548,17 +549,23 @@ test('un presupuesto agotado corta entre ficheros, conserva lo confirmado y no d
     }
     // Vectorización deliberadamente lenta para que el presupuesto venza a mitad del lote; el corte
     // ocurre en `authorize`, antes de preparar el fichero siguiente, nunca dentro de una transacción.
+    // Reloj monotónico **inyectado**: el presupuesto se agota por ficheros (25 unidades cada uno), no por
+    // la velocidad del disco. Con el reloj real, la observación podía consumir los 60 ms y la prueba
+    // fallaba por la máquina —medido: 8/8 en aislado y un fallo bajo la suite completa—.
+    let ticks = 0;
     const base = createEmbedder(world.config);
     const slow = {
       model: base.model,
       dim: base.dim,
       embed: async (texts) => {
-        await new Promise((resolve) => setTimeout(resolve, 25));
+        ticks += 25;
         return base.embed(texts);
       },
     };
     const loteRows = () => syncRows(world, scopeOf(world)).filter((row) => row.source_key.startsWith('presupuesto-'));
-    const first = await runSync(world, scopeOf(world), { embedder: slow, budgetMs: 60, now: () => Date.now() });
+    const first = await runSync(world, scopeOf(world), {
+      embedder: slow, budgetMs: 60, monotonic: () => ticks,
+    });
     assert.equal(first.budget_exhausted, true);
     assert.equal(first.complete, false);
     assert.equal(first.outcome, 'partial');
@@ -626,5 +633,33 @@ test('sin nada pendiente el presupuesto no se toca y la pasada es completa', asy
     assert.equal(first.complete, true);
     assert.equal(first.outcome, 'ok');
     assert.equal(first.stop_reason, 'complete');
+  });
+});
+
+test('un lote mixto no duplica lo ya indexado en otra colección', async () => {
+  await withWorld({ libraryCount: 0 }, async (world) => {
+    // Un fichero clasificado a mano en otra colección y otro nuevo: el lote llega mezclado.
+    const clasificado = write(world.dirA, 'clasificado.md', '# Clasificado\n\nkappaproyecto clasificado\n');
+    write(world.dirA, 'nuevo.md', '# Nuevo\n\nkappaproyecto nuevo\n');
+    const store = openScopeStore({ profileRoot: world.root, profileKey: 'pa4-test', scope: scopeOf(world), create: true });
+    try {
+      await ingestFiles({
+        db: store, files: [clasificado], collection: 'otra', now: NOW,
+        config: world.config, embedder: createEmbedder(world.config),
+      });
+    } finally {
+      store.close();
+    }
+
+    const summary = await runSync(world, scopeOf(world));
+    assert.equal(summary.failed, 0, 'la sincronización no falla por el lote mixto');
+
+    const rows = withStore(world, scopeOf(world), (db) => db.prepare('SELECT uri, collection FROM sources ORDER BY uri').all());
+    const clasificadas = rows.filter((row) => row.uri.endsWith('clasificado.md'));
+    assert.equal(clasificadas.length, 1, 'lo ya indexado no se duplica en default');
+    assert.equal(clasificadas[0].collection, 'otra', 'conserva su colección');
+    const nuevos = rows.filter((row) => row.uri.endsWith('nuevo.md'));
+    assert.equal(nuevos.length, 1);
+    assert.equal(nuevos[0].collection, 'default');
   });
 });

@@ -14,7 +14,7 @@
  * del proceso. La tabla es aditiva (registro v2) y no toca ninguna fila existente.
  */
 import { RagError } from './errors.mjs';
-import { appendRegistryAudit } from './registry.mjs';
+import { appendRegistryAudit, archiveProject } from './registry.mjs';
 import { withTransaction } from './db.mjs';
 
 export const SELECTION_KEY = 'profile';
@@ -146,5 +146,80 @@ export function applySelection(db, {
       },
     });
     return { changed: true, selection: readSelection(db) };
+  }, { immediate: true });
+}
+
+/* --------------------------------------------------------- reselección al archivar (ACP-07 F1)
+ *
+ * R-1: un proyecto activo no se archiva sin resolver la selección. Estas dos funciones lo garantizan
+ * en una sola transacción: primero se mueve (o se limpia) la selección y después se archiva. Si algo
+ * falla, el `ROLLBACK` deja las dos cosas como estaban.
+ */
+
+/**
+ * Mueve la selección al proyecto activo más antiguo distinto del archivado; si no queda ninguno,
+ * deja el perfil sin selección. **Asume que el llamador ya abrió una transacción.**
+ *
+ * @returns {{changed: boolean, selection: object|null, reason: string}}
+ */
+export function reselectAfterArchive(db, { archivedProjectId, now = Date.now(), principal = 'owner' } = {}) {
+  const current = readSelection(db);
+  if (!current || current.projectId !== archivedProjectId) {
+    return { changed: false, selection: current, reason: 'not-selected' };
+  }
+  const next = db.prepare(`SELECT id, name FROM projects
+      WHERE status = 'active' AND id <> ? ORDER BY created_at, id LIMIT 1`).get(archivedProjectId);
+  const nextRevision = current.revision + 1;
+  if (next) {
+    db.prepare(`UPDATE pa_selection
+        SET project_id = ?, revision = ?, selection_source = 'explicit', selected_by = 'host',
+            principal = ?, updated_at = ?
+      WHERE selection_key = ?`)
+      .run(next.id, nextRevision, principal, now, SELECTION_KEY);
+    appendRegistryAudit(db, {
+      at: now,
+      actor: 'host',
+      sessionId: null,
+      action: 'selection.reselect',
+      target: next.id,
+      outcome: 'ok',
+      detail: {
+        reason: 'project-archived',
+        revision: nextRevision,
+        previous: { projectId: current.projectId, revision: current.revision },
+      },
+    });
+    return { changed: true, selection: readSelection(db), reason: 'moved' };
+  }
+  // Ni un solo proyecto activo: el perfil se queda sin selección, y el cliente lo verá al releer.
+  db.prepare('DELETE FROM pa_selection WHERE selection_key = ?').run(SELECTION_KEY);
+  appendRegistryAudit(db, {
+    at: now,
+    actor: 'host',
+    sessionId: null,
+    action: 'selection.reselect',
+    target: current.projectId,
+    outcome: 'ok',
+    detail: { reason: 'project-archived', revision: nextRevision, previous: { projectId: current.projectId, revision: current.revision }, next: null },
+  });
+  return { changed: true, selection: null, reason: 'cleared' };
+}
+
+/**
+ * Archiva un proyecto resolviendo antes la selección, todo en una transacción `IMMEDIATE`.
+ * Es la única forma de archivar el proyecto seleccionado: `archiveProject` solo se niega.
+ */
+export function archiveProjectWithSelection(db, {
+  projectId, now = Date.now(), actor = 'human', principal = 'owner',
+} = {}) {
+  return withTransaction(db, () => {
+    const reselect = reselectAfterArchive(db, { archivedProjectId: projectId, now, principal });
+    const archived = archiveProject(db, { id: projectId, now, actor });
+    return {
+      changed: archived.changed,
+      project: archived.project,
+      selection: reselect.selection,
+      selectionChange: reselect.reason,
+    };
   }, { immediate: true });
 }

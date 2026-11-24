@@ -10,6 +10,8 @@ import { apply, inject, name } from '../index.js';
 import { API_PREFIX } from '../lib/server.mjs';
 import { PA_PREFIX } from '../lib/pa-api.mjs';
 import { closeDatabase, openDatabase } from '../lib/db.mjs';
+import { profileRoot } from '../lib/profile.mjs';
+import { closeRegistry, openRegistry } from '../lib/registry.mjs';
 import { tempRoot } from './helpers.mjs';
 
 test('registra herramientas, API y automatización con un ctx mínimo', () => {
@@ -56,6 +58,86 @@ test('registra herramientas, API y automatización con un ctx mínimo', () => {
     assert.equal(cleanups.length, 4, 'PA + API + sincronización + automatización');
     for (const dispose of cleanups) dispose();
     for (const route of routes) assert.equal(route.disposed, true);
+  } finally {
+    if (previous === undefined) delete process.env.LIFECODE_RAG_ROOT;
+    else process.env.LIFECODE_RAG_ROOT = previous;
+    box.cleanup();
+  }
+});
+
+/**
+ * UX-2.1 · el adaptador ENTREGA las fuentes del Host a la API.
+ *
+ * Es el eslabón que ninguna prueba del motor detecta: si `index.js` construye `createPaHandler` sin
+ * `services`, el registro de workspaces existe y la ruta responde `source:'none'` para siempre. Esta
+ * prueba monta `apply(ctx)` con los servicios del Host y llama a la ruta REAL registrada, así que
+ * falla si alguien vuelve a construir el handler sin pasarlos.
+ */
+test('UX-2.1: la ruta /pa/workspaces recibe el registro de workspaces y las sesiones del host', async () => {
+  const box = tempRoot('rag-adapter-ws');
+  const previous = process.env.LIFECODE_RAG_ROOT;
+  process.env.LIFECODE_RAG_ROOT = box.root;
+  const profile = profileRoot(process.env);
+  const opened = openRegistry({ root: profile, create: true });
+  closeRegistry(opened.db);
+  try {
+    const routes = [];
+    const cleanups = [];
+    const inventory = [{
+      id: 'ws_1',
+      path: box.root,
+      title: 'caja del adaptador',
+      sessionIds: ['s1', 's2'],
+      status: async () => 'ok',
+    }];
+    const provided = {
+      webServer: { register: (route) => { routes.push(route); return () => { route.disposed = true; }; } },
+      connection: {
+        requestRejection: async () => null,
+        admit: async () => ({ peer: { id: 'peer', principal: { kind: 'owner' } } }),
+      },
+      workspaceRegistry: {
+        list: () => inventory,
+        // Las escrituras existen en el contrato del Host: aquí fallan si alguien las usa.
+        create: async () => { throw new Error('create prohibido'); },
+        delete: async () => { throw new Error('delete prohibido'); },
+        setTitle: async () => { throw new Error('setTitle prohibido'); },
+        pinSession: async () => { throw new Error('pinSession prohibido'); },
+      },
+      sessions: { list: () => [{ id: 's1' }] },
+    };
+    const ctx = {
+      get: (service) => provided[service],
+      tools: { register: () => {} },
+      effect: (factory) => { const dispose = factory(); cleanups.push(dispose); },
+      on: () => {},
+      logger: { warn: () => {}, debug: () => {} },
+    };
+
+    apply(ctx);
+    const route = routes.find((entry) => entry.path === PA_PREFIX);
+    assert.ok(route, 'la API PA debe estar montada');
+
+    const res = {
+      statusCode: 0, headers: {}, body: '',
+      setHeader(key, value) { this.headers[key] = value; },
+      end(body) { this.body = body; },
+    };
+    await route.handler({
+      url: PA_PREFIX + '/workspaces',
+      method: 'GET',
+      headers: {},
+      async *[Symbol.asyncIterator]() {},
+    }, res);
+
+    assert.equal(res.statusCode, 200);
+    const payload = JSON.parse(res.body).data;
+    assert.equal(payload.source, 'host', 'sin `services` en createPaHandler esto sería source:"none"');
+    assert.equal(payload.items.length, 1);
+    assert.equal(payload.items[0].title, 'caja del adaptador');
+    assert.deepEqual(payload.items[0].sessions, { known: 2, live: 1, historical: 1 },
+      'las sesiones vivas del host tienen que llegar al conteo');
+    for (const dispose of cleanups) if (typeof dispose === 'function') dispose();
   } finally {
     if (previous === undefined) delete process.env.LIFECODE_RAG_ROOT;
     else process.env.LIFECODE_RAG_ROOT = previous;

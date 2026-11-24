@@ -13,11 +13,12 @@
 
 import { RagError } from './errors.mjs';
 import { appendRegistryAudit, getProject, pathKeyFor } from './registry.mjs';
-import { findProjectBoundary, registerDiscoveredProject } from './discovery.mjs';
+import { findProjectBoundary } from './discovery.mjs';
 import { normalizeWorkspace, openProjectForCwd, openProjectForSession } from './harness-workspaces.mjs';
 import { assertSessionId } from './session-identity.mjs';
 import { effectiveScopes, getSession } from './sessions.mjs';
 import { trustedRootFor } from './trusted-roots.mjs';
+import { readTracking, reconcileTracking } from './tracking-store.mjs';
 
 function deny(db, { sessionId, identity, code, message, details, now }) {
   try {
@@ -65,18 +66,16 @@ function mostSpecific(matches) {
 }
 
 /**
- * Auto-descubrimiento en el camino de resolución.
+ * Averigua a qué proyecto apunta el `cwd` **sin escribir nada** (ACP-07 F2, decisión D-02).
  *
- * Si la persona tiene un proyecto abierto en Harness, ese proyecto es el candidato natural
- * aunque el `cwd` de la sesión apunte a su carpeta contenedora (p. ej. `htdocs`): abrir
- * `plugins-dhs` no autoriza a sus hermanos. Si no hay workspace abierto, se mantiene el
- * descubrimiento por `cwd` dentro de un workspace confiable.
+ * Antes esta función registraba el proyecto (`registerDiscoveredProject`). Eso hacía que un simple
+ * uso del agente creara filas en el registro y difuminaba la diferencia entre candidato y proyecto
+ * registrado. Ahora sólo informa: si el proyecto no está registrado, el llamador devuelve
+ * `scope-unresolved` con la acción y el comando para registrarlo.
  *
- * En ambos casos la lectura exige un `trusted root` explícito que cubra el proyecto. Un
- * proyecto abierto sin autorización devuelve una denegación con el comando exacto que la
- * persona debe ejecutar; nunca se concede autorización por el hecho de estar abierto.
+ * @returns {{boundary: null} | {denied: object} | {boundary: object, projectId: string|null}}
  */
-function autoDiscoverCwd(db, { cwd, sessionId, openProjects, now }) {
+function probeCwdProject(db, { cwd, sessionId, openProjects }) {
   const cwdKey = typeof cwd === 'string' && cwd.trim() !== '' ? pathKeyFor(cwd) : null;
   const open = openProjectForCwd(openProjects, cwdKey)
     ?? openProjectForSession(openProjects, sessionId);
@@ -86,20 +85,19 @@ function autoDiscoverCwd(db, { cwd, sessionId, openProjects, now }) {
     boundary = { path: open.path, name: open.title, type: 'harness-workspace', indicators: [] };
   } else {
     const trust = trustedRootFor(db, cwdKey);
-    if (!trust || trust.readAuthorization !== true) return { registered: false };
+    if (!trust || trust.readAuthorization !== true) return { boundary: null };
     try {
       boundary = findProjectBoundary(cwd, { withinPath: trust.path });
     } catch {
-      return { registered: false };
+      return { boundary: null };
     }
-    if (!boundary) return { registered: false };
+    if (!boundary) return { boundary: null };
   }
 
   const boundaryKey = pathKeyFor(boundary.path);
   const authorization = trustedRootFor(db, boundaryKey);
   if (!authorization || authorization.readAuthorization !== true) {
     return {
-      registered: false,
       denied: {
         code: 'scope-unresolved',
         message: 'el proyecto abierto en Harness no está autorizado para lectura',
@@ -114,20 +112,11 @@ function autoDiscoverCwd(db, { cwd, sessionId, openProjects, now }) {
     };
   }
 
-  try {
-    const result = registerDiscoveredProject(db, {
-      path: boundary.path,
-      name: boundary.name,
-      type: boundary.type,
-      indicators: boundary.indicators,
-      source: open ? 'harness' : 'auto',
-      authorization: 'read',
-      now,
-    });
-    return { registered: result.registeredRoot !== false, projectId: result.projectId };
-  } catch {
-    return { registered: false };
-  }
+  // Si el proyecto ya está registrado (su raíz existe), se resuelve como siempre: aquí no hay nada
+  // que crear ni que autorizar de nuevo.
+  const registered = db.prepare(`SELECT scope_id FROM roots
+      WHERE scope_kind = 'prj' AND path_key = ? LIMIT 1`).get(boundaryKey);
+  return { boundary, projectId: registered?.scope_id ?? null };
 }
 
 function scopesOf(db, identity, expectedProfileKey) {
@@ -150,6 +139,7 @@ export function resolveScope(db, {
   const open = (Array.isArray(openProjects) ? openProjects : [])
     .map((entry) => normalizeWorkspace(entry))
     .filter(Boolean);
+
 
   if (identity.profileKey !== expectedProfileKey) {
     deny(db, {
@@ -201,8 +191,102 @@ export function resolveScope(db, {
       }
     }
     const effective = scopesOf(db, identity, expectedProfileKey);
-    succeed(db, { sessionId, projectId: effective.project.id, source: 'explicit', effective, now });
+    const note = trackingNoteForSession(db, {
+      sessionId, open, explicitProjectId: session.project_id,
+    });
+    succeed(db, {
+      sessionId, projectId: effective.project.id, source: 'explicit', effective, now,
+      tracking: note.tracking, discrepancy: note.discrepancy,
+    });
     return resultOf(sessionId, 'explicit', effective);
+  }
+
+  // La disponibilidad se mide aquí, ya validados perfil y sesión (F2): una petición con identidad
+  // ajena no escribe nada. Y sólo se anota lo que se midió: la lista del Host contiene únicamente
+  // workspaces en estado ok, así que la ausencia en ella NO prueba ausencia en disco (D-IMPL-09).
+  reconcileTrackedAvailability(db, open, now);
+
+  // Escalón 2 (`D-UX22-12`): workspace seguido de ESTA sesión. Aporta sólo el proyecto; raíces,
+  // grants y actividad se evalúan como siempre. Una selección explícita nunca llega hasta aquí.
+  const seguidos = trackedForSession(db, { sessionId, open });
+  if (seguidos.length > 0) {
+    // `D-UX22-02`: un solo workspace por sesión. Si el Host asocia la sesión a varios, no se elige.
+    if (seguidos.length > 1) {
+      const proyectos = new Set(seguidos.map((row) => row.projectId));
+      if (proyectos.size > 1) {
+        deny(db, {
+          sessionId, identity, code: 'scope-conflict',
+          message: 'la sesión está asociada a más de un workspace seguido con proyectos distintos',
+          details: {
+            session_id: sessionId,
+            workspaces: seguidos.map((row) => ({
+              workspace_path: row.path ?? null, workspace_project_id: row.projectId,
+            })),
+          }, now,
+        });
+      }
+    }
+    const tracked = seguidos[0];
+    if (tracked.state !== 'on' || tracked.lastStatus !== 'ok' || !tracked.projectId) {
+      deny(db, {
+        sessionId, identity, code: 'scope-unresolved',
+        message: 'el workspace de esta sesión está seguido pero no resuelve contexto',
+        details: {
+          session_id: sessionId,
+          cwd: cwd ?? null,
+          reason: 'tracking-not-resolving',
+          workspace_path: tracked.path ?? null,
+          tracking: {
+            state: tracked.state,
+            last_status: tracked.lastStatus,
+            association: tracked.association,
+            project_id: tracked.projectId ?? null,
+          },
+        }, now,
+      });
+    }
+    if (cwdKey) {
+      const candidates = mostSpecific(matchingProjects(db, cwdKey));
+      const projects = new Set(candidates.map((row) => row.project_id));
+      // F14: el mismo cwd ambiguo del escalón 3 no puede resolverse aquí en silencio.
+      if (projects.size > 1) {
+        deny(db, {
+          sessionId, identity, code: 'scope-ambiguous',
+          message: 'el directorio de trabajo coincide con más de un proyecto',
+          details: {
+            session_id: sessionId,
+            candidates: candidates.map((row) => ({ project_id: row.project_id, path: row.path })),
+          }, now,
+        });
+      }
+      if (projects.size === 1 && !projects.has(tracked.projectId)) {
+        const [other] = candidates;
+        deny(db, {
+          sessionId, identity, code: 'scope-conflict',
+          message: 'el workspace seguido y el directorio de trabajo apuntan a proyectos distintos',
+          details: {
+            session_id: sessionId,
+            workspace_path: tracked.path ?? null,
+            workspace_project_id: tracked.projectId,
+            cwd: cwd ?? null,
+            cwd_project_id: other.project_id,
+          }, now,
+        });
+      }
+    }
+    const trackedProject = getProject(db, tracked.projectId);
+    if (!trackedProject || trackedProject.status !== 'active') {
+      deny(db, {
+        sessionId, identity, code: 'scope-forbidden',
+        message: 'el proyecto del workspace seguido no está activo',
+        details: {
+          session_id: sessionId, project_id: tracked.projectId, reason: 'project-archived',
+        }, now,
+      });
+    }
+    const effective = effectiveScopesForProject(db, tracked.projectId);
+    succeed(db, { sessionId, projectId: effective.project.id, source: 'tracking', effective, now });
+    return resultOf(sessionId, 'tracking', effective);
   }
 
   if (!cwdKey) {
@@ -214,18 +298,37 @@ export function resolveScope(db, {
   }
   let matches = matchingProjects(db, cwdKey);
   if (matches.length === 0) {
-    const attempt = autoDiscoverCwd(db, { cwd, sessionId, openProjects: open, now });
-    if (attempt.denied) {
-      deny(db, { sessionId, identity, ...attempt.denied, now });
+    const probe = probeCwdProject(db, { cwd, sessionId, openProjects: open });
+    if (probe.denied) {
+      deny(db, { sessionId, identity, ...probe.denied, now });
     }
-    if (attempt.registered && attempt.projectId) {
-      // El proyecto abierto puede ser hijo del `cwd` (la carpeta contenedora): no es una
-      // coincidencia por prefijo, así que se resuelve directamente por su id.
-      const effective = effectiveScopesForProject(db, attempt.projectId);
-      succeed(db, { sessionId, projectId: attempt.projectId, source: 'cwd', effective, now });
+    // Proyecto identificado y ya registrado: el `cwd` puede ser su carpeta contenedora, así que se
+    // resuelve por id (no es una coincidencia por prefijo).
+    if (probe.projectId) {
+      const effective = effectiveScopesForProject(db, probe.projectId);
+      succeed(db, { sessionId, projectId: probe.projectId, source: 'cwd', effective, now });
       return resultOf(sessionId, 'cwd', effective);
     }
-    if (attempt.registered) matches = matchingProjects(db, cwdKey);
+    // Proyecto identificado pero NO registrado: no se registra solo (D-02). Se devuelve el acto
+    // explícito que la persona debe realizar, con su comando.
+    if (probe.boundary) {
+      deny(db, {
+        sessionId, identity, code: 'scope-unresolved',
+        message: 'el proyecto no está registrado en este perfil',
+        details: {
+          session_id: sessionId,
+          cwd: cwd ?? null,
+          reason: 'project-not-registered',
+          action: 'register-project',
+          command: `node bin/lifecode-rag.mjs discover register --path "${probe.boundary.path}"`,
+          project: {
+            path: probe.boundary.path,
+            title: probe.boundary.name,
+            type: probe.boundary.type,
+          },
+        }, now,
+      });
+    }
   }
   matches = mostSpecific(matches);
   const projects = new Set(matches.map((row) => row.project_id));
@@ -256,6 +359,71 @@ export function resolveScope(db, {
   return resultOf(sessionId, 'cwd', effective);
 }
 
+/**
+ * Reconciliación del eje B (`D-UX22-08`, `D-IMPL-03`) en el punto que ya escribe auditoría.
+ *
+ * `GET /pa/workspaces` sigue siendo de sólo lectura: esto corre al **resolver**, con la lista real que
+ * entrega el Host. No crea filas (`D-IMPL-02`), no toca el eje A y no lanza: la disponibilidad es un
+ * dato informativo y su fallo no puede tumbar la resolución.
+ */
+function reconcileTrackedAvailability(db, open, now) {
+  if (open.length === 0) return; // sin lista del Host no hay medición que valga
+  let rows;
+  try {
+    rows = db.prepare('SELECT path_key, path, last_status FROM workspace_tracking').all();
+  } catch {
+    return; // registro todavía en v2: no hay seguimiento que reconciliar
+  }
+  if (rows.length === 0) return;
+  const present = new Map();
+  for (const project of open) {
+    if (typeof project.path !== 'string' || project.path === '') continue;
+    present.set(pathKeyFor(project.path), project.path);
+  }
+  if (present.size === 0) return;
+  // D-IMPL-09: sólo se anota la presencia medida. La lista del Host omite los workspaces cuyo
+  // `status()` falló o no es ok, así que su ausencia no prueba ausencia en disco: escribir `missing`
+  // aquí convertiría un timeout transitorio en «desaparecido» (F4). `missing` exige una medición
+  // propia (proyección de UX-2.1 o barrido explícito).
+  const changed = rows.some((row) => present.has(row.path_key) && row.last_status !== 'ok');
+  if (!changed) return; // sin novedad no se escribe ni se audita
+  try {
+    // D-IMPL-07: sin `path` en la reconciliación — la ruta literal se congela con la fila (F7).
+    reconcileTracking(db, {
+      present: [...present].map(([pathKey]) => ({ pathKey })),
+      absent: [],
+      unknown: [],
+      measuredAt: now,
+    });
+  } catch {
+    // ver arriba: informativo
+  }
+}
+
+/**
+ * Filas de seguimiento de los workspaces que el Host asocia a ESTA sesión (`D-UX22-02`).
+ *
+ * Devuelve una lista para que el llamador pueda detectar el caso en que la sesión aparezca en más de
+ * un workspace (no se elige el primero en silencio). `state='off'` **no** es un workspace seguido:
+ * significa «no seguido», así que no participa en la resolución y se deja caer al escalón siguiente (F1).
+ */
+function trackedForSession(db, { sessionId, open }) {
+  if (open.length === 0) return [];
+  const rows = [];
+  for (const workspace of open) {
+    if (!Array.isArray(workspace.sessionIds) || !workspace.sessionIds.includes(sessionId)) continue;
+    if (typeof workspace.path !== 'string' || workspace.path === '') continue;
+    let row = null;
+    try {
+      row = readTracking(db, { pathKey: pathKeyFor(workspace.path) });
+    } catch {
+      row = null;
+    }
+    if (row && row.state !== 'off') rows.push(row);
+  }
+  return rows;
+}
+
 function effectiveScopesForProject(db, projectId) {
   const project = getProject(db, projectId);
   if (!project || project.status !== 'active') {
@@ -284,7 +452,12 @@ function effectiveScopesForProject(db, projectId) {
   return { project, scopes, scopeCount: scopes.length, session: null };
 }
 
-function succeed(db, { sessionId, projectId, source, effective, now }) {
+function succeed(db, { sessionId, projectId, source, effective, now, tracking = null, discrepancy = false }) {
+  // `D-UX22-12`: la selección explícita prevalece, pero la discrepancia con el workspace seguido debe
+  // poder auditarse. Se anota sólo cuando se midió; si no hay fila, el detalle queda como siempre (F5).
+  const detail = { project_id: projectId, source, scopes: effective.scopeCount };
+  if (tracking) detail.tracking = tracking;
+  if (discrepancy) detail.discrepancy = true;
   appendRegistryAudit(db, {
     at: now,
     actor: 'host',
@@ -292,8 +465,22 @@ function succeed(db, { sessionId, projectId, source, effective, now }) {
     action: 'scope.resolve',
     target: projectId,
     outcome: 'ok',
-    detail: JSON.stringify({ project_id: projectId, source, scopes: effective.scopeCount }),
+    detail: JSON.stringify(detail),
   });
+}
+
+/**
+ * Lectura de sólo lectura del seguimiento para la rama de selección explícita: no decide nada, sólo
+ * deja constancia de que el workspace seguido apunta a otro proyecto (F5).
+ */
+function trackingNoteForSession(db, { sessionId, open, explicitProjectId }) {
+  const rows = trackedForSession(db, { sessionId, open });
+  if (rows.length === 0) return { tracking: null, discrepancy: false };
+  const [row] = rows;
+  return {
+    tracking: { project_id: row.projectId ?? null, state: row.state },
+    discrepancy: Boolean(row.projectId) && row.projectId !== explicitProjectId,
+  };
 }
 
 function resultOf(sessionId, source, effective) {

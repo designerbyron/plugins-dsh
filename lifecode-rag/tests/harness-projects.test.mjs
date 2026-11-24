@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { closeRegistry, listRoots, openRegistry } from '../lib/registry.mjs';
-import { projectIdFor } from '../lib/discovery.mjs';
+import { projectIdFor, registerDiscoveredProject } from '../lib/discovery.mjs';
 import { listOpenProjects, openProjectForCwd, openProjectForSession } from '../lib/harness-workspaces.mjs';
 import { resolveScope } from '../lib/resolve.mjs';
 import { addTrustedRoot } from '../lib/trusted-roots.mjs';
@@ -38,6 +38,14 @@ function withRegistry(profile, work) {
   } finally {
     closeRegistry(opened.db);
   }
+}
+
+/**
+ * Registro explícito (ACP-07 D-02): resolver ya no crea proyectos. Las pruebas que examinan la
+ * resolución registran antes el proyecto que finge estar abierto en Harness.
+ */
+function registerProject(db, path, name, now = 1) {
+  return registerDiscoveredProject(db, { path, name, type: 'git', source: 'test', now }).projectId;
 }
 
 function project(dir, indicator = '.git') {
@@ -62,7 +70,10 @@ test('el proyecto abierto en Harness se resuelve aunque el cwd sea la carpeta co
     const htdocs = join(profile.base, 'htdocs');
     const abierto = project(join(htdocs, 'plugins-dhs'));
     const hermano = project(join(htdocs, 'businesssuite'));
-    withRegistry(profile, (db) => addTrustedRoot(db, { path: abierto, readAuthorization: true, now: 1 }));
+    withRegistry(profile, (db) => {
+      addTrustedRoot(db, { path: abierto, readAuthorization: true, now: 1 });
+      registerProject(db, abierto, 'plugins-dhs');
+    });
 
     const openProjects = [{
       id: 'ws_1', path: abierto, pathKey: abierto.toLowerCase(), title: 'plugins-dhs', sessionIds: ['ses-h'],
@@ -118,6 +129,8 @@ test('dos sesiones abren proyectos distintos y cada una resuelve el suyo', () =>
     withRegistry(profile, (db) => {
       addTrustedRoot(db, { path: uno, readAuthorization: true, now: 1 });
       addTrustedRoot(db, { path: dos, readAuthorization: true, now: 1 });
+      registerProject(db, uno, 'uno');
+      registerProject(db, dos, 'dos');
     });
     const openProjects = [
       { id: 'ws_1', path: uno, pathKey: uno.toLowerCase(), title: 'uno', sessionIds: ['ses-1'] },
@@ -146,6 +159,7 @@ test('el cwd de un proyecto abierto gana al contenedor aunque ambos estén confi
     withRegistry(profile, (db) => {
       addTrustedRoot(db, { path: htdocs, readAuthorization: true, now: 1 });
       addTrustedRoot(db, { path: abierto, readAuthorization: true, now: 1 });
+      registerProject(db, abierto, 'plugins-dhs');
     });
     const resolved = withRegistry(profile, (db) => resolveScope(db, {
       identity: { sessionId: 'ses-h', profileKey: 'default' },
@@ -188,7 +202,10 @@ test('un proyecto abierto no crea almacén de ámbito al resolver', () => {
   const profile = tempProfile();
   try {
     const abierto = project(join(profile.base, 'htdocs', 'plugins-dhs'));
-    withRegistry(profile, (db) => addTrustedRoot(db, { path: abierto, readAuthorization: true, now: 1 }));
+    withRegistry(profile, (db) => {
+      addTrustedRoot(db, { path: abierto, readAuthorization: true, now: 1 });
+      registerProject(db, abierto, 'plugins-dhs');
+    });
     withRegistry(profile, (db) => resolveScope(db, {
       identity: { sessionId: 'ses-h', profileKey: 'default' },
       expectedProfileKey: 'default', cwd: join(profile.base, 'htdocs'),
@@ -202,6 +219,37 @@ test('un proyecto abierto no crea almacén de ámbito al resolver', () => {
     assert.equal(stores, 1);
     // La creación del almacén es responsabilidad de la herramienta que escribe, nunca de resolver.
     assert.equal(withRegistry(profile, (db) => db.prepare('SELECT COUNT(*) AS n FROM projects').get().n), 1);
+  } finally {
+    rmSync(profile.base, { recursive: true, force: true });
+  }
+});
+
+test('un proyecto abierto sin registrar pide el registro explícito y no escribe nada (ACP-07 D-02)', () => {
+  const profile = tempProfile();
+  try {
+    const abierto = project(join(profile.base, 'htdocs', 'plugins-dhs'));
+    withRegistry(profile, (db) => addTrustedRoot(db, { path: abierto, readAuthorization: true, now: 1 }));
+    assert.throws(() => withRegistry(profile, (db) => resolveScope(db, {
+      identity: { sessionId: 'ses-h', profileKey: 'default' },
+      expectedProfileKey: 'default',
+      cwd: join(profile.base, 'htdocs'),
+      openProjects: [{
+        id: 'ws_1', path: abierto, pathKey: abierto.toLowerCase(), title: 'plugins-dhs', sessionIds: ['ses-h'],
+      }],
+      now: 2,
+    })), (error) => {
+      assert.equal(error.code, 'scope-unresolved');
+      assert.equal(error.details.reason, 'project-not-registered');
+      assert.equal(error.details.action, 'register-project');
+      assert.match(error.details.command, /discover register --path/);
+      assert.equal(error.details.project.path, abierto);
+      return true;
+    });
+    const counts = withRegistry(profile, (db) => ({
+      projects: db.prepare('SELECT COUNT(*) AS n FROM projects').get().n,
+      roots: db.prepare('SELECT COUNT(*) AS n FROM roots').get().n,
+    }));
+    assert.deepEqual({ ...counts }, { projects: 0, roots: 0 }, 'resolver no escribe en el registro');
   } finally {
     rmSync(profile.base, { recursive: true, force: true });
   }

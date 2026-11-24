@@ -141,6 +141,27 @@ function checkInteger(value, key, min, max) {
   return value;
 }
 
+/**
+ * Ruta de una fuente **relativa a la primera raíz que la contiene**, para no exponer la ruta absoluta
+ * del equipo cuando no hace falta. Devuelve `null` si no cuelga de ninguna raíz conocida (nunca inventa
+ * una forma corta que pudiera confundirse con otra fuente).
+ */
+export function relativeToRoots(uri, roots = []) {
+  if (typeof uri !== 'string' || uri === '') return null;
+  const normalize = (value) => String(value).split('\\').join('/').toLowerCase();
+  const target = normalize(uri);
+  for (const entry of roots ?? []) {
+    const base = typeof entry === 'string' ? entry : entry?.path;
+    if (typeof base !== 'string' || base === '') continue;
+    const baseKey = normalize(base).replace(/\/+$/, '');
+    if (target === baseKey) return '.';
+    // Se corta por la longitud de la clave **normalizada**: si la raíz llegaba con barra final, cortar por
+    // `base.length` se comería un carácter del nombre.
+    if (target.startsWith(`${baseKey}/`)) return uri.split('\\').join('/').slice(baseKey.length + 1);
+  }
+  return null;
+}
+
 /** Valida una configuración ya parseada. Rechaza claves desconocidas: una errata no puede pasar muda. */
 export function validateConfig(raw) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {

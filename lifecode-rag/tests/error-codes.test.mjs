@@ -55,7 +55,7 @@ const DYNAMIC_SITES = Object.freeze([
   {
     file: 'lib/resolve.mjs',
     reason: 'deny({code}) de la resolución de ámbito',
-    codes: ['scope-unresolved', 'scope-forbidden', 'scope-ambiguous', 'session-invalid', 'session-expired'],
+    codes: ['scope-unresolved', 'scope-forbidden', 'scope-ambiguous', 'scope-conflict', 'session-invalid', 'session-expired'],
     source: 'lib/resolve.mjs',
   },
   {

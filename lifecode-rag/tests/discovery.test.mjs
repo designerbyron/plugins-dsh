@@ -156,20 +156,44 @@ test('descubrir y registrar no crea el almacén del proyecto', () => {
   }
 });
 
-test('resuelve por cwd registrando el proyecto del workspace confiable', () => {
+test('resuelve por cwd sin registrar y pide el registro explícito (ACP-07 D-02)', () => {
   const profile = tempProfile();
   try {
     const workspace = touch(join(profile.base, 'htdocs', 'repositorio'), '.git');
     withRegistry(profile, (db) => {
       addTrustedRoot(db, { path: join(profile.base, 'htdocs'), readAuthorization: true, now: 1 });
     });
-    const resolved = withRegistry(profile, (db) => resolveScope(db, {
+    // Sin registro previo: no se inventa un proyecto, se pide el acto explícito.
+    assert.throws(() => withRegistry(profile, (db) => resolveScope(db, {
       identity: { sessionId: 'sesion-nueva', profileKey: 'default' },
       expectedProfileKey: 'default',
       cwd: join(workspace, 'src'),
       now: 2,
+    })), (error) => {
+      assert.equal(error.code, 'scope-unresolved');
+      assert.equal(error.details.reason, 'project-not-registered');
+      assert.equal(error.details.action, 'register-project');
+      assert.match(error.details.command, /discover register --path/);
+      assert.equal(error.details.project.path, workspace);
+      return true;
+    });
+    // La resolución no escribió nada: ni proyecto, ni raíz.
+    withRegistry(profile, (db) => {
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM projects').get().n, 0);
+      assert.equal(listRoots(db).length, 0);
+    });
+    // Registrado explícitamente, resuelve por cwd como siempre.
+    const projectId = withRegistry(profile, (db) => registerDiscoveredProject(db, {
+      path: workspace, name: 'repositorio', type: 'git', source: 'test', now: 3,
+    }).projectId);
+    const resolved = withRegistry(profile, (db) => resolveScope(db, {
+      identity: { sessionId: 'sesion-nueva', profileKey: 'default' },
+      expectedProfileKey: 'default',
+      cwd: join(workspace, 'src'),
+      now: 4,
     }));
     assert.equal(resolved.source, 'cwd');
+    assert.equal(resolved.projectId, projectId);
     assert.equal(resolved.scopes[0].roots[0], workspace);
   } finally {
     rmSync(profile.base, { recursive: true, force: true });
@@ -183,6 +207,8 @@ test('con raíces anidadas gana la más específica', () => {
     const inner = json(join(outer, 'paquete-interno'), 'package.json', { name: 'interno' });
     withRegistry(profile, (db) => {
       addTrustedRoot(db, { path: profile.base, readAuthorization: true, now: 1 });
+      registerDiscoveredProject(db, { path: outer, name: 'monorepo', type: 'git', source: 'test', now: 1 });
+      registerDiscoveredProject(db, { path: inner, name: 'paquete-interno', type: 'node', source: 'test', now: 1 });
     });
     const fromInner = withRegistry(profile, (db) => resolveScope(db, {
       identity: { sessionId: 'sesion-1', profileKey: 'default' },
@@ -303,7 +329,12 @@ test('sesiones distintas resuelven proyectos distintos y no comparten ámbitos',
   try {
     const a = touch(join(profile.base, 'a'), '.git');
     const b = json(join(profile.base, 'b'), 'package.json', { name: 'b' });
-    withRegistry(profile, (db) => addTrustedRoot(db, { path: profile.base, readAuthorization: true, now: 1 }));
+    withRegistry(profile, (db) => {
+      addTrustedRoot(db, { path: profile.base, readAuthorization: true, now: 1 });
+      // Cada proyecto se registra explícitamente: la resolución ya no los crea (D-02).
+      registerDiscoveredProject(db, { path: a, name: 'a', type: 'git', source: 'test', now: 1 });
+      registerDiscoveredProject(db, { path: b, name: 'b', type: 'node', source: 'test', now: 1 });
+    });
     const one = withRegistry(profile, (db) => resolveScope(db, {
       identity: { sessionId: 's-a', profileKey: 'default' },
       expectedProfileKey: 'default', cwd: a, now: 2,

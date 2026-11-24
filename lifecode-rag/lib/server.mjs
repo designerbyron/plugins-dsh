@@ -17,6 +17,8 @@ import { createEmbedder } from './embedders.mjs';
 import { RagError, httpStatusFor } from './errors.mjs';
 import { expandInputs } from './inputs.mjs';
 import { ingestFiles } from './ingest.mjs';
+import { readFileSync } from 'node:fs';
+
 import { forgetSource, reindex } from './maintenance.mjs';
 import { purgeMetrics, retentionCutoff, series as metricSeries, summary as metricsSummary } from './metrics.mjs';
 import { loadConfig, ragRoot, storePaths, writeConfig } from './paths.mjs';
@@ -24,7 +26,10 @@ import { activityFeed, buildSnapshot, listSourceRows } from './readmodel.mjs';
 import { getSource, listSources, search } from './search.mjs';
 
 export const API_PREFIX = '/lifecode-rag/api';
-const VERSION = '1.0.0';
+// La versión se lee del manifiesto del paquete: una copia literal se desincroniza en cuanto se sube
+// la versión (lo detectó `tests/server.test.mjs` al preparar la 1.1.0). El `package.json` viaja en
+// el tarball, así que la ruta existe también instalado.
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const BODY_LIMIT = 1_000_000;
 
 // El status de cada código vive en `lib/errors.mjs` (`httpStatusFor`). Esta API mantiene las

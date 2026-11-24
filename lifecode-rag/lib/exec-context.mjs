@@ -147,9 +147,11 @@ export async function withAuthorizedContext({ services, exec }, work) {
       const current = currentAuthorization(registry.db, {
         sessionId: identity.sessionId,
         projectId: resolved.projectId,
-        // Resolver por cwd no escribe una selección: en ese caso la autorización se lee del proyecto
-        // y sus grants, no de una fila de sesión que legítimamente no existe.
-        sessionOptional: resolved.source === 'cwd',
+        // Resolver por cwd o por seguimiento (UX-2.2) no escribe una selección de sesión: en esos casos
+        // la autorización se lee del proyecto y sus grants, no de una fila de sesión que legítimamente
+        // no existe. Sin esto, un workspace seguido resolvía pero las siete herramientas se negaban
+        // con scope-forbidden/session-missing, que es justo lo que la fase venía a habilitar.
+        sessionOptional: resolved.source === 'cwd' || resolved.source === 'tracking',
       });
       if (!current.ok) {
         appendRegistryAudit(registry.db, {

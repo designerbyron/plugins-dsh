@@ -19,6 +19,7 @@ import { legacyRagRoot, profileRoot } from './lib/profile.mjs';
 import { ragRoot, storePaths } from './lib/paths.mjs';
 import { resolveConfig, resolveDataRoot, resolveProfileKey } from './lib/config-resolve.mjs';
 import { createToolDefinitions } from './lib/tools.mjs';
+import { ensureRegistry } from './lib/registry.mjs';
 import { API_PREFIX, createApiHandler } from './lib/server.mjs';
 import { PA_PREFIX, createPaHandler } from './lib/pa-api.mjs';
 import { createAutomation } from './lib/automation.mjs';
@@ -118,8 +119,38 @@ export function apply(ctx) {
         ? { list: () => registry.list() }
         : null;
     },
+    // UX-2.1 · sesiones VIVAS del host (`ctx.sessions` → `SessionStore.list()`), reducidas a sus
+    // identificadores: la API sólo necesita contar cuántas de las sesiones de un workspace siguen
+    // abiertas. Opcional: sin el servicio, la lista se sirve igual y el desglose llega como
+    // `null` («no se pudo mirar»), nunca como cero. Se resuelve por petición, no al arrancar.
+    get sessions() {
+      const store = ctx.get('sessions');
+      if (!store || typeof store.list !== 'function') return null;
+      return {
+        list: () => {
+          const live = store.list();
+          if (!Array.isArray(live)) return live;
+          return live
+            .map((session) => (session && typeof session.id === 'string' ? session.id : null))
+            .filter((id) => typeof id === 'string' && id !== '');
+        },
+      };
+    },
     env: process.env,
   };
+
+  // El registro Project-Aware es el contenedor de todo lo demás. Sin él, un perfil recién instalado
+  // dejaba las siete herramientas y las cinco vistas del panel en `registry-unavailable` (HTTP 503)
+  // porque todos los caminos abren con `create: false`. Se garantiza aquí, una sola vez al cargar el
+  // plugin y antes de dar de alta herramientas y rutas (`D-IMPL-12`); es idempotente, así que un
+  // perfil ya migrado no escribe nada. Si falla de verdad (permisos, corrupción, versión más nueva)
+  // el plugin carga igual y el error se sigue viendo en la API; se registra el motivo real.
+  try {
+    ensureRegistry({ root: profile });
+  } catch (error) {
+    logger.warn?.(`lifecode-rag registro: el registro del perfil no se pudo preparar (${error?.code ?? error?.message ?? error})`);
+  }
+
   for (const definition of createToolDefinitions({ config, root: profile, services })) {
     ctx.tools.register(definition);
   }
@@ -135,6 +166,9 @@ export function apply(ctx) {
     const authorize = hostGate(ctx, logger);
     const paHandler = createPaHandler({
       profileRoot: profile, profileKey: resolveProfileKey(process.env), env: process.env, authorize,
+      // UX-2.1: las fuentes del host viajan como objeto plano con getters; el núcleo no conoce DSH
+      // y cada petición resuelve el servicio en ese momento (no se congela el `null` del arranque).
+      services,
     });
     ctx.effect(() => webServer.register({ kind: 'prefix', path: PA_PREFIX, handler: paHandler }));
   }
