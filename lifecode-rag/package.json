@@ -1,68 +1,78 @@
 {
-    "name":  "@designerbyron/lifecode-rag",
-    "version":  "1.0.0",
-    "type":  "module",
-    "main":  "index.js",
-    "description":  "Recuperación local, independiente y auditable para el ecosistema LifeCode (plugin de DeepSeek Harness)",
-    "license":  "MIT",
-    "author":  "Byron Vanegas (designerbyron)",
-    "keywords":  ["lifecode", "rag", "retrieval", "deepseek-harness", "dsh-plugin", "sqlite", "local-first"],
-    "engines":  {
-                    "node":  "\u003e=22.5.0",
-                    "dsh":  "\u003e=0.2.2-rc.3 \u003c0.3.0"
-                },
-    "dsh":  {
-                "manifestVersion":  1,
-                "bundle":  {
-                               "patch":  "./cordis.patch.yml"
-                           },
-                "client":  {
-                               "platform":  "web",
-                               "immediately":  true
-                           }
-            },
-    "icon":  "./icon.svg",
-    "files":  [
-                  "index.js",
-                  "client.js",
-                  "lib/",
-                  "bin/",
-                  "icon.svg",
-                  "cordis.patch.yml",
-                  "README.md",
-                  "LICENSE",
-                  "docs/CONTRATO-v0.1.md",
-                  "docs/ARCHITECTURE-v0.2.md",
-                  "docs/PROJECT-AWARE-ARCHITECTURE.md",
-                  "docs/PROJECT-AWARE-DATA-CONTRACT.md",
-                  "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
-                  "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
-                  "docs/PA-UI-0-API-CONTRACT.md",
-                  "docs/AUTO-DISCOVERY.md",
-                  "docs/AUTOMATION-POLICIES.md",
-                  "docs/EMBEDDING-PROVIDERS.md",
-                  "docs/OBSERVABILITY.md",
-                  "docs/PERFORMANCE-BUDGETS.md",
-                  "docs/WORKSPACE-API.md"
-              ],
-    "publishConfig":  {
-                          "access":  "public"
-                      },
-    "exports":  {
-                    ".":  "./index.js",
-                    "./client":  "./client.js",
-                    "./package.json":  "./package.json",
-                    "./lib/*.mjs":  "./lib/*.mjs",
-                    "./lib/*":  "./lib/*.mjs"
-                },
-    "scripts":  {
-                    "test":  "node --test --test-concurrency=1",
-                    "test:hermetic":  "node tools/hermetic.mjs",
-                    "check":  "node tools/check.mjs",
-                    "bench":  "node tools/benchmark.mjs",
-                    "bench:harness":  "node tools/harness.mjs",
-                    "demo":  "node demo/server.mjs",
-                    "screenshots":  "node tools/screenshots.mjs"
-                }
+  "name": "@designerbyron/lifecode-rag",
+  "version": "1.5.11",
+  "type": "module",
+  "main": "index.js",
+  "description": "Recuperación local, independiente y auditable para el ecosistema LifeCode (plugin de DeepSeek Harness)",
+  "license": "MIT",
+  "author": "Byron Vanegas (designerbyron)",
+  "keywords": [
+    "lifecode",
+    "rag",
+    "retrieval",
+    "deepseek-harness",
+    "dsh-plugin",
+    "sqlite",
+    "local-first"
+  ],
+  "engines": {
+    "node": ">=22.5.0",
+    "dsh": ">=0.2.2-rc.3 <0.3.0"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "icon": "./icon.svg",
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/",
+    "bin/",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "docs/CONTRATO-v0.1.md",
+    "docs/ARCHITECTURE-v0.2.md",
+    "docs/PROJECT-AWARE-ARCHITECTURE.md",
+    "docs/PROJECT-AWARE-DATA-CONTRACT.md",
+    "docs/PROJECT-AWARE-ERROR-CONTRACT.md",
+    "docs/PROJECT-AWARE-SESSION-CONTRACT.md",
+    "docs/PA-UI-0-API-CONTRACT.md",
+    "docs/AUTO-DISCOVERY.md",
+    "docs/AUTOMATION-POLICIES.md",
+    "docs/EMBEDDING-PROVIDERS.md",
+    "docs/OBSERVABILITY.md",
+    "docs/PERFORMANCE-BUDGETS.md",
+    "docs/WORKSPACE-API.md",
+    "docs/CONTRATO-EXTENSIONES-1.4.md",
+    "docs/PANEL-KPIS.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./lib/*.mjs": "./lib/*.mjs",
+    "./lib/*": "./lib/*.mjs"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "test:hermetic": "node tools/hermetic.mjs",
+    "check": "node tools/check.mjs",
+    "bench": "node tools/benchmark.mjs",
+    "bench:harness": "node tools/harness.mjs",
+    "demo": "node demo/server.mjs",
+    "screenshots": "node tools/screenshots.mjs",
+    "pack:dist": "node tools/pack.mjs"
+  }
 }
-

@@ -6,8 +6,8 @@ fragmentos compactos, citables y con presupuesto de tokens.
 
 No depende de `@deepseek-ai/*`, no usa el almacén del Skill Center y no comparte rutas privadas con él.
 
-**Paquete:** `@designerbyron/lifecode-rag` · **versión 1.0.0** · contrato público de herramientas
-**v0.1.0** (congelado) · API del panel `pa/1.2.0`.
+**Paquete:** `@designerbyron/lifecode-rag` · **versión 1.5.11** · contrato público de herramientas
+**v0.1.0** (congelado) · API del panel `pa/1.5.0`.
 
 Identificadores internos que **no** cambian con el nombre del paquete: id del plugin `lifecode-rag`,
 herramientas `lifecode_rag_*` y rutas `/lifecode-rag/pa/*`.
@@ -57,14 +57,14 @@ sesión, no en el prompt.
 Instalación desde el registro público, en el directorio del perfil de DSH:
 
 ```sh
-npm install @designerbyron/lifecode-rag@1.0.0
+npm install @designerbyron/lifecode-rag@1.5.11
 ```
 
 `package.json` del perfil:
 
 ```json
 {
-  "dependencies": { "@designerbyron/lifecode-rag": "1.0.0" },
+  "dependencies": { "@designerbyron/lifecode-rag": "1.5.11" },
   "dsh": { "profile": { "bundles": ["lifecode-rag"] } }
 }
 ```
@@ -105,6 +105,38 @@ node bin/lifecode-rag.mjs session show --session <session-id>
 Desde ese momento el agente usa las siete herramientas con datos reales: `ingest` sobre esa carpeta,
 `search`, `context`, `get`, `list`, y `forget`/`reindex` con aprobación.
 
+## Administración de proyectos
+
+Desde la 1.1.0 los proyectos se administran de forma explícita: crear, renombrar, archivar, restaurar y
+gestionar sus raíces. Desaparece el registro automático —resolver un directorio ya **no** crea un
+proyecto—, de modo que un candidato y un proyecto registrado nunca se confunden.
+
+```sh
+node bin/lifecode-rag.mjs project create --name "Mi proyecto" --create
+node bin/lifecode-rag.mjs project list
+node bin/lifecode-rag.mjs root add --project prj_… --path "C:/ruta"
+node bin/lifecode-rag.mjs root list
+node bin/lifecode-rag.mjs discover scan --path "C:/workspace"   # sólo lee
+node bin/lifecode-rag.mjs discover register --path "C:/workspace/app"
+```
+
+Cuando el agente resuelve un proyecto que no está registrado, devuelve `scope-unresolved` con
+`action: register-project` y el comando exacto que hay que ejecutar. Nada se registra solo.
+
+El panel añade dos secciones —**Proyectos** y **Candidatos**—. Cubre las mismas operaciones, más la
+retirada de una raíz concreta, que hoy sólo está en el panel y en la API. El descubrimiento sólo corre
+cuando se pide, y registrar es un botón que pulsa una persona. Archivar es lógico: el almacén y las
+fuentes se conservan y el proyecto se puede restaurar.
+
+Rutas de administración (`pa/1.3.0`): `POST|PATCH /pa/projects`, `POST /pa/projects/archive`,
+`POST /pa/projects/restore`, `POST /pa/roots`, `POST /pa/roots/remove`, `GET /pa/candidates`,
+`POST /pa/projects/register`. Todas exigen la compuerta del host: sin credencial responden `401` y sin
+servicio de conexión `503`. **No existe ninguna ruta que borre proyectos, raíces, archivos o almacenes.**
+
+La lista de workspaces del Host se lee por `GET /pa/workspaces` (`pa/1.5.0`): ruta de **sólo lectura**
+que no exige proyecto activo y no escribe nada en el Host (contrato §19 de
+[`docs/PA-UI-0-API-CONTRACT.md`](docs/PA-UI-0-API-CONTRACT.md)).
+
 ## Diagnóstico
 
 ```sh
@@ -141,6 +173,22 @@ tiempo (2 000 ms), sin egreso de red y sin compartir estado entre sesiones.
 - Las escrituras (ingesta, olvido, reindexación) **no** se ejecutan desde el panel: la API responde `403`
   y remite a las herramientas, que pasan por la aprobación del host.
 
+## Interfaz · Workspace Center
+
+El panel se organiza en cinco áreas y una sola pregunta por pantalla:
+
+| Área | Qué responde |
+|---|---|
+| **Resumen** | Cuántos proyectos tienen contexto, cuántos documentos hay y qué toca hacer ahora |
+| **Workspaces** | Qué espacios de trabajo conoce DeepSeek Harness, en qué estado está cada uno y con qué proyecto RAG se relacionan (sólo lectura) |
+| **Proyectos y contexto** | Proyecto activo, fuentes, búsqueda, contexto y bibliotecas; administración aparte |
+| **Seguimiento** | Qué autoriza el modo fácil (declarado no disponible hasta su fase) |
+| **Ajustes** | Salud del servicio y herramientas técnicas: diagnóstico, conexión, historial, operaciones y candidatos |
+
+Lo técnico no desaparece: se pliega en **Ajustes → Avanzado**. Las rutas se muestran abreviadas con
+«Mostrar ruta» y «Copiar ruta». La navegación se recorre con flechas, `Home` y `End`, y cada área declara
+su estado con una palabra, no sólo con un color.
+
 ## Seguridad
 
 - La autorización no se cachea: cada apertura y cada punto de control releen el registro.
@@ -160,7 +208,11 @@ npm run check            # estructura, cero dependencias, red acotada
 ```
 
 Las pruebas y las herramientas de desarrollo viven en el repositorio, no en el paquete publicado
-(`files` excluye `tests/` y `tools/`).
+(`files` excluye `tests/` y `tools/`). La suite de la rama que produce esta 1.5.8 tiene **697 casos** y cubre
+las siete herramientas, la administración por API, los workspaces del Host, el seguimiento de workspaces, la
+interfaz y los 54 códigos de error con su mapa HTTP. Los comandos `npm test` y `npm run check` **sólo existen
+en el repositorio**: el manifiesto empaquetado no lleva `scripts`, así que en una instalación desde el TAR se
+ejecutan con `node --test` y `node tools/check.mjs` sobre la copia de origen.
 
 ## Documentación
 
@@ -170,6 +222,7 @@ Las pruebas y las herramientas de desarrollo viven en el repositorio, no en el p
 - [`docs/PROJECT-AWARE-ERROR-CONTRACT.md`](docs/PROJECT-AWARE-ERROR-CONTRACT.md) — códigos y semántica.
 - [`docs/CONTRATO-v0.1.md`](docs/CONTRATO-v0.1.md) — contrato público de las siete herramientas.
 - [`docs/PA-UI-0-API-CONTRACT.md`](docs/PA-UI-0-API-CONTRACT.md) — contrato de la API del panel.
+- [`docs/PANEL-KPIS.md`](docs/PANEL-KPIS.md) — qué mide cada KPI del panel y con qué fórmula.
 - [`docs/AUTO-DISCOVERY.md`](docs/AUTO-DISCOVERY.md) — descubrimiento automático.
 - [`docs/AUTOMATION-POLICIES.md`](docs/AUTOMATION-POLICIES.md) — sincronización y presupuesto.
 - [`docs/EMBEDDING-PROVIDERS.md`](docs/EMBEDDING-PROVIDERS.md) — proveedores de embeddings.
@@ -177,6 +230,7 @@ Las pruebas y las herramientas de desarrollo viven en el repositorio, no en el p
 - [`docs/PERFORMANCE-BUDGETS.md`](docs/PERFORMANCE-BUDGETS.md) — presupuestos medidos.
 - [`docs/WORKSPACE-API.md`](docs/WORKSPACE-API.md) — API del espacio de trabajo.
 - [`docs/ARCHITECTURE-v0.2.md`](docs/ARCHITECTURE-v0.2.md) — arquitectura del almacén heredado.
+- [`docs/CONTRATO-EXTENSIONES-1.4.md`](docs/CONTRATO-EXTENSIONES-1.4.md) — extensiones aditivas y correcciones de la 1.4.
 
 La evidencia de cada acto de ingeniería (planes K1, auditorías `eval/`, matrices de aceptación) vive en
 el repositorio de desarrollo y **no** se distribuye en el paquete.
