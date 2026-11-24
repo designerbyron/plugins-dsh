@@ -1,6 +1,6 @@
 === PASO 7a-bis · check del patron sobre el perfil real (no escribe) · utc 2026-11-23T04:00:25Z ===
 {
-  "dir": "<DSH_HOME>/profiles/desktop",
+  "dir": "C:/Users/BYRON/.dsh/profiles/desktop",
   "modo": "check",
   "packageJson": {
     "ok": true,

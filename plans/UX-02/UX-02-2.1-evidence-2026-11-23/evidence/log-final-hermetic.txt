@@ -2,7 +2,7 @@
 > @designerbyron/lifecode-rag@1.3.0 test:hermetic
 > node tools/hermetic.mjs
 
-almacén vivo: <DSH_HOME>\lifecode-rag
+almacén vivo: C:\Users\BYRON\.dsh\lifecode-rag
 huella previa: 10 fichero(s) 349e06612af5b712…
 lifecode-rag PA: el host no ofrece ctx.connection; la API PA queda cerrada
 lifecode-rag sincronización: no arranca (disabled)
