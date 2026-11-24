@@ -211,8 +211,8 @@ Envoltorio de respuesta (mismo sobre que la API v0.2, para no introducir un terc
 | GET | `/diagnostics` | cabecera de sesión | no | Diagnóstico redactado de la sesión |
 
 > **Implementado en `pa/1.1.0` (ACP-01, §15).** La superficie viva de este build es
-> `GET /lifecode-rag/pa/snapshot`, `GET /config`, `POST /search`, `POST /context`, `POST /selection` y
-> `POST /actions` (siempre 403). Las rutas `/session`, `/projects`, `/libraries`, `/sources`,
+> `GET /lifecode-rag/pa/snapshot`, `GET /config`, `POST /search`, `POST /context`, `POST /selection`,
+> `POST /actions` (siempre 403) y, desde `pa/1.4.0`, `GET /workspaces` (§19). Las rutas `/session`, `/projects`, `/libraries`, `/sources`,
 > `/sources/:id`, `/diagnostics` y `/health` de esta tabla siguen siendo **diseño**: no hay contrato
 > implementado y el panel no las consume. La autorización no es una cabecera de sesión (§3.2, PA01):
 > es la credencial del host, verificada por `ctx.connection` en el adaptador.
@@ -358,6 +358,58 @@ Historial de auditoría del **proyecto activo**, de sólo lectura. Implementado 
 > Si la API no puede servirlo, el panel mantiene el estado «no disponible» y **no** pinta filas: un historial
 > vacío y un historial inaccesible se distinguen (`entries: []` con `integrity.ok` frente a error de
 > transporte).
+
+### 6.12 Administración de proyectos (`pa/1.3.0`, ACP-07 F3)
+
+Ocho rutas nuevas, todas bajo la compuerta del host (§3.2) y todas **fuera** del alcance de las siete
+herramientas del modelo: un agente no puede invocarlas, y sin compuerta no existen.
+
+| Método | Ruta | Cuerpo / query | Respuesta | Efecto |
+|---|---|---|---|---|
+| POST | `/pa/projects` | `{name, path?}` | 201 `{created, project, integrity}` | Crea proyecto; con `path`, también su primera raíz |
+| PATCH | `/pa/projects` | `{id, name}` | 200 `{changed, project, integrity}` | Renombra |
+| POST | `/pa/projects/archive` | `{id}` | 200 `{changed, project, selection, selectionChange, integrity}` | Archiva y resuelve la selección en la misma transacción |
+| POST | `/pa/projects/restore` | `{id}` | 200 `{changed, project, integrity}` | Restaura conservando identidad y raíces |
+| POST | `/pa/roots` | `{projectId, path}` | 201 `{root, project, integrity}` | Añade una raíz autorizada |
+| POST | `/pa/roots/remove` | `{rootId}` o `{projectId, path}`, `allowEmpty?` | 200 `{removed, project, integrity}` | Retira la raíz; **no borra archivos ni fuentes** |
+| GET | `/pa/candidates` | `?path=` (o `?project=`) `&maxDepth=` | 200 `{root, total, candidates[], skipped, truncated}` | Descubre; **no escribe nada** |
+| POST | `/pa/projects/register` | `{path, name?}` | 201/200 `{created, registeredRoot, project, integrity}` | Registra un candidato de forma explícita |
+
+Reglas que no se relajan:
+
+- **Compuerta primero.** Sin `authorize` en el handler, las ocho rutas responden
+  `503 authorization-unavailable`; con la compuerta negando, `401 unauthenticated` o `403`. Es la misma
+  compuerta que protege el resto de la API, no una segunda puerta.
+- **Nada se borra físicamente.** No hay ruta que elimine proyectos, raíces, archivos ni almacenes RAG.
+  Archivar es lógico (`status='archived'`, `archived_at`); quitar una raíz borra su fila del registro y
+  deja `root.remove` en la auditoría, y el directorio sigue donde estaba.
+- **Ninguna ruta abre `scopes/<id>/rag.sqlite3`.** El almacén de fuentes sólo lo abren `/snapshot`,
+  `/history`, `/search` y `/context`. Probado con el hash del almacén antes y después de archivar.
+- **Descubrir y registrar son actos separados (D-02, D-05).** `/candidates` sólo lee y exige raíz
+  autorizada para lectura; `/projects/register` es la escritura, con su asiento de auditoría.
+- **Toda escritura es una transacción con asiento.** `project.create`, `project.update`,
+  `project.archive`, `project.restore`, `root.add`, `root.remove` y `project.discover` van a
+  `audit_registry` con la cadena encadenada por hash; cada respuesta de escritura devuelve
+  `integrity: verifyRegistryAudit(db)`.
+- **Campos estrictos.** Se acepta la lista exacta por método; cualquier otra clave produce
+  `400 invalid-argument` con `reason: "unknown-field"`. Igual con la query.
+- **Un proyecto archivado deja de ser consultable por id**: `403 project-not-authorized`. Sigue
+  apareciendo en `archived` del snapshot, que es desde donde se restaura.
+
+`GET /pa/snapshot` crece de forma **aditiva** (§6.2): se añaden `archived[]` y
+`capabilities{projects, roots, discovery}`, y cada elemento de `projects` gana `status`, `total` y
+`selectable`. Las claves anteriores (`id`, `name`, `roots`, `authorized`, `current`) no cambian de
+significado. Cuando no queda ningún proyecto activo (todos archivados), el snapshot responde 200 con
+`project: null` y las listas, en vez de un error: es el retrato que permite restaurar.
+
+Un proyecto **registrado pero todavía sin almacén** —lo que produce `POST /projects` y la CLI
+(`project create` + `root add`), porque `scopes/<id>/rag.sqlite3` nace sólo con la primera
+ingesta— tampoco tumba el retrato: el snapshot responde 200 con el proyecto, `sources` vacío
+(`{rows: [], total: 0, nextCursor: null}`), `audit: {head: 0}` y `service: "degraded"` (vocabulario
+de `service.status` en §5). El panel distingue así «proyecto vacío» de «sin conexión». Las rutas que
+sí necesitan contenido (`/history`, `/search`, `/context`) siguen devolviendo
+`503 store-not-initialized` con el `project` en `details`: la lectura del retrato nunca crea el
+almacén que falta.
 
 ### 6.3 `GET /projects`
 
@@ -544,8 +596,8 @@ Se reutilizan los códigos de `lib/errors.mjs` (`[IMPLEMENTED]`), mapeados a HTT
 | `authorization-unavailable` `[IMPLEMENTED · PA01]` | 403 / 503 | el host no ofrece `ctx.connection` (403) o la compuerta falló al decidir (503): la API PA queda cerrada | «La autenticación del host no está disponible; el panel está cerrado.» | detalle interno del servicio |
 | `audit-unavailable` `[PROPOSED]` | 503 | no se pudo escribir el evento `ui.read`; la lectura **no** se sirve | «No se pudo registrar el acceso; la operación no se completó.» | detalle del fallo de escritura, SQL, rutas |
 | `source-not-found` | 404 | fuente inexistente en el proyecto | «La fuente no existe en este proyecto.» | si existe en otro proyecto |
-| `store-not-initialized` | 503 | perfil sin registro | «El perfil aún no está inicializado.» | rutas del perfil |
-| `registry-unavailable` | 503 | registro no disponible | «El registro del proyecto no está disponible.» | ruta del registro |
+| `store-not-initialized` | 503 | almacén del proyecto aún no creado (`/history`, `/search`, `/context`) o perfil sin registro al abrir el registro | «El perfil aún no está inicializado.» | rutas del perfil |
+| `registry-unavailable` | 503 | registro no disponible; el mensaje nombra la clave de perfil usada y el `registry.sqlite3` buscado | «El registro del proyecto no está disponible.» | ruta del registro |
 | `registry-corrupt` | 500 | registro corrupto | «El registro del proyecto está dañado.» | detalle SQL/fichero |
 | `scope-store-unavailable` | 503 | almacén de biblioteca ausente/cargando | «Una biblioteca concedida no está disponible ahora mismo.» (puede incluir `Retry-After`) | rutas |
 | `scope-store-corrupt` | 500 | almacén ilegible | «Una biblioteca concedida está dañada.» | detalle SQLite |
@@ -767,8 +819,12 @@ Cambios de implementación (con su documentación):
 3. **Snapshot.** `GET /snapshot` devuelve `selection` (proyección de `pa_selection`), `projects` (los
    proyectos **activos** del perfil con `id`, `name`, `roots`, `authorized` y `current`: es la lista que el
    panel necesita para cambiar de proyecto) y `auth.principal` (sólo el principal del host, nunca
-   credenciales). Con varios proyectos y sin selección sigue siendo `403 scope-ambiguous`: no se elige un
-   proyecto «por defecto» a la callada.
+   credenciales).
+   **1.5.11 (F-1):** con varios proyectos activos y sin selección, el retrato responde **`200`** con
+   `needsProjectSelection: true`, `candidates: [{id, name}]` y `project: null` en vez de
+   `403 scope-ambiguous`. Sigue sin elegirse ningún proyecto «por defecto» a la callada —la elección la
+   escribe la persona con `POST /selection`— y las rutas de contenido (`/search`, `/context`, `/history`)
+   siguen cerradas hasta que exista selección. En los demás casos el campo viaja como `false`.
    El panel pide `?limit=200` (el máximo de §8) para que la lista cargada coincida con el total del perfil;
    si el proyecto tiene más de 200 fuentes, la vista lo declara (`sources.capped`) en vez de presentar la
    página como si fuera el total.
@@ -800,3 +856,318 @@ embeddings y presupuesto de contexto.
    pestaña **Historial** con cadena verificada en lugar del «no disponible».
 4. **Pruebas:** `tests/error-codes.test.mjs` (8 casos, recorren el fuente) y `tests/pa-history.test.mjs`
    (5 casos). Total del proyecto: **448**.
+
+---
+
+## 17. Registro de revisión ACP-07 F3 (2026-11-22)
+
+1. **`pa/1.3.0`.** Se añaden las ocho rutas de administración de §6.12 y el snapshot crece de forma
+   aditiva. `pa/1.2.0` sigue siendo un subconjunto válido: ningún consumidor de 1.2.0 pierde una clave ni
+   cambia su significado, y las pruebas de compatibilidad de `tests/pa-api.test.mjs` siguen en verde sin
+   tocarlas.
+2. **La administración no es una herramienta.** Las siete tools del modelo no cambian de permisos y
+   ninguna ruta administrativa es alcanzable desde ellas. Sin compuerta del host, las rutas responden
+   `503 authorization-unavailable`: no hay versión abierta.
+3. **Archivar respeta la resolución atómica de F1.** La ruta llama a `archiveProjectWithSelection`, que
+   mueve o retira la selección en la misma transacción; `archiveProject` sola sigue negándose.
+4. **Agujero cerrado en el camino:** `projectView` seleccionaba proyectos sin filtrar por estado, así que
+   un proyecto archivado podía seguir consultándose por id. Ahora sólo se resuelven proyectos activos.
+5. **Pruebas:** `tests/pa-admin.test.mjs` (10 casos: compuerta, creación con y sin raíz, renombrado,
+   archivado con selección y sin tocar el almacén, restauración, raíces con solape y borrado lógico,
+   candidatos sin escritura, registro idempotente, snapshot sin proyecto activo y compatibilidad de 1.2.0).
+
+---
+
+## 18. Registro de revisión ACP-07 F4 (2026-11-22)
+
+1. **Interfaz de administración (§6.12) en el panel.** Dos secciones nuevas —**Proyectos** y
+   **Candidatos**— y las acciones de F3 conectadas: crear (con raíz opcional), renombrar, archivar,
+   restaurar, añadir y quitar raíces, descubrir y registrar un candidato.
+2. **Descubrimiento bajo demanda.** Abrir la sección Candidatos no explora nada: sólo el botón
+   «Buscar candidatos» lanza `GET /candidates`. Probado en `tests/client.test.mjs` (navegar no
+   provoca ni una petición).
+3. **Registro como acto humano.** El botón «Registrar» de una fila llama a `POST /projects/register` con
+   esa ruta. No hay registro automático en ninguna ruta del panel, y el descubrimiento sigue sin escribir.
+4. **`scope-unresolved` deja de ser un callejón.** Cuando el panel no puede hidratar porque el proyecto
+   no está registrado (F2), muestra el código, la explicación, el botón **Ir a Candidatos** y la
+   alternativa de la CLI. Antes se pintaban fixtures bajo un rótulo de error, sin salida.
+5. **Campo aditivo `roots` en el snapshot.** El recuento por proyecto no permitía retirar una raíz
+   concreta. Se añade `roots: [{scopeId, id, path, state}]`, dentro de `pa/1.3.0` y sin tocar ninguna
+   clave existente.
+6. **Archivar y restaurar son reversibles desde la interfaz**, con aviso explícito de que el almacén y
+   las fuentes se conservan.
+7. **Evidencia de UI:** seis capturas del panel real (montado con el `client.js` del producto y React del
+   host) contra `createPaHandler` sobre un **perfil temporal**, en `_audit/evidence/acp07-f4/`.
+
+---
+
+## 19. Registro de revisión UX-2.1 · `GET /pa/workspaces` (`pa/1.4.0`, 2026-11-23)
+
+Ruta nueva, **exclusivamente aditiva**, que publica los workspaces que **conoce el Host** (registro
+durable de DeepSeek Harness) y su relación con los proyectos RAG. Nada de esta sección escribe: no
+crea, no borra, no renombra, no archiva, no fija sesiones, no autoriza, no indexa y no cambia la
+selección del perfil.
+
+### 19.1 Superficie
+
+| Método | Ruta | Autorización | Escritura | Proyecto activo |
+|---|---|---|---|---|
+| GET/HEAD | `/lifecode-rag/pa/workspaces` | compuerta del host (PA01), igual que el resto de la API | **no** | **no hace falta** |
+
+- `POST`/`PATCH`/`DELETE` → `405 method-not-allowed` con `details.allow: ["GET","HEAD"]`.
+- Query: sólo `limit` (entero `1..200`). Cualquier otro parámetro → `400 invalid-argument`,
+  `details.reason: "unknown-parameter"`. `limit` fuera de rango → `400` con
+  `details.reason: "limit-too-large"` (máximo) o `"invalid-field"` (no entero o `< 1`).
+- Perfil sin registro Project-Aware → `503 registry-unavailable` (igual que el resto de rutas de datos:
+  no se inventa un perfil vacío).
+- Sin compuerta del host resuelta, el adaptador de DSH niega (`401`/`403`). El núcleo, como en toda la
+  API, sirve sin compuerta si se construye sin ella (contrato de independencia).
+
+### 19.2 Respuesta
+
+```json
+{
+  "ok": true,
+  "data": {
+    "mode": "api",
+    "service": "ok",
+    "asOf": 1763856000000,
+    "version": "pa/1.5.0",
+    "source": "host",
+    "reason": null,
+    "items": [
+      {
+        "id": "6b1f…-uuid",
+        "path": "C:\\xampp\\htdocs\\plugins-dhs",
+        "pathKey": "c:/xampp/htdocs/plugins-dhs",
+        "title": "plugins-dhs",
+        "state": "ok",
+        "stateReason": null,
+        "sessions": { "known": 2, "live": 1, "historical": 1 },
+        "project": { "id": "prj_01M8…", "name": "plugins-dhs" },
+        "relation": "exact"
+      }
+    ],
+    "counts": {
+      "total": 1, "returned": 1, "skipped": 0,
+      "withProject": 1, "withoutProject": 0,
+      "ok": 1, "missing": 0, "unknown": 0,
+      "exact": 1, "inside": 0,
+      "liveSessions": 1, "knownSessions": 2
+    },
+    "truncated": false
+  }
+}
+```
+
+### 19.3 Campos
+
+| Campo | Tipo | Regla |
+|---|---|---|
+| `source` | `"host"` \| `"none"` | De dónde sale la lista. `none` = el Host no ofreció su registro; **nunca** se sirve como lista vacía válida |
+| `reason` | `string` \| `null` | Motivo de `source:"none"` (`no-registry`, `registry-error`, `registry-invalid`) o aviso parcial (`sessions-unavailable`) |
+| `items[].id` | `string` \| `null` | Identificador del Host; **no** es la identidad de la fila |
+| `items[].path` | `string` | Ruta **canónica tal como la guardó el Host**. No se reescribe, no se relativiza y no se hace `realpath` aquí |
+| `items[].pathKey` | `string` | Clave comparable: barras `/`, sin barra final, minúsculas en Windows. **Es la identidad** |
+| `items[].title` | `string` | Título del Host (puede repetirse: no identifica nada) |
+| `items[].state` | `"ok"` \| `"missing"` \| `"unknown"` | Resultado de `status()` en el servidor. `missing` es `missing-dir` del Host; `unknown` = no se pudo comprobar |
+| `items[].stateReason` | `string` \| `null` | Sólo con `state:"unknown"`: `timeout`, `status-error`, `budget`, `no-status`, `unexpected-status` |
+| `items[].sessions.known` | `number` | Sesiones que el Host asocia al workspace (`sessionIds`, ya filtrados por `cwd` canónico). Se **cuenta**, nunca se listan los identificadores |
+| `items[].sessions.live` | `number` \| `null` | Cuántas de ésas siguen **vivas** (`ctx.sessions.list()`). `null` = no se pudo mirar; no es `0` |
+| `items[].sessions.historical` | `number` \| `null` | `known - live`, o `null` si `live` es `null` |
+| `items[].project` | `{id, name}` \| `null` | Proyecto RAG relacionado por ruta (sólo proyectos **activos** con raíz **autorizada**) |
+| `items[].relation` | `"exact"` \| `"inside"` \| `"none"` | `exact` = misma ruta que una raíz; `inside` = dentro de una raíz; `none` = sin relación (representada explícitamente) |
+| `counts` | objeto | Recuentos de la **lista completa**, no de las filas devueltas (ver 19.5) |
+| `truncated` | `boolean` | `true` cuando `counts.returned < counts.total` por el tope de filas |
+
+### 19.4 Reglas de la proyección (deterministas)
+
+1. **Identidad por ruta.** Dos workspaces con el mismo título y rutas distintas son dos filas; una fila
+   nunca se identifica por su título.
+2. **Raíz más específica.** Si varias raíces autorizadas contienen la ruta del workspace, gana la de
+   `pathKey` más larga (la misma regla que resuelve el proyecto de un `cwd`). Es determinista e
+   independiente del orden de entrada.
+3. **El contenedor no es el proyecto.** Si la raíz del proyecto cae **dentro** del workspace, la fila
+   queda `project:null`, `relation:"none"`: un workspace que contiene proyectos no es uno de ellos.
+4. **Anidamiento.** Un workspace padre y su hijo son filas independientes; no se fusionan ni se
+   deduplican por prefijo.
+5. **Entradas inválidas.** Un elemento sin `path` de texto se descarta y se cuenta en `counts.skipped`;
+   no se pinta como fila ni se convierte en `unknown`.
+6. **Tiempo.** Cada `status()` tiene **250 ms**; agotado, esa fila queda `unknown`/`timeout` sin tocar el
+   resto. La petición entera tiene un presupuesto de **2000 ms**: agotado, las filas que faltan quedan
+   `unknown`/`budget` y **la lista se sirve completa**. No hay caché en disco ni en memoria entre
+   peticiones.
+7. **Lo que el Host no publica no se inventa.** No hay `sessionIds` en la respuesta, ni
+   `lastActivityAt`, ni `archived`, ni actividad por sesión. La ruta no se reescribe.
+
+### 19.5 `counts`
+
+| Clave | Significado |
+|---|---|
+| `total` | Workspaces válidos conocidos por el Host |
+| `returned` | Filas servidas (`min(total, limit)`) |
+| `skipped` | Entradas del Host descartadas por inválidas |
+| `withProject` / `withoutProject` | Con o sin proyecto RAG relacionado |
+| `ok` / `missing` / `unknown` | Recuento por estado |
+| `exact` / `inside` | Recuento por relación |
+| `liveSessions` | Suma de sesiones vivas medidas (sólo filas con `live != null`) |
+| `knownSessions` | Suma de sesiones asociadas por el Host |
+
+### 19.6 Degradación declarada
+
+| Situación | Respuesta |
+|---|---|
+| Host sin servicio `workspaceRegistry` | `200`, `source:"none"`, `reason:"no-registry"`, `items:[]` |
+| `list()` lanza | `200`, `source:"none"`, `reason:"registry-error"` |
+| `list()` no devuelve un array | `200`, `source:"none"`, `reason:"registry-invalid"` |
+| Registry presente y vacío | `200`, `source:"host"`, `items:[]`, `counts.total:0` (lista vacía **legítima**) |
+| Sin servicio de sesiones | `200`, `source:"host"`, `reason:"sessions-unavailable"`, `sessions.live:null` |
+| `status()` lanza / no responde / devuelve otra cosa | `state:"unknown"` con su `stateReason`; el resto sigue |
+| Perfil sin registro RAG | `503 registry-unavailable` |
+
+### 19.7 Compatibilidad
+
+- `pa/1.3.0` **no cambia**: ninguna ruta existente pierde claves ni altera su forma; el `snapshot`
+  conserva sus dieciséis claves de primer nivel y `PA_VERSION` es lo único que cambia de valor
+  (`pa/1.4.0`). Un consumidor de `1.3.0` sigue leyendo lo mismo y puede ignorar la ruta nueva.
+- Las siete herramientas del modelo no cambian (`tools/check.mjs`, golden de herramientas).
+- El panel acepta `pa/1.x` y pinta la versión efectiva en Ajustes.
+
+### 19.8 Lo que esta sección **no** ofrece
+
+Autorizar o revocar carpetas, indexar, reindexar, archivar, borrar, renombrar, fijar o desfijar
+sesiones, abrir una sesión, escanear el disco, **persistir el vínculo workspace↔proyecto** ni seleccionar
+un proyecto. Todo eso queda fuera de UX-2.1 (UX-2.2 y posteriores, con autorización propia).
+
+> **Actualización UX-2.2 (2026-11-23).** El vínculo persistente workspace→proyecto ya existe, pero **no**
+> en esta ruta: vive en `workspace_tracking` y se administra por `/pa/tracking` (§20). `GET /pa/workspaces`
+> sigue sin escribir una sola fila.
+
+
+### 19.9 Evidencia
+
+`tests/workspaces-projection.test.mjs` (proyección pura: identidad, anidamiento, duplicados,
+relación, truncamiento, pureza), `tests/pa-workspaces.test.mjs` (adaptador y API sobre perfil
+temporal: Host ausente, `status()` que lanza, timeout, presupuesto, cero escrituras, selección
+intacta, compatibilidad `pa/1.3.0`, forma exacta del contrato) y `tests/client.test.mjs` (tabla real,
+estados, refresco al entrar, errores sin carga infinita, paridad ES/EN). La matriz completa con
+resultados está en `plans/UX-02/UX-02-2.1-TEST-MATRIX.md` del acto UX-2.1.
+
+---
+
+## 20. Registro de revisión UX-2.2 · seguimiento humano (`pa/1.5.0`, 2026-11-23)
+
+**Naturaleza:** evolución **aditiva** de `pa/1.4.0`. Ninguna ruta anterior pierde claves, cambia de forma ni de
+código de éxito. Decisiones: `D-UX22-01…12` (aprobadas) y `D-IMPL-01…08` (técnicas, `docs/DECISIONES.md` §5).
+
+### 20.1 Superficie nueva
+
+| Método | Ruta | Cuerpo / query | Respuesta `data` | Compuerta |
+|---|---|---|---|---|
+| `GET` | `/lifecode-rag/pa/tracking` | `?limit=` (1..**200**, opcional; tope del handler) | `{items, counts, truncated, asOf, version}` | autenticación del Host |
+| `PUT` | `/lifecode-rag/pa/tracking` | `{pathKey, state, projectId?, expectedRevision, path}` — `path` **obligatoria** | `{changed, item, revision}` | autenticación + **CSRF** |
+| `DELETE` | `/lifecode-rag/pa/tracking?pathKey=…&expectedRevision=N` | — | `{changed: true}` | autenticación + **CSRF** |
+
+`POST /pa/tracking` responde `405 method-not-allowed` con `details.allow = ["GET","HEAD","PUT","DELETE"]`.
+
+### 20.2 `items[]` (proyección de `workspace_tracking`)
+
+`pathKey` (identidad, obligatoria) · `path` (ruta literal que vio la persona) · `workspaceId` (alias del Host, puede
+faltar) · `project` (`{id,name}` o `null`) · `state` (`on`|`off`|`paused`) · `association`
+(`explicit`|`pending`|`conflict`; en esta versión `conflict` no se produce) · `lastStatus`
+(`ok`|`missing`|`unknown` o `null` antes de la primera medición) · `lastSeenAt` · `boundAt` · `updatedAt` ·
+`revision` · `resolves` (booleano derivado) · `relation` (`exact`|`inside`|`none` contra las raíces autorizadas).
+
+`counts` (sobre el **conjunto completo**, con `COUNT(*)`, no sobre la página): `{total, on, off, paused, ok, missing,
+unknown, withProject, withoutProject}`. `truncated`: `true` si `items.length < counts.total` (auditoría F15). `asOf`: epoch ms de la lectura.
+`version`: `pa/1.5.0`.
+
+### 20.3 `PUT` — CAS obligatorio
+
+- `expectedRevision` **obligatoria**. `0` significa «espero que no exista» → crea la fila (`revision: 1`).
+- Si no coincide con la vigente → `409 revision-conflict` con `details.{expectedRevision, currentRevision, pathKey}` y
+  **cero escritura**.
+- `state` obligatoria. `projectId` ausente conserva la asociación; `null` la deja `pending`.
+- `path` es **obligatoria**: ruta absoluta, sin segmentos `..` ni NUL, y `pathKey` debe ser exactamente la
+  clave canónica de esa ruta (`pathKeyFor(path)`). Si no cuadra → `400 invalid-argument` con
+  `details.reason = "pathKey-mismatch"` (auditoría F8). La ruta se congela con la fila (`D-IMPL-07`).
+- Sin cambios reales → `changed: false` y la revisión **no** sube (idempotente).
+- Acciones auditadas: `enable`, `disable`, `pause`, `resume` y `reassociate` (con asociación anterior y nueva).
+
+### 20.4 `DELETE` — CAS obligatorio
+
+`expectedRevision` obligatoria en la query. Borra la preferencia y audita `disable` con `detail.removed = true`.
+Fila inexistente → `404 not-found`. **No es idempotente por diseño**: la segunda llamada informa `not-found` en vez de
+fingir éxito.
+
+### 20.5 CSRF
+
+`PUT` y `DELETE` exigen `x-lifecode-rag: 1` y `content-type: application/json`. Sin ellos: `403 forbidden` con
+`details.reason = "csrf"`, sin leer el cuerpo y sin escribir. Orden de compuertas: **autenticación del Host → CSRF →
+validación → operación**. `GET`/`HEAD` no cambian.
+
+### 20.6 Códigos de error
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `invalid-argument` | 400 | cuerpo o query inválidos, campo desconocido, `expectedRevision` ausente, `state` no válido |
+| `revision-conflict` | 409 | `expectedRevision` no coincide (también al pretender actualizar una fila que ya no existe) |
+| `not-found` | 404 | `pathKey` sin fila en `DELETE` |
+| `forbidden` | 403 | falta el fence CSRF |
+| `store-busy` | 503 | bloqueo transitorio de SQLite, reintentable (`details.reason = "database-locked"`) |
+| `unauthenticated` / `authorization-unavailable` | 401 / 503 | compuerta del Host |
+
+No se añaden códigos de familia propia (`tracking-*`): se reutiliza una sola familia por hecho.
+
+### 20.7 Cambios aditivos en `GET /pa/workspaces`
+
+Cada fila gana `tracked` (bool), `trackingState` (`on`|`off`|`paused`|`null`) y `trackingProject` (`{id,name}`|`null`).
+El sobre y los recuentos no cambian. La ruta sigue siendo de **sólo lectura**: no reconcilia, no escribe y no audita.
+
+### 20.8 Compatibilidad
+
+**Cambio de comportamiento declarado (D-IMPL-05-R1, auditoría F6).** Las mutaciones POST heredadas
+(`/selection`, `/projects`, `/projects/archive`, `/projects/restore`, `/roots`, `/roots/remove`,
+`/projects/register`) **ahora exigen** `x-lifecode-rag: 1` y `content-type: application/json`; sin ellas
+responden `403 forbidden` con `details.reason = "csrf"`. La forma de las respuestas y los códigos de éxito no
+cambian. `/search` y `/context` quedan fuera por ser lecturas.
+
+`pa/1.3.0` y `pa/1.4.0` **conservan forma y códigos de éxito** (verificado por `tests/pa-admin.test.mjs` y
+`tests/pa-workspaces.test.mjs`). Las siete herramientas del modelo no cambian: el seguimiento no añade ninguna tool.
+
+### 20.9 Lo que esta sección **no** ofrece
+
+Conceder o modificar raíces y grants (`D-UX22-13` sigue `PENDING`), leer contenido por el hecho de seguir, ingerir o
+reindexar, migrar conocimiento al reasociar, ni resolver contexto para sesiones distintas de la actual.
+
+### 20.10 Evidencia
+
+`tests/pa-tracking.test.mjs` (superficie, CAS, CSRF, códigos, compuerta), `tests/tracking-store.test.mjs` (transacciones
+y auditoría), `tests/tracking-invariants.test.mjs` (no toca permisos ni selección), `tests/resolve-tracking.test.mjs`
+(escalón 2, aislamiento por sesión, `scope-conflict`), `tests/tracking-migration.test.mjs` (v2→v3) y
+`tests/client.test.mjs` (panel real). Matriz de aceptación: `plans/UX-02/UX-22-IMPL-2026-11-23/ACEPTACION-UX22.md`.
+
+## 21. Registro de revisión UX-2.3 · KPIs del panel (2026-11-23)
+
+**Sin cambios de superficie.** Ni rutas, ni campos, ni códigos: esta revisión fija el **vocabulario** de
+las tres tarjetas del Resumen para que cada cifra diga exactamente lo que mide, y documenta las tres
+fórmulas en [`PANEL-KPIS.md`](PANEL-KPIS.md) (definición, fórmula, fuente, denominador, `null`, datos
+ausentes y qué **no** mide).
+
+- «Proyectos configurados» cuenta proyectos **activos con raíz autorizada**
+  (`snapshot.projects[].roots`), no documentos. Su subtítulo pasa a «{ready} de {total} proyectos con
+  raíz autorizada» (ES) y «{ready} of {total} projects with an authorized root» (EN).
+- «Documentos indexados» sigue siendo `sources.total` del proyecto activo; ausencia de `sources` se
+  pinta `—`, nunca `0`.
+- «Cobertura documental» sigue siendo `paDocumentalCoverage`: proyectos con ≥1 documento / proyectos con
+  raíz autorizada, y «Sin datos» (`null`) cuando no hay documentos o falta algún recuento.
+
+**Límite declarado de la API.** `GET /pa/snapshot` no publica `docs` por proyecto
+(`projectsIndex` en `lib/pa-api.mjs`): sólo el proyecto activo tiene recuento certificado, vía
+`sources.total`. Por eso la cobertura da «Sin datos» en perfiles con varios proyectos activos hasta que
+exista ese campo aditivo; el panel lo acepta si aparece y no lo supone. Es el hueco que permitía pintar
+un 100 % de cobertura sin un solo documento.
+
+**Evidencia.** `tests/panel-coverage.test.mjs` (definición, «Sin datos» con cero documentos, retrato
+real sin almacén, texto de las tres tarjetas en ES/EN con 0/1/varios proyectos) y
+`tests/panel-provenance.test.mjs` (un perfil vacío no hereda métricas ni porcentajes).

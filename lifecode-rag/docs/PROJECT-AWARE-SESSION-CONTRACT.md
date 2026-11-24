@@ -1,8 +1,15 @@
 # Contrato de sesión y selección de proyecto (PA0)
 
-**Estado:** especificación. No implementado.
+**Estado:** **implementado** en `1.3.0` (`lib/sessions.mjs`, `lib/resolve.mjs`). Cabecera corregida el 2026-11-23:
+decía «especificación. No implementado» cuando el contrato ya estaba en producción (contradicción C2 de
+`ESTADO-IMPLEMENTACION.md`).
 **Decisiones incorporadas:** O-PAR-2 (selección por sesión), O-PAR-3 (bibliotecas anidadas prohibidas),
-O-PAR-4 (registro por perfil), C8 (ciclo de vida de sesión).
+O-PAR-4 (registro por perfil), C8 (ciclo de vida de sesión), `D-UX22-05` (la selección de **perfil** `pa_selection`
+es **de vista** del panel y no participa en la resolución de las herramientas).
+**Pendiente, no implementado:** el escalón de **seguimiento** por workspace en la resolución (UX-2.2) — ver
+[`UX-22-TRACKING-SPEC.md`](UX-22-TRACKING-SPEC.md). Su precedencia ya está **decidida** (`D-UX22-12 = A`):
+`session_scope` explícita → workspace seguido **de la sesión actual** → `cwd` ∩ raíces → frontera de workspace → no
+resuelto; `scope-conflict` **sólo** para el conflicto seguido-vs-`cwd`; `pa_selection` **no** participa.
 
 ## 1. Identidad de sesión
 
@@ -68,6 +75,34 @@ Orden normativo, sin atajos:
 4. El cwd es un mecanismo de resolución, no una autorización: si la raíz no está registrada y autorizada,
    no vale.
 5. Si la selección apunta a un proyecto cuyo estado ya no es `active` → `scope-forbidden`.
+
+### 3.1 Escalón de seguimiento (UX-2.2, `pa/1.5.0`)
+
+Orden normativo completo tras UX-2.2 (`D-UX22-12`), con el escalón nuevo **entre** la selección y el `cwd`:
+
+```
+0. identidad y perfil válidos
+1. selección explícita ACTIVA de la sesión            (sin cambios; si existe, el seguimiento NO se consulta)
+2. workspace SEGUIDO que corresponde a ESTA sesión    (escalón nuevo)
+   · sólo con state='on', last_status='ok', project_id != NULL y proyecto activo
+   · aporta SÓLO el proyecto; raíces y grants se evalúan igual
+   · si el cwd resuelve un proyecto DISTINTO → scope-conflict (409)
+   · si aplica y no resuelve → scope-unresolved con reason='tracking-not-resolving' (no se cae al cwd)
+3. cwd ∩ raíces autorizadas                            (sin cambios)
+4. workspace abierto que contiene el cwd + trusted      (sin cambios)
+5. nada → scope-unresolved                              (sin cambios)
+```
+
+Reglas duras:
+
+- **Sólo la sesión actual**: el escalón 2 usa el workspace cuya lista `sessionIds` contiene esta sesión; nunca «todos
+  los seguidos».
+- **`scope-conflict` ≠ `scope-ambiguous`**: el primero es seguido-vs-`cwd`; el segundo son dos proyectos en el mismo
+  `cwd`. No se reutilizan.
+- **`pa_selection` no participa**: sigue siendo selección visual del panel.
+- **Reconciliación del eje B**: la disponibilidad (`ok`/`missing`/`unknown`) se mide al resolver, se escribe sólo en
+  `workspace_tracking` y se audita como `tracking.reconcile` con `actor='host'`. `missing` no apaga el seguimiento.
+
 
 ## 4. Reglas de aislamiento
 

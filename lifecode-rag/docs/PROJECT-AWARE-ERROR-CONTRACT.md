@@ -23,6 +23,7 @@ en cerrado con el código correspondiente.
 |---|---|---|---|---|
 | `scope-unresolved` | Selección | No hay selección y el cwd no coincide con una raíz registrada | `session_id`, `cwd` | Ninguna consulta; no se abre ningún almacén |
 | `scope-ambiguous` | Selección | El cwd coincide con más de una raíz registrada | `session_id`, `candidates[]` | No se elige una; se pide selección explícita |
+| `scope-conflict` | Selección (UX-2.2) | El workspace **seguido** de la sesión y el `cwd` resuelven **proyectos distintos** | `session_id`, `workspace_path`, `workspace_project_id`, `cwd`, `cwd_project_id` | No se elige, no se combinan ni se amplían ámbitos; no se abre ningún almacén |
 | `scope-forbidden` | Autorización | Proyecto archivado, selección revocada o ámbito no permitido | `session_id`, `project_id?`, `reason` | No se abre el almacén |
 | `scope-too-many` | Autorización | Tras verificar grants, hay más de 8 ámbitos | `project_id`, `libraries[]`, `limit: 8` | No se trunca ni se ignora ninguna; no se abre ninguna biblioteca |
 | `path-excluded` | Autorización | Ruta dentro de una exclusión (Skill Center, almacén propio, `.git`, etc.) | `path`, `reason` | Se rechaza la operación completa |

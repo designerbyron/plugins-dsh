@@ -52,7 +52,7 @@ está cubierto por pruebas en PA1.
 
 ```sql
 PRAGMA application_id = 1279480402;  -- 'LCRR' (registro Project-Aware); el almacén de ámbito conserva 'LCRG'
-PRAGMA user_version = 2;             -- v2 (ACP-01): añade pa_selection. Migración aditiva desde v1.
+PRAGMA user_version = 3;             -- v3 (UX-2.2): añade workspace_tracking. Migración aditiva desde v2.
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
@@ -409,3 +409,22 @@ timestamp: dos intentos distintos del mismo efecto deben producir la misma clave
   verifica; y que reabrir el registro ya migrado no vuelve a migrar.
 - **Compatibilidad hacia atrás:** un build anterior (v1) que abra un registro v2 recibe
   `store-version-unsupported`; por eso la migración va en el mismo acto que el despliegue del build nuevo.
+
+## 9. Registro de revisión UX-2.2 (2026-11-23) — `user_version` 3
+
+- **Tabla nueva `workspace_tracking`** (§3): identidad por `path_key` (PK), `path` literal, `workspace_id`
+  como alias, `project_id` con `ON DELETE SET NULL`, los dos ejes (`state` y `last_status` con `CHECK`
+  separados), `association`, `bound_by='human'`, marcas de tiempo y `revision` para CAS. Índices
+  `workspace_tracking_project` y `workspace_tracking_state`.
+- **La migración 2 → 3** vive en `REGISTRY_MIGRATIONS` (`lib/registry-schema.mjs`) y la aplica
+  `migrateRegistry` dentro de `BEGIN IMMEDIATE`: **sólo** `CREATE TABLE/INDEX IF NOT EXISTS`. No hay `ALTER`,
+  no se reescriben filas y las once tablas v2 conservan sus recuentos (probado en
+  `tests/tracking-migration.test.mjs`, idempotente).
+- **Consecuencia de la vuelta atrás (medida):** `assertRegistry` lanza `store-version-unsupported` cuando
+  `user_version > REGISTRY_VERSION`, así que un binario anterior (1.3.0 publicado, o el 1.4.0 aprobado)
+  **no abre** un registro v3. La reversión exige
+  restaurar el registro del respaldo del acto o fijar `user_version=2` y `meta.registry_version=2`; ver
+  `docs/UX-22-TRACKING-SPEC.md` §5 y `D-IMPL-06`.
+- **Auditoría:** `audit_registry` no cambia de forma; `actor` ya admitía `human`/`host` y `action` es libre. Las
+  cinco acciones humanas (`enable`/`disable`/`pause`/`resume`/`reassociate`) y `tracking.reconcile` (siempre
+  `actor='host'`) viven ahí.
