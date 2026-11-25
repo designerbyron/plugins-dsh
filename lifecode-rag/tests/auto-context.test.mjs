@@ -211,7 +211,7 @@ test('el hook respeta el presupuesto: no bloquea el turno aunque el servicio no 
   const world = await makeEightWorld({ libraryCount: 0 });
   try {
     // Un servicio que responde fuera del presupuesto: el pre-step no debe esperar su resolución.
-    const pending = new Promise((resolve) => setTimeout(resolve, 250));
+    const pending = new Promise((resolve) => setTimeout(resolve, 500));
     const services = {
       ...servicesFor(world),
       workingDirectory: { ensure: () => pending },
@@ -225,7 +225,7 @@ test('el hook respeta el presupuesto: no bloquea el turno aunque el servicio no 
     const message = await collector.messageFor({ agent: { id: 'sesion-a' }, turn: 1, step: 1 }, [human('kappaproyecto')]);
     const elapsed = Date.now() - started;
     assert.equal(message, null);
-    assert.ok(elapsed < 1_500, `presupuesto respetado (${elapsed} ms)`);
+    assert.ok(elapsed < 300, `presupuesto respetado (${elapsed} ms)`);
   } finally {
     world.cleanup();
   }

@@ -533,8 +533,8 @@ La revisión de distribución encontró defectos que la suite de 805 no cubría:
 - **Node/FTS5:** el rango `>=22.13 <23 || >=23.4` era falso: Node 22.13–22.15, 23.0–23.11 no incluyen
   FTS5 y `CREATE VIRTUAL TABLE ... USING fts5` falla con `no such module: fts5`; Node 22.16–22.xx y
   Node 24 sí. El rango corregido es `>=22.16.0 <23.0.0 || >=24.0.0`, y `doctor` aplica la misma
-  condición. Se ejecutó la suite completa en Node 22.16.0 (**810/810**, 74.491 s) y Node 24.21.0
-  (**810/810**, 74.217 s); Node 22.5/22.12/23.4 se rechazan por importación o FTS5.
+  condición. Se ejecutó la suite completa en Node 22.16.0 (**811/811**, 75.175 s) y Node 24.21.0
+  (**811/811**, 74.601 s); Node 22.5/22.12/23.4 se rechazan por importación o FTS5.
 - **Doctor no invasivo:** `doctor` ya no abre el almacén original. Copia el `.sqlite3` y sus sidecars
   a un directorio temporal, inspecciona la copia y ejecuta FTS sobre ella; una versión anterior se
   informa como `store-migration-required` y **no se migra**. La prueba compara contenido, hashes y
@@ -546,7 +546,7 @@ La revisión de distribución encontró defectos que la suite de 805 no cubría:
   documentos de R1.2 y en los fixtures de las pruebas. No se modificaron perfiles, stores ni el
   release 1.5.11.
 
-**Prueba:** `tests/doctor.test.mjs` (8/8), `tests/auto-context.test.mjs` (14/14), suite **810/810** en
+**Prueba:** `tests/doctor.test.mjs` (9/9), `tests/auto-context.test.mjs` (14/14), suite **811/811** en
 Node 22.16 y 24; `check` limpio; hermética **810**, almacén real intacto (6 ficheros); `npm pack`
 80 archivos sin informes internos.
 

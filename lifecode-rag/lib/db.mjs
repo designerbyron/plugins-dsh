@@ -1,7 +1,7 @@
 /**
  * Apertura, inicialización y comprobaciones baratas del almacén SQLite de LifeCode RAG.
  *
- * `node:sqlite` es una capacidad del propio host (Node 22.13+/24 / Electron 44), no una dependencia: el
+ * `node:sqlite` es una capacidad del propio host (disponible desde Node 22.13; FTS5 desde 22.16; Node 24/Electron 44), no una dependencia: el
  * plugin no importa nada de `@deepseek-ai/*`. El fichero lleva `application_id` propio para que un
  * `rag.sqlite3` de otro producto se rechace en vez de interpretarse.
  *

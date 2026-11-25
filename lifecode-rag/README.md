@@ -208,7 +208,7 @@ npm run check            # estructura, cero dependencias, red acotada
 ```
 
 Las pruebas y las herramientas de desarrollo viven en el repositorio, no en el paquete publicado
-(`files` excluye `tests/` y `tools/`). La suite de la rama que produce esta 1.6.0 tiene **810 casos** y cubre
+(`files` excluye `tests/` y `tools/`). La suite de la rama que produce esta 1.6.0 tiene **811 casos** y cubre
 las siete herramientas, la administración por API, los workspaces del Host, el seguimiento de workspaces, la
 interfaz y los 64 códigos de error con su mapa HTTP. Los comandos `npm test` y `npm run check` **sólo existen
 en el repositorio**: el manifiesto empaquetado no lleva `scripts`, así que en una instalación desde el TAR se

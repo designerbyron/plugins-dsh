@@ -1,13 +1,13 @@
 # Punto de reanudación — R1.2
 
-**Actualizado:** 2026-11-25 · **Estado:** integración local completada en `67e7c8cbb0c96069f305f7514740ecd910e04e6c`; sin push ni publicación.
+**Actualizado:** 2026-11-25 · **Estado:** push y PR abiertos; HEAD `b2d8faf0442d6e2793eb3e4421d9a5387170bc14`; sin publicación npm.
 
 ## Dónde está el trabajo
 
 - Worktree: `<WORKTREE>`
 - Rama: `feature/project-memory-lifecycle`
-- HEAD: `36148704e191d0689061b6b594135fe5e94d84bc` (base 1.5.11)
-- Commit local: `67e7c8cbb0c96069f305f7514740ecd910e04e6c` (43 archivos); el árbol quedó limpio justo tras el commit.
+- HEAD: `b2d8faf0442d6e2793eb3e4421d9a5387170bc14` (base 1.5.11 `3614870`)
+- Commits: `67e7c8cbb0c96069f305f7514740ecd910e04e6c` (43 archivos) + `b2d8faf0442d6e2793eb3e4421d9a5387170bc14` (20 archivos).
 - Árbol posterior: las actualizaciones de este punto y del informe de release-readiness quedan sin commit (documentación post-commit).
 - Árbol original: **43 entradas** (31 modificadas y 12 no versionadas: las 10 originales, este punto y
   el informe de release-readiness), sin commit, sin stash, sin reset
@@ -28,9 +28,9 @@
 
 ```sh
 cd <WORKTREE>/lifecode-rag
-node --test --test-concurrency=1     # 810 tests, 810 pass, 0 fail, 0 skipped
+node --test --test-concurrency=1     # 811 tests, 811 pass, 0 fail, 0 skipped
 node tools/check.mjs                 # limpio
-node tools/hermetic.mjs              # 810 pass; almacén real sin cambios (6 ficheros)
+node tools/hermetic.mjs              # 811 pass; almacén real sin cambios (6 ficheros)
 ```
 
 - Base 1.5.11: 714/714.

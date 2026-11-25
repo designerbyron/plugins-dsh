@@ -127,6 +127,24 @@ test('doctor no modifica el JSONL de auditoría', async () => {
   }
 });
 
+test('doctor tolera un lector vivo sin copiar -shm', () => {
+  const box = tempRoot('rag-doctor-live-reader');
+  try {
+    const root = join(box.root, 'almacen');
+    const writer = openDatabase({ root, create: true, now: 1700000000000 });
+    try {
+      // El writer mantiene -shm/-wal; doctor no debe copiar -shm ni fallar por EBUSY.
+      const report = runDoctor({ root, env: {} });
+      const store = report.checks.find((check) => check.name === 'almacén');
+      assert.notEqual(store.status, 'fail', store.detail);
+    } finally {
+      closeDatabase(writer.db);
+    }
+  } finally {
+    box.cleanup();
+  }
+});
+
 test('doctor informa migración requerida pero no migra el almacén', () => {
   const box = tempRoot('rag-doctor-migration');
   try {

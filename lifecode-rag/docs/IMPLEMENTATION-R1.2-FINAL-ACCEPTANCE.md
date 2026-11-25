@@ -4,7 +4,7 @@
 **Base:** LifeCode RAG 1.5.11 · commit `36148704e191d0689061b6b594135fe5e94d84bc`
 **Línea:** `feature/project-memory-lifecycle` · worktree `<WORKTREE>`
 **Contrato:** `pa/1.6.0` · registry v4
-**Estado del árbol:** integración local en el commit `67e7c8cbb0c96069f305f7514740ecd910e04e6c` (43 archivos); no se publicó, instaló ni migró ningún almacén real.
+**Estado del árbol:** HEAD `b2d8faf0442d6e2793eb3e4421d9a5387170bc14`; commit R1.2 `67e7c8c…` + correcciones `b2d8faf…`; push y PR abiertos, sin publicación npm ni migración real.
 
 ## 1. Veredicto
 
@@ -129,8 +129,8 @@ No se abrió ni migró el almacén real.
 
 ## 6. Regresión, esquema y hermeticidad
 
-- Suite completa: `node --test --test-concurrency=1` → **810 tests, 810 pass, 0 fail, 0 skipped**,
-  74.217 s.
+- Suite completa: `node --test --test-concurrency=1` → **811 tests, 811 pass, 0 fail, 0 skipped**,
+  74.601 s.
 - Base original 1.5.11: **714/714**. Checkpoint previo: **769/769**. La diferencia neta son las pruebas
   nuevas de `cleanup`, rekey durable, liveness, `remaining` con confianzas, ruta vieja, multiproceso,
   ciclo de vida y API. La cobertura automatizada cubre los criterios de núcleo/API; las ramas de
@@ -138,7 +138,7 @@ No se abrió ni migró el almacén real.
   como cobertura no automatizada, no como pruebas que no existen.
 - `node tools/check.mjs`: limpio; 7 herramientas, sin dependencias de `@deepseek-ai/*`, manifiesto y
   parche correctos, `exports["./client"]` resoluble y cliente con la API de slots vigente.
-- `node tools/hermetic.mjs`: **810 pass**, 0 fail, y el mensaje `hermético: el almacén real no cambió
+- `node tools/hermetic.mjs`: **811 pass**, 0 fail, y el mensaje `hermético: el almacén real no cambió
   (6 fichero(s))`.
 - Migración v4 sobre una **copia** del registro real v3: `user_version` 3→4, 3 proyectos, 3 raíces,
   1 seguimiento, 98 auditorías, 0 duplicados, datos idénticos antes/después. El registro real no se abrió
@@ -146,7 +146,7 @@ No se abrió ni migró el almacén real.
 
 ## 7. Integridad y Git
 
-- HEAD del worktree: `3614870` (base `36148704e191d0689061b6b594135fe5e94d84bc`), rama
+- HEAD del worktree: `b2d8faf` (base `3614870…`), rama
   `feature/project-memory-lifecycle`.
 - `git status --porcelain=v1`: **38 entradas** (28 modificadas y 10 no versionadas) al medir el
   informe original; **43** al añadir `IMPLEMENTATION-R1.2-CONTINUATION.md` y
@@ -240,7 +240,7 @@ No se abrió ni migró el almacén real.
 - **Auditoría independiente de seguridad (`deleg_77efb5ec`):** **BLOCKED** por **H1** (mover tras
   revocar con separador final no rekeyaba y duplicaba fuentes) y **M2** (la API y el scheduler resolvían
   perfiles distintos con `LIFECODE_RAG_DATA`/`LIFECODE_RAG_PROFILE`). Corregidos en D-28 con pruebas
-  focalizadas; suite **810/810**, hermética 810. Reauditoría de las correcciones (`deleg_7bbf2fd9`):
+  focalizadas; suite **811/811**, hermética 811. Reauditoría de las correcciones (`deleg_7bbf2fd9`):
   **READY**; H1 Unicode/M2/configuración de `dataRoot` verificados, worktree intacto (43 entradas).
 - **Auditoría de seguridad completa (`deleg_77efb5ec`):** además de H1/M2, documentó H2 (sync en vuelo
   contra la raíz vieja), H3 (junction), H4 (compensación fallida), M1 (`/roots` con provisión abierta),
@@ -250,7 +250,7 @@ No se abrió ni migró el almacén real.
 - **Revisión independiente de release:** `deleg_5796782a` bloqueó el candidato por mover después de
   revocar (duplicaba fuentes) y la revisión documental encontró contratos/README/cola running. Se
   corrigieron con D-27 (rekey por prefijo sin root, `owner_pid`, workspace-missing, consent,
-  `addedAt`, cola reciente, paquete sin informes internos, docs) y regresiones; suite **810/810**.
+  `addedAt`, cola reciente, paquete sin informes internos, docs) y regresiones; suite **811/811**.
 
 ## 11. Reproducción mínima
 
