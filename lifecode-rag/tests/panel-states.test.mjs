@@ -170,7 +170,7 @@ function retrato({ docs = 0, service = 'ok', roots = 1 } = {}) {
     mode: 'api',
     service,
     asOf: 1763856000000,
-    version: 'pa/1.5.0',
+    version: 'pa/1.6.0',
     project: { id: proyecto.id, name: proyecto.name },
     selection: { projectId: proyecto.id, projectName: proyecto.name, revision: 1, source: 'explicit', selectedBy: 'human' },
     projects: [proyecto],
@@ -274,7 +274,7 @@ test('cabecera con service: ok sigue diciendo «ok» y no inventa un almacén pe
 
 test('perfil sin proyecto activo (service: ok): la cabecera no inventa capa de almacén', async () => {
   const vacio = {
-    mode: 'api', service: 'ok', version: 'pa/1.5.0',
+    mode: 'api', service: 'ok', version: 'pa/1.6.0',
     project: null, selection: null, projects: [], archived: [], roots: [], scopes: [], libraries: [],
     sources: { rows: [], total: 0, nextCursor: null }, audit: { head: 0 },
   };

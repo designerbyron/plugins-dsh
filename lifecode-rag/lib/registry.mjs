@@ -38,8 +38,10 @@ const REGISTRY_TABLES = Object.freeze([
   'operations',
   'pa_selection',
   'projects',
+  'provision_intents',
   'roots',
   'session_scope',
+  'sync_requests',
   'sync_state',
   'workspace_tracking',
 ]);
@@ -97,14 +99,31 @@ export function openRegistry({ root, create = false, now = Date.now() } = {}) {
   try {
     db.exec('PRAGMA foreign_keys = ON');
     db.exec('PRAGMA busy_timeout = 5000');
-    db.exec('PRAGMA journal_mode = WAL');
+    // La identidad del fichero se comprueba ANTES de tocar `journal_mode`: abrir en WAL crea
+    // `-wal`/`-shm` y cambia el hash incluso cuando después se rechaza. Un SQLite ajeno no se toca.
+    const fresh = registryTables(db).length === 0;
+    if (!fresh) {
+      const appId = Number(db.prepare('PRAGMA application_id').get().application_id);
+      if (appId !== REGISTRY_APPLICATION_ID) {
+        throw new RagError('registry-corrupt', 'el fichero de registro no es de LifeCode RAG', { details: { root } });
+      }
+    }
     db.exec('PRAGMA synchronous = FULL');
 
-    const fresh = registryTables(db).length === 0;
     if (fresh) {
+      const appId = Number(db.prepare('PRAGMA application_id').get().application_id);
+      if (appId !== 0 && appId !== REGISTRY_APPLICATION_ID) {
+        throw new RagError('registry-corrupt', 'el fichero vacío declara otra aplicación', { details: { root, appId } });
+      }
+      const version = Number(db.prepare('PRAGMA user_version').get().user_version);
+      if (version !== 0) {
+        throw new RagError('registry-corrupt', 'el fichero vacío declara una versión de registro', { details: { root, version } });
+      }
       if (!create) throw new RagError('store-not-initialized', 'el registro del perfil está vacío');
+      db.exec('PRAGMA journal_mode = WAL');
       initializeRegistry(db, { root, now });
     } else {
+      db.exec('PRAGMA journal_mode = WAL');
       // Un registro de una versión anterior se migra de forma ADITIVA antes de validarlo: sólo se
       // crean estructuras nuevas (v1 → v2 añade `pa_selection`), ninguna fila existente se toca.
       migrateRegistry(db, { root });
@@ -137,6 +156,29 @@ function initializeRegistry(db, { root, now }) {
 }
 
 /**
+ * Preflight de la exclusividad 1:1:1 (R1.1.5). Devuelve las filas que impedirían crear el índice
+ * único; **no** elige propietario, no borra y no fusiona. La migración aborta si hay alguna.
+ */
+export function preflightExclusiveTracking(db) {
+  const duplicates = db.prepare(`
+    SELECT t.project_id, t.path_key, t.path, t.state, t.association, t.revision
+      FROM workspace_tracking t
+      JOIN (SELECT project_id FROM workspace_tracking
+             WHERE project_id IS NOT NULL
+             GROUP BY project_id HAVING COUNT(*) > 1) d
+        ON d.project_id = t.project_id
+     ORDER BY t.project_id, t.path_key`).all();
+  return duplicates.map((row) => ({
+    projectId: row.project_id,
+    pathKey: row.path_key,
+    path: row.path,
+    state: row.state,
+    association: row.association,
+    revision: Number(row.revision),
+  }));
+}
+
+/**
  * Lleva el registro a `REGISTRY_VERSION` con migraciones aditivas, o no hace nada si ya está al día.
  *
  * Se ejecuta dentro de `BEGIN IMMEDIATE` y vuelve a leer la versión dentro de la transacción: dos
@@ -155,6 +197,22 @@ function migrateRegistry(db, { root }) {
       return;
     }
     for (let target = current + 1; target <= REGISTRY_VERSION; target += 1) {
+      // v4: el índice único no puede crearse sobre datos que ya lo violan. Se mide ANTES y, si hay
+      // duplicados, se aborta la migración entera: el registro sigue en v3 y una persona decide.
+      if (target === 4) {
+        const duplicates = preflightExclusiveTracking(db);
+        if (duplicates.length > 0) {
+          throw new RagError('registry-migration-conflict',
+            'hay proyectos con más de un workspace: la migración v4 no elige propietario', {
+              details: {
+                from: current,
+                to: 4,
+                duplicates,
+                resolution: 'una persona decide qué workspace conserva cada memoria; después se reintenta la migración',
+              },
+            });
+        }
+      }
       for (const statement of REGISTRY_MIGRATIONS[target] ?? []) db.exec(statement);
     }
     db.exec(`PRAGMA user_version = ${REGISTRY_VERSION}`);
@@ -163,6 +221,9 @@ function migrateRegistry(db, { root }) {
     db.exec('COMMIT');
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* la transacción ya no estaba abierta */ }
+    // Una condición de dominio ya clasificada (conflicto de migración) se propaga tal cual: envolverla
+    // en `registry-corrupt` diría que el fichero está dañado y ocultaría la decisión que hace falta.
+    if (error instanceof RagError) throw error;
     throw new RagError('registry-corrupt', 'no se pudo migrar el registro del perfil', {
       details: { root, from, to: REGISTRY_VERSION },
       cause: error,
@@ -259,11 +320,22 @@ export function setMeta(db, key, value) {
   return value;
 }
 
-export function createProject(db, { name, now = Date.now() } = {}) {
-  const id = newId('prj_', now);
+/**
+ * Crea un proyecto de conocimiento. `id` permite conservar una identidad **reservada** por una
+ * intención de provisión (`newId('prj_')` calculado antes del INSERT y persistido en
+ * `provision_intents`): si el proceso muere entre reservar y crear, la reanudación reutiliza el mismo
+ * id en vez de inventar otro.
+ */
+export function createProject(db, { name, now = Date.now(), id = null } = {}) {
+  const projectId = id ?? newId('prj_', now);
+  if (typeof projectId !== 'string' || !/^prj_[0-9A-HJKMNP-TV-Z]{26}$/.test(projectId)) {
+    throw new RagError('invalid-argument', 'el id reservado del proyecto no tiene forma válida', {
+      details: { id: typeof projectId === 'string' ? projectId : null },
+    });
+  }
   db.prepare(`INSERT INTO projects (id, name, status, created_at, updated_at) VALUES (?, ?, 'active', ?, ?)`)
-    .run(id, requireName(name), now, now);
-  return { id, name: name.trim(), createdAt: now };
+    .run(projectId, requireName(name), now, now);
+  return { id: projectId, name: name.trim(), createdAt: now };
 }
 
 export function createLibrary(db, { name, now = Date.now() } = {}) {
@@ -599,26 +671,32 @@ export function appendRegistryAudit(db, entry) {
 }
 
 export function verifyRegistryAudit(db) {
-  const rows = db.prepare(`SELECT seq, at, actor, session_id, action, target, outcome, detail, prev_hash, hash
-    FROM audit_registry ORDER BY seq ASC`).all();
-  let prevHash = '0'.repeat(64);
-  for (const row of rows) {
-    if (row.prev_hash !== prevHash) return { ok: false, brokenAt: row.seq, reason: 'prev-hash' };
-    const expected = registryAuditHash(prevHash, {
-      at: row.at,
-      actor: row.actor,
-      sessionId: row.session_id,
-      action: row.action,
-      target: row.target,
-      outcome: row.outcome,
-      detail: row.detail,
-    });
-    if (expected !== row.hash) return { ok: false, brokenAt: row.seq, reason: 'hash' };
-    prevHash = row.hash;
-  }
-  const head = Number(db.prepare(`SELECT value FROM meta WHERE key='audit_head_seq'`).get()?.value ?? '0');
-  if (head !== rows.length) return { ok: false, brokenAt: head, reason: 'head' };
-  return { ok: true, count: rows.length };
+  const verify = () => {
+    const rows = db.prepare(`SELECT seq, at, actor, session_id, action, target, outcome, detail, prev_hash, hash
+      FROM audit_registry ORDER BY seq ASC`).all();
+    let prevHash = '0'.repeat(64);
+    for (const row of rows) {
+      if (row.prev_hash !== prevHash) return { ok: false, brokenAt: row.seq, reason: 'prev-hash' };
+      const expected = registryAuditHash(prevHash, {
+        at: row.at,
+        actor: row.actor,
+        sessionId: row.session_id,
+        action: row.action,
+        target: row.target,
+        outcome: row.outcome,
+        detail: row.detail,
+      });
+      if (expected !== row.hash) return { ok: false, brokenAt: row.seq, reason: 'hash' };
+      prevHash = row.hash;
+    }
+    const head = Number(db.prepare(`SELECT value FROM meta WHERE key='audit_head_seq'`).get()?.value ?? '0');
+    if (head !== rows.length) return { ok: false, brokenAt: head, reason: 'head' };
+    return { ok: true, count: rows.length };
+  };
+  // Una lectura sin transacción puede ver las filas y después un `audit_head_seq` ya avanzado por
+  // otro proceso: falso `registry-corrupt`. El snapshot de una transacción de lectura elimina la
+  // carrera sin bloquear escritores.
+  return db.isTransaction ? verify() : withTransaction(db, verify, { immediate: false });
 }
 
 /** Comprobación de integridad completa (usada por el informe y las pruebas). */

@@ -194,7 +194,7 @@ function retrato({ counts = [0], service = 'ok', declareSources = true, projectC
     mode: 'api',
     service,
     asOf: 1763856000000,
-    version: 'pa/1.5.0',
+    version: 'pa/1.6.0',
     project: activo ? { id: activo.id, name: activo.name } : null,
     selection: activo
       ? { projectId: activo.id, projectName: activo.name, revision: 1, source: 'explicit', selectedBy: 'human' }

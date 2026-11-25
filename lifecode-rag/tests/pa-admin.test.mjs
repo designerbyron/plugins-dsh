@@ -386,10 +386,10 @@ test('F3 · contrato de compatibilidad: pa/1.3.0 y las siete rutas de lectura in
     const handler = handlerFor(world);
     const snapshot = await call(handler, '/snapshot?project=' + world.projectA.id);
     assert.equal(snapshot.status, 200);
-    // UX-2.1: la versión del contrato sube a `pa/1.4.0` (aditivo). UX-2.2 la sube a `pa/1.5.0`,
+    // UX-2.1: la versión del contrato sube a `pa/1.4.0` (aditivo). UX-2.2 la sube a `pa/1.6.0`,
     // también aditiva. Lo que esta prueba protege es la FORMA: ninguna clave de `pa/1.3.0`
     // desaparece y las rutas nuevas no cambian el snapshot.
-    assert.equal(snapshot.json.data.version, 'pa/1.5.0');
+    assert.equal(snapshot.json.data.version, 'pa/1.6.0');
     // Claves que ya consumía el panel y que no pueden desaparecer.
     for (const key of ['mode', 'service', 'asOf', 'version', 'project', 'selection', 'projects', 'auth', 'scopes', 'libraries', 'sources', 'audit', 'config']) {
       assert.ok(Object.prototype.hasOwnProperty.call(snapshot.json.data, key), 'falta ' + key);

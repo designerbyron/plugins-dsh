@@ -49,13 +49,14 @@ export function dshHome(env = process.env) {
  * (`desktop`, `headless`) no cambian: no hay migración de rutas para los perfiles existentes.
  */
 export function profileKey(env = process.env, argv = process.argv) {
-  const name = nonBlank(env.DSH_PROFILE, 'DSH_PROFILE');
+  const own = nonBlank(env.LIFECODE_RAG_PROFILE, 'LIFECODE_RAG_PROFILE');
+  const name = own ?? nonBlank(env.DSH_PROFILE, 'DSH_PROFILE');
   const dir = nonBlank(env.DSH_PROFILE_DIR, 'DSH_PROFILE_DIR');
   const fromEnv = name ?? (dir ? basename(dir) : '');
   const raw = fromEnv || profileNameFromArgv(argv) || '';
   if (raw === '') return 'default';
   const clean = raw.toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
-  if (clean === '') return `default-${suffixOf(raw)}`;
+  if (clean === '' || clean === '.' || clean === '..') return `default-${suffixOf(raw)}`;
   const truncated = clean.slice(0, 64);
   if (truncated === raw && clean === raw) return truncated;
   // Sólo cuando hubo pérdida se desambigua; el resultado cabe en el límite de 64 caracteres.
@@ -97,6 +98,13 @@ export function profileRoot(env = process.env, argv = process.argv) {
       throw new RagError('invalid-config', 'LIFECODE_RAG_ROOT debe ser una ruta absoluta');
     }
     return resolve(override);
+  }
+  const dataRoot = nonBlank(env.LIFECODE_RAG_DATA, 'LIFECODE_RAG_DATA');
+  if (dataRoot) {
+    if (!isAbsolute(dataRoot)) {
+      throw new RagError('invalid-config', 'LIFECODE_RAG_DATA debe ser una ruta absoluta');
+    }
+    return join(resolve(dataRoot), 'profiles', profileKey(env, argv));
   }
   return join(dshHome(env), 'lifecode-rag', 'profiles', profileKey(env, argv));
 }

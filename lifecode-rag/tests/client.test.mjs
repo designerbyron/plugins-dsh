@@ -665,7 +665,7 @@ test('CR-1: un conflicto de revisión no cambia la selección y se avisa', () =>
   const { mod } = loadModule({ document: fakeDocument() });
   const { paReduce } = mod.__test;
   const pending = paReduce(apiState(mod), { type: 'select-project', projectId: 'prj_01LAB2' });
-  const failed = paReduce(pending, { type: 'selection-error', reason: 'revision-conflict' });
+  const failed = paReduce(pending, { type: 'selection-error', reason: 'revision-conflict', reloaded: true });
   assert.equal(failed.pending, null);
   assert.equal(failed.selectionPending, null);
   assert.equal(failed.session.session.selection.projectId, 'prj_01LAB', 'el perdedor no pisa el cambio ajeno');
@@ -1332,8 +1332,9 @@ test('UX-2.2/T-UX-16: el control de seguimiento está habilitado, refleja el est
   assert.equal(control.props['aria-checked'], 'false', 'sin fila no puede declararse seguido');
   control.props.onClick();
   // `{...}` copia el objeto del sandbox al realm del test: deepStrictEqual compara prototipos.
+  // R1.2: activar un workspace sin memoria pide provisión; el servidor lo revalida.
   assert.deepEqual({ ...acciones.pop() }, {
-    type: 'tracking-op', action: 'enable', state: 'on',
+    type: 'tracking-op', action: 'enable', state: 'on', intent: 'provision',
     pathKey: fila().pathKey, path: fila().path, projectId: null,
   });
 
@@ -1819,7 +1820,7 @@ test('T-UX22-10: un 409 recarga, avisa y no reintenta a ciegas', () => {
   const { mod, state } = stateTracking({ items: [filaSeguimiento({ revision: 2 })] });
   const { paReduce, paRenderView, paTranslate } = mod.__test;
   const pendiente = paReduce(state, { type: 'tracking-op', action: 'pause', state: 'paused', pathKey: fila().pathKey });
-  const conflicto = paReduce(pendiente, { type: 'tracking-mutation-error', reason: 'revision-conflict' });
+  const conflicto = paReduce(pendiente, { type: 'tracking-mutation-error', reason: 'revision-conflict', reloaded: true });
   assert.equal(conflicto.pending, null, 'no queda ninguna petición en curso: no hay reintento automático');
   assert.equal(conflicto.trackingOp, null, 'la operación fallida no se conserva para repetirla');
   assert.equal(conflicto.notice.code, 'notice.trackingConflict');
@@ -1827,12 +1828,145 @@ test('T-UX22-10: un 409 recarga, avisa y no reintenta a ciegas', () => {
   assert.equal(texto.includes('Otro panel cambió el seguimiento antes'), true);
   assert.equal(texto.includes('se recargó el estado vigente'), true);
   // Un fallo que no es de revisión se distingue: no se dice «conflicto» cuando no lo es.
-  const fallo = paReduce(pendiente, { type: 'tracking-mutation-error', reason: 'transport-error' });
+  const fallo = paReduce(pendiente, { type: 'tracking-mutation-error', reason: 'transport-error', reloaded: true });
   assert.equal(fallo.notice.code, 'notice.trackingFailed');
   assert.equal(fallo.notice.values.reason, 'transport-error');
   const textoFallo = textOf(paRenderView(fallo, (key, vars) => paTranslate('es', key, vars), () => {}));
-  assert.equal(textoFallo.includes('no se cambió nada'), true);
+  assert.equal(textoFallo.includes('Se recargó el seguimiento'), true, 'el aviso dice que se releyó el estado real');
+  assert.equal(textoFallo.includes('no se cambió nada'), false, 'no se afirma un estado que no se ha mirado');
   assert.equal(textoFallo.includes('Otro panel cambió'), false);
+});
+
+test('F9 · si la relectura también falla, el aviso no afirma que se releyó', () => {
+  const { mod, state } = stateTracking({ items: [filaSeguimiento({ revision: 2 })] });
+  const { paReduce, paRenderView, paTranslate } = mod.__test;
+  const pending = paReduce(state, { type: 'tracking-op', action: 'pause', state: 'paused', pathKey: fila().pathKey });
+  const failed = paReduce(pending, { type: 'tracking-mutation-error', reason: 'transport-error', reloaded: false });
+  assert.equal(failed.notice.code, 'notice.trackingFailedUnreloaded');
+  const text = textOf(paRenderView(failed, (key, vars) => paTranslate('es', key, vars), () => {}));
+  assert.equal(text.includes('Se recargó el seguimiento'), false, 'no se afirma una relectura que falló');
+  assert.equal(text.includes('la vista puede estar desactualizada'), true);
+});
+
+test('compatibilidad: un panel 1.6 contra un servidor 1.5 conocido no envía intent ni acciones avanzadas', () => {
+  const { mod, state } = stateTracking({
+    items: [filaSeguimiento({ revision: 1, state: 'off', project: { id: 'prj_1', name: 'plugins-dhs' } })],
+  });
+  const base = { ...state };
+  const oldActions = [];
+  const oldTree = mod.__test.paRenderView(
+    { ...base, apiVersion: 'pa/1.5.0' },
+    (key, vars) => mod.__test.paTranslate('es', key, vars),
+    (action) => oldActions.push(action),
+  );
+  const oldToggle = findRoleSwitch(oldTree);
+  assert.ok(oldToggle, 'la fila conserva el control');
+  oldToggle.props.onClick();
+  assert.equal(oldActions[0].intent, null, 'un 1.5 no conoce intent=provision');
+  assert.equal(textOf(oldTree).includes('Avanzado'), false, 'un 1.5 no tiene rutas move/revoke');
+
+  const newActions = [];
+  const newTree = mod.__test.paRenderView(
+    { ...base, apiVersion: 'pa/1.6.0' },
+    (key, vars) => mod.__test.paTranslate('es', key, vars),
+    (action) => newActions.push(action),
+  );
+  const newToggle = findRoleSwitch(newTree);
+  newToggle.props.onClick();
+  assert.equal(newActions[0].intent, 'provision', 'control positivo: 1.6 sí prepara memoria');
+  assert.equal(textOf(newTree).includes('Avanzado'), true);
+});
+
+test('F9 · si la relectura de una respuesta sin item falla, el aviso cambia a no recargado', () => {
+  const { mod, state } = stateTracking({ items: [filaSeguimiento({ revision: 2 })] });
+  const { paReduce } = mod.__test;
+  const pending = paReduce(state, { type: 'tracking-op', action: 'pause', state: 'paused', pathKey: fila().pathKey });
+  const withoutItem = paReduce(pending, {
+    type: 'tracking-mutation-ok', op: { action: 'pause', pathKey: fila().pathKey }, data: {},
+  });
+  assert.equal(withoutItem.notice.code, 'notice.trackingReloaded');
+  const failed = paReduce(withoutItem, { type: 'tracking-error', reason: 'transport-error' });
+  assert.equal(failed.notice.code, 'notice.trackingReloadFailed');
+});
+
+test('T-R1.2-04: una revocación parcial no se anuncia como revocación total', () => {
+  const { mod, state } = stateTracking({ items: [filaSeguimiento({ revision: 3, projectId: 'prj_01J0000000000000000000000' })] });
+  const { paReduce, paRenderView, paTranslate } = mod.__test;
+  const conAdmin = paReduce(state, {
+    type: 'tracking-admin', action: 'revoke', pathKey: fila().pathKey, revision: 3,
+  });
+  const parcial = paReduce(conAdmin, {
+    type: 'tracking-admin-ok',
+    admin: { action: 'revoke', pathKey: fila().pathKey },
+    data: { changed: true, complete: false, remaining: [{ id: 'root_1', path: fila().path }] },
+  });
+  assert.equal(parcial.notice.code, 'notice.trackingRevokedPartial');
+  assert.equal(parcial.notice.values.count, 1);
+  const texto = textOf(paRenderView(parcial, (key, vars) => paTranslate('es', key, vars), () => {}));
+  assert.equal(texto.includes('el acceso de lectura continúa'), true);
+  assert.equal(texto.includes('Acceso de lectura revocado; la memoria sigue intacta'), false);
+});
+
+test('T-R1.2-04b: una revocación sin cambio no anuncia que retiró acceso', () => {
+  const { mod, state } = stateTracking({ items: [filaSeguimiento({ revision: 3, projectId: 'prj_01J0000000000000000000000' })] });
+  const { paReduce, paRenderView, paTranslate } = mod.__test;
+  const already = paReduce(state, {
+    type: 'tracking-admin-ok',
+    admin: { action: 'revoke', pathKey: fila().pathKey },
+    data: { changed: false, complete: true, remaining: [] },
+  });
+  assert.equal(already.notice.code, 'notice.trackingRevokeNoChange');
+  const remaining = paReduce(state, {
+    type: 'tracking-admin-ok',
+    admin: { action: 'revoke', pathKey: fila().pathKey },
+    data: { changed: false, complete: false, remaining: [{ id: 'root_padre', path: 'C:/padre' }] },
+  });
+  assert.equal(remaining.notice.code, 'notice.trackingRevokeNoChangeRemaining');
+  const texto = textOf(paRenderView(remaining, (key, vars) => paTranslate('es', key, vars), () => {}));
+  assert.equal(texto.includes('No se retiró ningún acceso propio'), true);
+  assert.equal(texto.includes('Se retiró el acceso que creó LifeCode RAG'), false);
+});
+
+test('T-R1.2-05: el botón de revocar explica el motivo real (ya revocado, en curso, no demostrable)', () => {
+  const { mod, state } = stateTracking({
+    items: [filaSeguimiento({
+      memory: {
+        state: 'ready', projectId: 'prj_1', association: 'explicit', store: 'present',
+        canRevoke: false, canRevokeReason: 'already-revoked',
+        consent: { trust: null, root: null, revokedAt: '2026-11-24T10:00:00.000Z' },
+      },
+    })],
+  });
+  const texto = renderTracking(state, mod);
+  assert.equal(texto.includes('El acceso propio ya se revocó'), true);
+  assert.equal(texto.includes('No se puede demostrar'), false, 'no se afirma falta de prueba cuando ya se revocó');
+
+  const reasonText = (reason) => {
+    const built = stateTracking({
+      items: [filaSeguimiento({
+        memory: {
+          state: reason === 'provisioning' ? 'provisioning' : 'ready',
+          projectId: 'prj_1', association: 'explicit', store: 'present',
+          canRevoke: false, canRevokeReason: reason,
+          consent: { trust: null, root: null, revokedAt: null },
+        },
+      })],
+    });
+    return renderTracking(built.state, built.mod);
+  };
+  assert.equal(reasonText('provisioning').includes('se está preparando'), true);
+  assert.equal(reasonText('project-inactive').includes('no está activo'), true);
+  assert.equal(reasonText('no-provenance').includes('No se puede demostrar'), true);
+});
+
+test('T-R1.2-06: un fallo de acción avanzada que no es de revisión no se etiqueta como «otro panel»', () => {
+  const { mod, state } = stateTracking({ items: [filaSeguimiento({ revision: 2 })] });
+  const { paReduce } = mod.__test;
+  const failed = paReduce(state, { type: 'tracking-admin-error', reason: 'revocation-not-proven', conflict: false, reloaded: true });
+  assert.equal(failed.notice.code, 'notice.trackingAdminFailed');
+  const texto = renderTracking(failed, mod);
+  assert.equal(texto.includes('revocation-not-proven'), true);
+  assert.equal(texto.includes('Otro panel'), false);
 });
 
 test('T-UX22-13: una mutación confirmada pinta la revisión del servidor y avisa', () => {
@@ -2157,4 +2291,72 @@ test('F9: `tracked:true` con un estado no reconocido no se convierte en «on»',
   assert.equal(filas[0].props['data-tracking-state'], 'off', 'sin fila de seguimiento queda «sin seguimiento», no «seguido»');
   assert.equal(findRoleSwitch(vista).props['aria-checked'], 'false');
   assert.equal(textOf(vista).includes('Seguidos: 0'), true);
+});
+
+test('R1.2: el toggle pide provisión, mover conserva el CAS y revocar sin prueba se deshabilita', () => {
+  const { mod } = loadModule({ document: fakeDocument() });
+  const { paInitialState, paReduce, paRenderView, paTrackingRequest, paTranslate } = mod.__test;
+  const t = (key, vars) => paTranslate('es', key, vars);
+  const base = {
+    ...paInitialState({ demo: true }), mode: 'api', view: 'tracking',
+    workspaces: { loaded: true, loading: false, source: 'host', items: [], error: null },
+    tracking: {
+      loaded: true, loading: false, error: null, counts: null, asOf: 1, truncated: false, filter: 'all',
+      items: [{
+        pathKey: 'c:/ws', path: 'C:/ws', state: 'off', revision: 4,
+        project: { id: 'prj_1', name: 'P' }, association: 'explicit', lastStatus: 'ok',
+        memory: { state: 'none', canRevoke: false, index: null },
+      }],
+    },
+  };
+
+  // Activar un workspace sin memoria pide provisión, con la revisión de la fila como CAS.
+  const enabled = paReduce(base, {
+    type: 'tracking-op', action: 'enable', state: 'on', intent: 'provision',
+    pathKey: 'c:/ws', path: 'C:/ws', projectId: 'prj_1',
+  });
+  assert.equal(enabled.trackingOp.intent, 'provision');
+  const built = paTrackingRequest(enabled.trackingOp);
+  assert.equal(built.options.body.intent, 'provision');
+  assert.equal(built.options.body.expectedRevision, 4);
+
+  // Mover: abrir, escribir la ruta y confirmar. El cuerpo lleva la revisión de la fila.
+  const opened = paReduce(base, {
+    type: 'tracking-admin-open', action: 'move', pathKey: 'c:/ws', path: 'C:/ws', revision: 4,
+  });
+  assert.equal(opened.trackingAdmin.action, 'move');
+  const typed = paReduce(opened, { type: 'tracking-admin-input', value: 'C:/nuevo' });
+  const confirmed = paReduce(typed, { type: 'tracking-admin-confirm' });
+  assert.equal(confirmed.pending, 'tracking-admin');
+  const done = paReduce(confirmed, {
+    type: 'tracking-admin-ok',
+    admin: typed.trackingAdmin,
+    data: {
+      item: {
+        pathKey: 'c:/nuevo', path: 'C:/nuevo', state: 'off', revision: 1,
+        project: { id: 'prj_1', name: 'P' }, memory: { state: 'ready', canRevoke: true },
+      },
+    },
+  });
+  assert.equal(done.pending, null);
+  assert.equal(done.trackingAdmin, null);
+  assert.equal(done.tracking.items.length, 1);
+  assert.equal(done.tracking.items[0].pathKey, 'c:/nuevo');
+  assert.equal(done.notice.code, 'notice.trackingMoved');
+
+  // Revocar sin procedencia: el botón existe, está deshabilitado y se explica por qué.
+  const vista = paRenderView(base, t, () => {});
+  const find = (node, predicate) => {
+    if (!node || typeof node !== 'object') return null;
+    if (predicate(node)) return node;
+    for (const child of node.children ?? []) {
+      const found = find(child, predicate);
+      if (found) return found;
+    }
+    return null;
+  };
+  const revoke = find(vista, (node) => node.props && node.props['data-tracking-revoke']);
+  assert.ok(revoke, 'la acción de revocar existe en la fila');
+  assert.equal(revoke.props.disabled, true);
+  assert.equal(textOf(vista).includes('No se puede demostrar'), true);
 });

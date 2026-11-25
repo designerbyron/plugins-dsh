@@ -111,3 +111,23 @@ informa `scope-store-unavailable` con `state: 'missing'` y `retryable: false`.
   (`lifecode-rag/tests/recovery.test.mjs`).
 - Prueba de operación incierta: una fila `started` bloquea con `operation-uncertain` y la reconciliación sólo
   cierra la fila (`lifecode-rag/tests/partial-results.test.mjs`).
+
+## 7. R1.2 · códigos del ciclo de vida (`pa/1.6.0`)
+
+Se añaden al sobre público; no cambian los códigos anteriores. La compuerta del Host sigue siendo la primera:
+sin ella, `PUT` con `intent` y las acciones avanzadas responden `503 authorization-unavailable`.
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `provisioning-failed` | 422 | la saga no completó; `details.failedStep`, `retryable`, `compensated` |
+| `memory-exclusive` | 409 | 1:1:1: otro workspace posee la memoria o el proyecto ya tiene otra raíz; `details.reason` incluye `project-associated`, `project-is-workspace`, `project-has-other-roots`, `root-is-library`, `root-owner-conflict`, `cleanup-pending` |
+| `move-conflict` | 409 | destino ocupado, raíz ajena, contención, dos raíces, almacén ausente o rekey pendiente; `details.reason` incluye `destination-tracked`, `source-root-not-owned`, `containment`, `project-has-other-roots`, `store-absent`, `destination-root-other`, `rekey-pending` |
+| `move-failed` | 422 | el movimiento no completó; `details.operationId`, `retryable` |
+| `sync-in-progress` | 409 | hay una sincronización viva del proyecto; `details.operationId`, `retryable` |
+| `revocation-not-proven` | 409 | no hay `consent_trust_key`/`consent_root_id` que demuestren propiedad |
+| `workspace-missing` | 422 | la carpeta no existe o no se puede leer |
+| `registry-migration-conflict` | 409 | el preflight v4 encontró duplicados; no se migra ni se elige dueño |
+
+**Verificación.** `tests/pa-lifecycle-api.test.mjs`, `tests/provisioning.test.mjs` y
+`tests/tracking-migration.test.mjs`. Los códigos nuevos se mapean en `lib/errors.mjs`; la UI muestra el
+`code` con su texto, nunca un éxito si el servidor devolvió error.

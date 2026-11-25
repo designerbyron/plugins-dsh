@@ -323,7 +323,8 @@ test('T-LAYOUT-02: los tres estados emiten sus botones completos dentro de la co
   assert.equal(toggleOf(pausedContainer).label, 'Reanudar');
   assert.equal(toggleOf(pausedContainer).props['aria-checked'], 'false');
   assert.deepEqual(buttonsOf(pausedContainer).filter((button) => button.props.role !== 'switch')
-    .map((button) => button.text), ['Dejar de seguir', 'Quitar fila']);
+    .map((button) => button.text), ['Dejar de seguir', 'Quitar fila', 'Revocar acceso de lectura', 'Mover carpeta'],
+    'R1.2: la fila con proyecto añade las acciones avanzadas, también con su texto íntegro');
 
   // Sin seguimiento: sólo se ofrece seguir; no hay «Dejar de seguir» ni fila que quitar.
   const offContainer = actionsContainerOf(rows[2]);

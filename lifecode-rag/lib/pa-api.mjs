@@ -45,10 +45,20 @@ import { verifyAuditChain } from './audit.mjs';
 import { projectWorkspaces } from './harness-workspaces.mjs';
 import { projectForPathKey } from './workspaces-projection.mjs';
 import { isTrackingState } from './tracking.mjs';
-import { TRACKING_LIST_MAX, applyTracking, countTracking, listTracking, removeTracking } from './tracking-store.mjs';
+import { TRACKING_LIST_MAX, applyTracking, countTracking, listTracking, readTracking, removeTracking } from './tracking-store.mjs';
+import {
+  PROVISION_MESSAGE,
+  assertWorkspaceProvisionable,
+  memoryMapForRows,
+  memorySummary,
+  moveWorkspaceMemory,
+  provisionWorkspaceMemory,
+  revokeReadAccess,
+} from './lifecycle.mjs';
+import { requestSync } from './provision-store.mjs';
 
 export const PA_PREFIX = '/lifecode-rag/pa';
-export const PA_VERSION = 'pa/1.5.0';
+export const PA_VERSION = 'pa/1.6.0';
 const MAX_BODY = 1_000_000;
 const MAX_LIMIT = 200;
 const MAX_SEARCH = 50;
@@ -73,7 +83,7 @@ const GET_ROUTES = {
  * `pathKeyFor(path)` (auditoría F8).
  */
 const TRACKING_ROUTE = '/tracking';
-const TRACKING_PUT_FIELDS = Object.freeze(['pathKey', 'state', 'projectId', 'expectedRevision', 'path']);
+const TRACKING_PUT_FIELDS = Object.freeze(['pathKey', 'state', 'projectId', 'expectedRevision', 'path', 'intent']);
 const TRACKING_DELETE_PARAMS = Object.freeze(['pathKey', 'expectedRevision']);
 const TRACKING_CSRF_HEADER = 'x-lifecode-rag';
 const TRACKING_CSRF_VALUE = '1';
@@ -112,6 +122,10 @@ const ADMIN_ROUTES = Object.freeze({
   '/roots/remove': { methods: ['POST'], fields: { POST: ['rootId', 'projectId', 'path', 'allowEmpty'] } },
   '/projects/register': { methods: ['POST'], fields: { POST: ['path', 'name'] } },
   '/candidates': { methods: ['GET', 'HEAD'], fields: {}, query: ['project', 'path', 'maxDepth'] },
+  // R1.2 · acciones avanzadas del ciclo de vida. Exigen la compuerta del host como el resto de la
+  // administración: mover y revocar no son actos que el modelo pueda provocar.
+  '/tracking/move': { methods: ['POST'], fields: { POST: ['pathKey', 'newPath', 'expectedRevision'] } },
+  '/tracking/revoke': { methods: ['POST'], fields: { POST: ['pathKey', 'expectedRevision'] } },
 });
 
 const localEmbedder = {
@@ -352,6 +366,17 @@ function trackingPayload(body) {
     });
   }
   const expectedRevision = requireExpectedRevision(body.expectedRevision, { route: TRACKING_ROUTE });
+  // R1.2 · `intent` es el único campo nuevo de `pa/1.6.0`. Ausente = comportamiento de 1.5.0
+  // (la fila se escribe y nada más): un cliente antiguo no provisiona por sorpresa.
+  let intent = null;
+  if (body.intent !== undefined && body.intent !== null) {
+    if (body.intent !== 'provision') {
+      throw new RagError('invalid-argument', `${TRACKING_ROUTE}: intent no admitido`, {
+        details: { reason: 'invalid-field', field: 'intent', allowed: ['provision'] },
+      });
+    }
+    intent = body.intent;
+  }
   if (body.projectId !== undefined && body.projectId !== null && typeof body.projectId !== 'string') {
     throw new RagError('invalid-argument', `${TRACKING_ROUTE}: projectId debe ser texto o nulo`, { details: { reason: 'invalid-field', field: 'projectId' } });
   }
@@ -380,6 +405,7 @@ function trackingPayload(body) {
     state: body.state,
     projectId: body.projectId,
     expectedRevision,
+    intent,
   };
 }
 
@@ -417,13 +443,15 @@ function projectNameMap(db) {
  * proyecto ya no está) y `relation` la del workspace contra las raíces autorizadas, con la misma
  * regla que `/workspaces`. No autoriza nada: describe.
  */
-function trackingItemView(row, { roots = [], projectNames = null } = {}) {
+function trackingItemView(row, { roots = [], projectNames = null, memory = null } = {}) {
   const name = row && row.projectId && projectNames instanceof Map ? projectNames.get(row.projectId) : null;
   const match = projectForPathKey(row?.pathKey, roots);
   return {
     ...row,
     project: name ? { id: row.projectId, name } : null,
     relation: match ? match.relation : 'none',
+    // Q-01: estado de memoria derivado del journal, no una columna que pueda desincronizarse.
+    memory,
   };
 }
 
@@ -711,7 +739,7 @@ function assertReadableRoot(db, path) {
  * `{status, data}`; no escribe nada fuera de las operaciones de F1/F2 ni abre almacenes de ámbito:
  * archivar, restaurar, renombrar y quitar una raíz no tocan `scopes/<id>/rag.sqlite3`.
  */
-async function adminDispatch(db, { route, method, body, url, principal, now, profileRoot }) {
+async function adminDispatch(db, { route, method, body, url, principal, now, profileRoot, profileKey, scheduler }) {
   const integrity = () => verifyRegistryAudit(db);
 
   if (route === '/projects' && method === 'POST') {
@@ -794,6 +822,35 @@ async function adminDispatch(db, { route, method, body, url, principal, now, pro
     const projectId = adminField(body, 'projectId', { route });
     adminProject(db, projectId);
     const path = adminField(body, 'path', { route, max: MAX_PATH });
+    // R1.2 · 1:1:1 por la puerta de administración: un proyecto que es la memoria de un workspace
+    // no puede recibir una raíz en otra carpeta (mezclaría dos carpetas en una memoria). Una
+    // provisión abierta cuenta ya como memoria en preparación: añadir otra raíz en esa ventana
+    // rompería la exclusividad antes de que la intención se cierre.
+    const openIntent = db.prepare(`SELECT path_key FROM provision_intents
+        WHERE project_id = ? AND state = 'open' LIMIT 1`).get(projectId);
+    if (openIntent) {
+      throw new RagError('memory-exclusive',
+        'este proyecto tiene una provisión abierta: no admite raíces hasta que termine', {
+          details: { reason: 'provision-open', projectId, workspacePathKey: openIntent.path_key },
+        });
+    }
+    const tracked = db.prepare('SELECT path_key FROM workspace_tracking WHERE project_id = ?').get(projectId);
+    // La fila de seguimiento se puede borrar; la intención durable no. La guarda se ancla a ambas
+    // para que borrar la fila no convierta una memoria de workspace en un proyecto de múltiples
+    // carpetas (M3 residual).
+    const memoryIntent = db.prepare(`SELECT path_key FROM provision_intents
+        WHERE project_id = ? AND state IN ('done', 'abandoned')
+        ORDER BY updated_at DESC LIMIT 1`).get(projectId);
+    const ownerPathKey = tracked?.path_key ?? memoryIntent?.path_key ?? null;
+    if (ownerPathKey && pathKeyFor(path) !== ownerPathKey) {
+      throw new RagError('memory-exclusive',
+        'este proyecto es la memoria de un workspace: no admite raíces en otra carpeta', {
+          details: {
+            reason: 'project-is-workspace', projectId,
+            workspacePathKey: ownerPathKey, requestedPathKey: pathKeyFor(path),
+          },
+        });
+    }
     const root = auditedWrite(db, {
       action: 'root.add', detail: { scopeId: projectId, path }, now,
       work: () => addRoot(db, { scopeKind: 'prj', scopeId: projectId, path, addedBy: 'human', now }),
@@ -832,7 +889,9 @@ async function adminDispatch(db, { route, method, body, url, principal, now, pro
       status: 200,
       data: {
         removed: result.removed,
-        project: projectAdminView(db, result.removed.scopeId),
+        // Una raíz de biblioteca no tiene `projectAdminView`; responder 404 después de haber
+        // borrado la fila presentaba una escritura destructiva como fallida.
+        project: result.removed.scopeKind === 'prj' ? projectAdminView(db, result.removed.scopeId) : null,
         integrity: integrity(),
       },
     };
@@ -892,6 +951,55 @@ async function adminDispatch(db, { route, method, body, url, principal, now, pro
     };
   }
 
+  // R1.2 · Q09: mover el workspace conservando identidad y almacén. La fila vieja se elimina en la
+  // transacción del rebind y la traza queda en `operations`/`operation_steps`.
+  if (route === '/tracking/move') {
+    const pathKey = adminField(body, 'pathKey', { route, max: MAX_PATH });
+    const newPath = adminField(body, 'newPath', { route, max: MAX_PATH });
+    const expectedRevision = requireExpectedRevision(body?.expectedRevision, { route });
+    const result = moveWorkspaceMemory(db, {
+      profileRoot, profileKey, pathKey, newPath, expectedRevision, now,
+    });
+    // La ruta nueva no tiene `sync_state`: se pide drenaje ya, no en el siguiente tick (que puede no
+    // existir si la automatización está apagada). M-01.
+    scheduler?.drainSoon?.();
+    return {
+      status: 200,
+      data: {
+        operationId: result.operationId,
+        item: trackingItemView(result.tracking, {
+          roots: workspaceRoots(db), projectNames: projectNameMap(db), memory: result.memory,
+        }),
+        memory: result.memory,
+        integrity: integrity(),
+      },
+    };
+  }
+
+  // R1.2 · Q08: revocar el acceso de lectura que creó LifeCode RAG. Independiente de OFF; si no hay
+  // procedencia demostrable no escribe nada (`revocation-not-proven`).
+  if (route === '/tracking/revoke') {
+    const pathKey = adminField(body, 'pathKey', { route, max: MAX_PATH });
+    const expectedRevision = requireExpectedRevision(body?.expectedRevision, { route });
+    const result = revokeReadAccess(db, { profileRoot, profileKey, pathKey, expectedRevision, now });
+    return {
+      status: 200,
+      data: {
+        changed: result.changed,
+        complete: result.complete !== false,
+        remaining: result.remaining ?? [],
+        alreadyRevoked: result.alreadyRevoked ?? false,
+        revokedAt: result.revokedAt ?? null,
+        removed: result.removed ?? null,
+        left: result.left ?? null,
+        item: trackingItemView(readTracking(db, { pathKey }), {
+          roots: workspaceRoots(db), projectNames: projectNameMap(db), memory: result.memory ?? null,
+        }),
+        integrity: integrity(),
+      },
+    };
+  }
+
   return failDispatch(route);
 }
 
@@ -920,8 +1028,8 @@ function failDispatch(route) {
  * handler: en `apply()` el registro del host puede no estar listo todavía.
  */
 export function createPaHandler({
-  profileRoot, profileKey = 'desktop', env = process.env, now = () => Date.now(),
-  maxBody = MAX_BODY, authorize = null, services = null,
+  profileRoot, profileKey = 'desktop', dataRoot = profileRoot, env = process.env, now = () => Date.now(),
+  maxBody = MAX_BODY, authorize = null, services = null, scheduler = null,
 } = {}) {
   // Respondedores ligados al tope de esta instancia: la sobrecarga se mide por respuesta.
   const respond = (res, status, payload) => writeJson(res, status, { ok: true, data: payload }, maxBody);
@@ -957,7 +1065,7 @@ export function createPaHandler({
       }
       const principal = peer && peer.principal && peer.principal.kind ? String(peer.principal.kind) : null;
 
-      const { config } = resolveConfig({ dataRoot: profileRoot, profileKey });
+      const { config } = resolveConfig({ dataRoot, profileKey });
 
       // /config no depende de proyecto: se responde antes de abrir el registro.
       if (route === '/config') {
@@ -1059,6 +1167,26 @@ export function createPaHandler({
         // que `/workspaces`, que tampoco lo hace). Se responde antes de `projectView`.
         if (route === TRACKING_ROUTE) {
           if (method === 'PUT') {
+            // Validar la intención ANTES de escribir: un `intent:'provision'` con `state:'off'` no
+            // puede dejar una fila creada y responder 400 después.
+            if (trackingBody.intent === 'provision' && trackingBody.state !== 'on') {
+              throw new RagError('invalid-argument', '/tracking: intent=provision exige state=on', {
+                details: { reason: 'intent-requires-on', field: 'intent', state: trackingBody.state },
+              });
+            }
+            if (trackingBody.intent === 'provision') {
+              // La provisión es la operación más privilegiada de la API: exige la compuerta del host
+              // igual que la administración. `authorize:null` es un doble de pruebas, no un modo
+              // abierto del producto.
+              if (!authorize) {
+                return failWith(res, 503, 'authorization-unavailable',
+                  'preparar memoria exige la compuerta de autenticación del host');
+              }
+              // Y la carpeta debe existir ANTES de tocar la fila: un fallo de ruta no puede dejar
+              // el seguimiento en `on` con asociación pendiente.
+              assertWorkspaceProvisionable(trackingBody.path);
+            }
+            const previous = readTracking(db, { pathKey: trackingBody.pathKey });
             const applied = applyTracking(db, {
               pathKey: trackingBody.pathKey,
               // F8: la ruta llega validada y casada con `pathKey`; ya no hay respaldo a la clave.
@@ -1070,10 +1198,84 @@ export function createPaHandler({
               // Sólo una persona mueve el eje A (`D-UX22-09`); el almacén lo vuelve a exigir.
               actor: 'human',
             });
+            // R1.2 · El toggle con `intent:'provision'` prepara y asocia la memoria. Sin `intent`
+            // se conserva exactamente el comportamiento de 1.5.0 (compatibilidad de cliente).
+            if (trackingBody.intent === 'provision') {
+              let provisioned;
+              try {
+                provisioned = provisionWorkspaceMemory(db, {
+                  profileRoot,
+                  profileKey,
+                  path: trackingBody.path,
+                  pathKey: trackingBody.pathKey,
+                  expectedRevision: applied.revision,
+                  trackingCreated: !previous,
+                  now: now(),
+                });
+              } catch (error) {
+                // H5 · la fila se escribe antes de la saga (la saga la necesita). Si el acto falla
+                // de forma NO reintentable, se compensa la fila: no puede quedar un `on` que la UI
+                // presente como seguimiento cuando la memoria no se preparó. Un fallo reintentable
+                // conserva la fila y la intención para que la recuperación reanude.
+                if (error?.details?.retryable === false) {
+                  try {
+                    const current = readTracking(db, { pathKey: trackingBody.pathKey });
+                    if (current && current.revision === applied.revision) {
+                      if (!previous) {
+                        removeTracking(db, { pathKey: trackingBody.pathKey, expectedRevision: current.revision, now: now() });
+                      } else {
+                        applyTracking(db, {
+                          pathKey: previous.pathKey, path: previous.path, state: previous.state,
+                          projectId: previous.projectId ?? null, expectedRevision: current.revision,
+                          now: now(), actor: 'human',
+                        });
+                      }
+                    }
+                  } catch { /* la compensación no puede tapar el error original */ }
+                }
+                throw error;
+              }
+              scheduler?.drainSoon?.();
+              return respond(res, 200, {
+                changed: true,
+                item: trackingItemView(provisioned.tracking, {
+                  roots: workspaceRoots(db), projectNames: projectNameMap(db), memory: provisioned.memory,
+                }),
+                revision: provisioned.tracking.revision,
+                memory: {
+                  ...provisioned.memory,
+                  reused: provisioned.reused,
+                  // Mensaje aprobado literal (R1.2 §6.1): describe la memoria, no la indexación.
+                  message: PROVISION_MESSAGE,
+                },
+              });
+            }
+            // Q10 · Reactivación: off/paused → on sobre una fila con memoria. Se encola una
+            // sincronización incremental **aparte** de la activación; nunca dentro de esta escritura.
+            const reactivated = previous !== null && previous.state !== 'on'
+              && applied.item.state === 'on' && applied.item.projectId !== null;
+            let queued = false;
+            if (reactivated) {
+              try {
+                requestSync(db, {
+                  scopeKind: 'prj', scopeId: applied.item.projectId, reason: 'reactivation', now: now(),
+                });
+                queued = true;
+                scheduler?.drainSoon?.();
+              } catch {
+                // No poder encolar no invalida la reactivación; se publica como cola fallida.
+                queued = false;
+              }
+            }
+            const memory = memoryMapForRows(db, { profileRoot, rows: [applied.item] })
+              .get(applied.item.pathKey) ?? null;
             return respond(res, 200, {
               changed: applied.changed,
-              item: trackingItemView(applied.item, { roots: workspaceRoots(db), projectNames: projectNameMap(db) }),
+              item: trackingItemView(applied.item, {
+                roots: workspaceRoots(db), projectNames: projectNameMap(db), memory,
+              }),
               revision: applied.revision,
+              ...(reactivated ? { index: { state: queued ? 'queued' : 'failed' } } : {}),
             });
           }
           if (method === 'DELETE') {
@@ -1089,7 +1291,10 @@ export function createPaHandler({
           const counts = countTracking(db);
           const roots = workspaceRoots(db);
           const names = projectNameMap(db);
-          const items = rows.map((row) => trackingItemView(row, { roots, projectNames: names }));
+          const memoryByKey = memoryMapForRows(db, { profileRoot, rows });
+          const items = rows.map((row) => trackingItemView(row, {
+            roots, projectNames: names, memory: memoryByKey.get(row.pathKey) ?? null,
+          }));
           return respond(res, 200, {
             items,
             counts,
@@ -1120,7 +1325,7 @@ export function createPaHandler({
         // descubrir candidatos funcionan aunque no haya selección o el proyecto esté archivado).
         if (adminSpec) {
           const result = await adminDispatch(db, {
-            route, method, body: adminBody, url, principal: principal ?? 'owner', now: now(), profileRoot,
+            route, method, body: adminBody, url, principal: principal ?? 'owner', now: now(), profileRoot, profileKey, scheduler,
           });
           return respond(res, result.status, result.data);
         }
@@ -1183,6 +1388,8 @@ export function createPaHandler({
             sources: { rows: [], total: 0, nextCursor: null },
             audit: { head: 0 },
             config: { strategy: config.search.strategy, limit: config.search.limit, diversity: config.search.diversity },
+            // R1.2 · Q-01: el retrato publica el eje de memoria derivado (no una columna).
+            memory: memorySummary(db, { profileRoot }),
             capabilities: adminCapabilities(),
           });
         }
@@ -1201,6 +1408,7 @@ export function createPaHandler({
             sources: { rows: [], total: 0, nextCursor: null },
             audit: { head: 0 },
             config: { strategy: config.search.strategy, limit: config.search.limit, diversity: config.search.diversity },
+            memory: memorySummary(db, { profileRoot }),
             capabilities: adminCapabilities(),
           });
         }
@@ -1245,6 +1453,7 @@ export function createPaHandler({
                 : { rows: [], total: 0, nextCursor: null },
               audit: store ? auditHead(sdb) : { head: 0 },
               config: { strategy: config.search.strategy, limit: config.search.limit, diversity: config.search.diversity },
+              memory: memorySummary(db, { profileRoot }),
               capabilities: adminCapabilities(),
             });
           }

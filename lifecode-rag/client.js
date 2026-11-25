@@ -1084,6 +1084,38 @@ window.__ModuleLoader__.load({
         'ux.track.noRows': 'Este filtro no deja ningún workspace',
         'ux.track.noRowsHint': 'Cambia el filtro para ver otros.',
         'ux.track.availability': 'Disponibilidad',
+        // R1.2 · eje de memoria (Q-01) y acciones avanzadas.
+        'ux.track.memoryReady': 'Memoria lista',
+        'ux.track.memoryProvisioning': 'Preparando memoria',
+        'ux.track.memoryNone': 'Sin memoria todavía',
+        'ux.track.memoryIncomplete': 'Asociación pendiente',
+        'ux.track.memoryStoreMissing': 'Memoria no disponible',
+        'ux.track.memoryArchived': 'Proyecto archivado',
+        'ux.track.memoryUnknown': 'Memoria: no se puede determinar',
+        'ux.track.index': 'Índice',
+        'ux.track.cleanupPending': 'Limpieza de acceso pendiente; se reintenta al reiniciar.',
+        'ux.track.rekeyPending': 'Ruta del índice pendiente; se reintenta al reiniciar.',
+        'ux.track.indexQueued': 'en cola',
+        'ux.track.indexRunning': 'indexando…',
+        'ux.track.indexFailed': 'la última pasada falló',
+        'ux.track.advanced': 'Avanzado',
+        'ux.track.revoke': 'Revocar acceso de lectura',
+        'ux.track.revokeScope': 'Se retirará el acceso de lectura que LifeCode RAG creó para esta carpeta. No se borra la memoria, ni el proyecto, ni el índice, ni el seguimiento.',
+        'ux.track.revokeEntries': 'Entradas propias que se revisarán: {items}.',
+        'ux.track.revokeTrust': 'confianza',
+        'ux.track.revokeRoot': 'raíz',
+        'ux.track.revokeNoEntries': 'no consta ninguna entrada propia verificable',
+        'ux.track.revokeUnknown': 'No hay datos suficientes para demostrar la propiedad de este acceso; no se revoca desde aquí.',
+        'ux.track.revokeUnproven': 'No se puede demostrar que LifeCode RAG creara ese acceso: no se revoca desde aquí.',
+        'ux.track.revokeAlready': 'El acceso propio ya se revocó; la memoria sigue intacta.',
+        'ux.track.revokeProvisioning': 'La memoria se está preparando; espera a que termine para revocar.',
+        'ux.track.revokeInactive': 'El proyecto no está activo; no se revoca desde aquí.',
+        'ux.track.revokeConfirm': 'Confirmar revocación',
+        'ux.track.move': 'Mover carpeta',
+        'ux.track.moveScope': 'La memoria, el proyecto y el índice se conservan. La ruta anterior deja de estar autorizada si ese acceso lo creó LifeCode RAG.',
+        'ux.track.moveNewPath': 'Ruta nueva',
+        'ux.track.moveConfirm': 'Mover la memoria',
+        'ux.track.adminCancel': 'Cancelar',
         'ux.set.title': 'Ajustes',
         'ux.projects.summary': 'Resumen',
         'ux.state.active': 'Activa',
@@ -1354,7 +1386,9 @@ window.__ModuleLoader__.load({
         'notice.selected': 'Selección guardada en el perfil (revisión {revision}).',
         'notice.selectedFixture': 'Selección simulada: la revisión subió y el cambio quedó anotado en Operaciones.',
         'notice.selectionConflict': 'Otro panel cambió la selección antes: se recargó la revisión vigente y no se sobrescribió nada.',
-        'notice.selectionFailed': 'No se pudo guardar la selección ({reason}); no se cambió nada.',
+        'notice.selectionFailed': 'No se pudo guardar la selección ({reason}). Se recargó la selección: ese es el estado real.',
+        'notice.selectionFailedUnreloaded': 'No se pudo guardar la selección ({reason}) y no se pudo releer: el estado mostrado puede estar desactualizado.',
+        'notice.selectionConflictUnreloaded': 'Otro panel cambió la selección antes ({reason}) y no se pudo releer: el estado mostrado puede estar desactualizado.',
         'notice.ingest': 'Ingesta simulada completada: una fuente añadida al fixture.',
         'notice.reindex': 'Reindexación simulada completada: no se escribió nada.',
         'notice.reset': 'Datos sintéticos reiniciados.',
@@ -1366,8 +1400,21 @@ window.__ModuleLoader__.load({
         'notice.trackingSaved': 'Seguimiento actualizado (revisión {revision}).',
         'notice.trackingRemoved': 'Se quitó la fila de seguimiento; el workspace sigue en la lista del Host.',
         'notice.trackingReloaded': 'La respuesta no trajo la fila: se recargó el seguimiento desde el servidor.',
+        'notice.trackingReloadFailed': 'La respuesta no trajo la fila y la relectura falló: el seguimiento mostrado puede estar desactualizado.',
         'notice.trackingConflict': 'Otro panel cambió el seguimiento antes: se recargó el estado vigente y no se sobrescribió nada.',
-        'notice.trackingFailed': 'No se pudo cambiar el seguimiento ({reason}); no se cambió nada.',
+        'notice.trackingFailed': 'No se pudo completar el cambio ({reason}). Se recargó el seguimiento: esa es la fila real.',
+        'notice.trackingFailedUnreloaded': 'No se pudo completar el cambio ({reason}) y tampoco se pudo releer el seguimiento: la vista puede estar desactualizada.',
+        'notice.trackingConflictUnreloaded': 'Otro panel cambió el seguimiento antes ({reason}) y no se pudo releer: la vista puede estar desactualizada.',
+        'notice.memoryReady': 'Memoria lista. Ya puedes indexar',
+        'notice.memoryReused': 'Hemos reutilizado la memoria de este proyecto',
+        'notice.trackingRevoked': 'Acceso de lectura revocado; la memoria sigue intacta.',
+        'notice.trackingRevokeNoChange': 'No había acceso propio que retirar en este acto; no se cambió nada.',
+        'notice.trackingRevokeNoChangeRemaining': 'No se retiró ningún acceso propio en este acto; quedan {count} autorizaciones preexistentes.',
+        'notice.trackingRevokedPartial': 'Se retiró el acceso que creó LifeCode RAG, pero quedan {count} autorizaciones preexistentes: el acceso de lectura continúa.',
+        'notice.trackingMoved': 'Memoria movida; la ruta anterior ya no está asociada.',
+        'notice.trackingMoveNoItem': 'La respuesta no trajo la fila movida: actualiza el seguimiento antes de darlo por hecho.',
+        'notice.trackingAdminFailed': 'No se pudo completar la acción ({reason}). Se recargó el seguimiento: esa es la fila real.',
+        'notice.trackingAdminFailedUnreloaded': 'No se pudo completar la acción ({reason}) y no se pudo releer el seguimiento: la vista puede estar desactualizada.',
         'notice.trackingOffline': 'El seguimiento necesita la API: en modo demostración no se cambia nada.',
         'view.errorTitle': 'No se pudo mostrar esta vista',
         'view.errorHint': 'El resto del panel sigue disponible. Reintenta o cambia de sección.',
@@ -1539,6 +1586,38 @@ window.__ModuleLoader__.load({
         'ux.track.noRows': 'This filter leaves no workspace',
         'ux.track.noRowsHint': 'Change the filter to see others.',
         'ux.track.availability': 'Availability',
+        // R1.2 · memory axis (Q-01) and advanced actions.
+        'ux.track.memoryReady': 'Memory ready',
+        'ux.track.memoryProvisioning': 'Preparing memory',
+        'ux.track.memoryNone': 'No memory yet',
+        'ux.track.memoryIncomplete': 'Association pending',
+        'ux.track.memoryStoreMissing': 'Memory unavailable',
+        'ux.track.memoryArchived': 'Project archived',
+        'ux.track.memoryUnknown': 'Memory: cannot be determined',
+        'ux.track.index': 'Index',
+        'ux.track.cleanupPending': 'Access cleanup pending; it is retried on restart.',
+        'ux.track.rekeyPending': 'Index path pending; it is retried on restart.',
+        'ux.track.indexQueued': 'queued',
+        'ux.track.indexRunning': 'indexing…',
+        'ux.track.indexFailed': 'the last pass failed',
+        'ux.track.advanced': 'Advanced',
+        'ux.track.revoke': 'Revoke read access',
+        'ux.track.revokeScope': 'The read access that LifeCode RAG created for this folder will be removed. Memory, project, index and tracking are not deleted.',
+        'ux.track.revokeEntries': 'Own entries to review: {items}.',
+        'ux.track.revokeTrust': 'trust',
+        'ux.track.revokeRoot': 'root',
+        'ux.track.revokeNoEntries': 'no verifiable own entry is recorded',
+        'ux.track.revokeUnknown': 'There is not enough data to prove this access is ours; it is not revoked here.',
+        'ux.track.revokeUnproven': 'LifeCode RAG cannot prove it created that access: it is not revoked here.',
+        'ux.track.revokeAlready': 'The access it created was already revoked; memory is still intact.',
+        'ux.track.revokeProvisioning': 'Memory is being prepared; wait for it to finish before revoking.',
+        'ux.track.revokeInactive': 'The project is not active; it is not revoked here.',
+        'ux.track.revokeConfirm': 'Confirm revocation',
+        'ux.track.move': 'Move folder',
+        'ux.track.moveScope': 'Memory, project and index are kept. The previous path stops being authorized if LifeCode RAG created that access.',
+        'ux.track.moveNewPath': 'New path',
+        'ux.track.moveConfirm': 'Move memory',
+        'ux.track.adminCancel': 'Cancel',
         'ux.set.title': 'Settings',
         'ux.projects.summary': 'Summary',
         'ux.state.active': 'Active',
@@ -1809,7 +1888,9 @@ window.__ModuleLoader__.load({
         'notice.selected': 'Selection saved to the profile (revision {revision}).',
         'notice.selectedFixture': 'Simulated selection: the revision went up and the change was logged in Operations.',
         'notice.selectionConflict': 'Another panel changed the selection first: the current revision was reloaded and nothing was overwritten.',
-        'notice.selectionFailed': 'The selection could not be saved ({reason}); nothing changed.',
+        'notice.selectionFailed': 'The selection could not be saved ({reason}). The selection was reloaded: that is the real state.',
+        'notice.selectionFailedUnreloaded': 'The selection could not be saved ({reason}) and it could not be reloaded: the view may be stale.',
+        'notice.selectionConflictUnreloaded': 'Another panel changed the selection first ({reason}) and it could not be reloaded: the view may be stale.',
         'notice.ingest': 'Simulated ingestion complete: one source added to the fixture.',
         'notice.reindex': 'Simulated reindex complete: nothing was written.',
         'notice.reset': 'Synthetic data reset.',
@@ -1820,8 +1901,21 @@ window.__ModuleLoader__.load({
         'notice.trackingSaved': 'Tracking updated (revision {revision}).',
         'notice.trackingRemoved': 'The tracking row was removed; the workspace stays in the Host list.',
         'notice.trackingReloaded': 'The response did not include the row: tracking was reloaded from the server.',
+        'notice.trackingReloadFailed': 'The response did not include the row and the reload failed: the tracking shown may be stale.',
         'notice.trackingConflict': 'Another panel changed tracking first: the current state was reloaded and nothing was overwritten.',
-        'notice.trackingFailed': 'Tracking could not be changed ({reason}); nothing changed.',
+        'notice.trackingFailed': 'Tracking could not be changed ({reason}). Tracking was reloaded: that is the real row.',
+        'notice.trackingFailedUnreloaded': 'The change failed ({reason}) and tracking could not be reloaded: the view may be stale.',
+        'notice.trackingConflictUnreloaded': 'Another panel changed tracking first ({reason}) and it could not be reloaded: the view may be stale.',
+        'notice.memoryReady': 'Memory ready. You can index now',
+        'notice.memoryReused': 'This project’s memory was reused',
+        'notice.trackingRevoked': 'Read access revoked; memory is still intact.',
+        'notice.trackingRevokeNoChange': 'There was no access of our own to remove in this action; nothing changed.',
+        'notice.trackingRevokeNoChangeRemaining': 'No access of our own was removed in this action; {count} pre-existing authorizations remain.',
+        'notice.trackingRevokedPartial': 'The access LifeCode RAG created was removed, but {count} pre-existing authorizations remain: read access continues.',
+        'notice.trackingMoved': 'Memory moved; the previous path is no longer associated.',
+        'notice.trackingMoveNoItem': 'The response did not include the moved row: refresh tracking before taking it as done.',
+        'notice.trackingAdminFailed': 'The action could not be completed ({reason}). Tracking was reloaded: that is the real row.',
+        'notice.trackingAdminFailedUnreloaded': 'The action could not be completed ({reason}) and tracking could not be reloaded: the view may be stale.',
         'notice.trackingOffline': 'Tracking needs the API: demo mode changes nothing.',
         'view.errorTitle': 'This view could not be rendered',
         'view.errorHint': 'The rest of the panel is still available. Retry or switch section.',
@@ -2145,6 +2239,9 @@ window.__ModuleLoader__.load({
         // Mutación en curso: `{pathKey, action, state, expectedRevision, projectId}`. Se guarda
         // completa para que el efecto no tenga que reconstruirla desde la vista.
         trackingOp: null,
+        // R1.2 · acción avanzada pendiente de confirmación (`move`/`revoke`). Vive en el estado para
+        // que el formulario no dependa de estado local del componente.
+        trackingAdmin: null,
       };
     }
 
@@ -2603,7 +2700,9 @@ window.__ModuleLoader__.load({
             pending: null,
             selectionPending: null,
             notice: {
-              code: action.reason === 'revision-conflict' ? 'notice.selectionConflict' : 'notice.selectionFailed',
+              code: action.reason === 'revision-conflict'
+                ? (action.reloaded === true ? 'notice.selectionConflict' : 'notice.selectionConflictUnreloaded')
+                : (action.reloaded === true ? 'notice.selectionFailed' : 'notice.selectionFailedUnreloaded'),
               values: { reason: action.reason || 'transport-error' },
             },
           };
@@ -3058,6 +3157,9 @@ window.__ModuleLoader__.load({
           return {
             ...state,
             pending: null,
+            notice: state.notice?.code === 'notice.trackingReloaded'
+              ? { code: 'notice.trackingReloadFailed' }
+              : state.notice,
             tracking: {
               ...state.tracking,
               loaded: false,
@@ -3091,6 +3193,9 @@ window.__ModuleLoader__.load({
             // La revisión de la fila es la del CAS. Sin fila, 0 = crear (`expectedRevision: 0`).
             trackingOp: {
               action: action.action || 'enable',
+              // R1.2: el toggle puede pedir provisión. Sólo `enable` la admite; el servidor lo
+              // revalida (intent=provision exige state=on) antes de escribir nada.
+              intent: action.intent === 'provision' && (action.action || 'enable') === 'enable' ? 'provision' : null,
               pathKey,
               path: action.path || (row ? row.path : ''),
               state: action.action === 'remove' ? null : (action.state || 'on'),
@@ -3138,7 +3243,9 @@ window.__ModuleLoader__.load({
             tracking: { ...state.tracking, loaded: true, loading: false, error: null, items },
             notice: op.action === 'remove'
               ? { code: 'notice.trackingRemoved' }
-              : { code: 'notice.trackingSaved', values: { revision: revision ?? '—' } },
+              : (data.memory && typeof data.memory === 'object'
+                ? { code: data.memory.reused === true ? 'notice.memoryReused' : 'notice.memoryReady' }
+                : { code: 'notice.trackingSaved', values: { revision: revision ?? '—' } }),
           };
         }
         case 'tracking-mutation-error': {
@@ -3150,7 +3257,82 @@ window.__ModuleLoader__.load({
             trackingOp: null,
             tracking: { ...state.tracking, loading: false },
             notice: {
-              code: conflict ? 'notice.trackingConflict' : 'notice.trackingFailed',
+              code: conflict
+                ? (action.reloaded === true ? 'notice.trackingConflict' : 'notice.trackingConflictUnreloaded')
+                : (action.reloaded === true ? 'notice.trackingFailed' : 'notice.trackingFailedUnreloaded'),
+              values: { reason: action.reason || 'transport-error' },
+            },
+          };
+        }
+        /* ------------------------------------------- R1.2 · acciones avanzadas */
+        case 'tracking-admin-open': {
+          if (state.mode !== 'api') return { ...state, notice: { code: 'notice.trackingOffline' } };
+          if (state.pending) return state;
+          const row = state.tracking.items.find((item) => item.pathKey === action.pathKey);
+          if (!row) return state;
+          return {
+            ...state,
+            notice: null,
+            trackingAdmin: {
+              action: action.action === 'move' ? 'move' : 'revoke',
+              pathKey: action.pathKey,
+              path: action.path || row.path,
+              revision: row.revision,
+              consent: row.memory?.consent ?? null,
+              newPath: '',
+            },
+          };
+        }
+        case 'tracking-admin-input':
+          return state.trackingAdmin
+            ? { ...state, trackingAdmin: { ...state.trackingAdmin, newPath: String(action.value ?? '') } }
+            : state;
+        case 'tracking-admin-cancel':
+          return { ...state, trackingAdmin: null };
+        case 'tracking-admin-confirm': {
+          if (!state.trackingAdmin) return state;
+          if (state.trackingAdmin.action === 'move'
+            && String(state.trackingAdmin.newPath ?? '').trim() === '') return state;
+          return { ...state, pending: 'tracking-admin', notice: null };
+        }
+        case 'tracking-admin-ok': {
+          const admin = action.admin || {};
+          const data = action.data || {};
+          const item = paNormalizeTrackingRow(data.item);
+          let items = state.tracking.items;
+          if (item && admin.action === 'move') {
+            items = [...items.filter((row) => row.pathKey !== admin.pathKey), item]
+              .sort((a, b) => (a.path < b.path ? -1 : (a.path > b.path ? 1 : 0)));
+          } else if (item) {
+            items = items.map((row) => (row.pathKey === item.pathKey ? item : row));
+          }
+          return {
+            ...state,
+            pending: null,
+            trackingAdmin: null,
+            tracking: { ...state.tracking, loaded: true, loading: false, error: null, items },
+            notice: admin.action === 'move'
+              ? (item ? { code: 'notice.trackingMoved' } : { code: 'notice.trackingMoveNoItem' })
+              : (data.changed !== true
+                ? (Array.isArray(data.remaining) && data.remaining.length > 0
+                  ? { code: 'notice.trackingRevokeNoChangeRemaining', values: { count: data.remaining.length } }
+                  : { code: 'notice.trackingRevokeNoChange' })
+                : (data.complete === true
+                  ? { code: 'notice.trackingRevoked' }
+                  : { code: 'notice.trackingRevokedPartial', values: { count: Array.isArray(data.remaining) ? data.remaining.length : 0 } })),
+          };
+        }
+        case 'tracking-admin-error': {
+          const conflict = action.conflict === true || action.reason === 'revision-conflict';
+          return {
+            ...state,
+            pending: null,
+            trackingAdmin: null,
+            tracking: { ...state.tracking, loading: false },
+            notice: {
+              code: conflict
+                ? (action.reloaded === true ? 'notice.trackingConflict' : 'notice.trackingConflictUnreloaded')
+                : (action.reloaded === true ? 'notice.trackingAdminFailed' : 'notice.trackingAdminFailedUnreloaded'),
               values: { reason: action.reason || 'transport-error' },
             },
           };
@@ -4370,6 +4552,54 @@ window.__ModuleLoader__.load({
      * se puede emparejar con la lista del Host y la fila se descarta. Todo lo demás se conserva o se
      * deja en `null`; nunca se rellena con un valor inventado.
      */
+    /**
+     * R1.2 · Estado de memoria que publica la API (Q-01). Se normaliza con lista cerrada: lo que el
+     * panel no reconoce no se pinta como si fuera un estado del producto.
+     */
+    function paNormalizeMemory(memory) {
+      if (!memory || typeof memory !== 'object') return null;
+      const state = ['ready', 'provisioning', 'none', 'incomplete', 'store-missing', 'archived']
+        .includes(memory.state) ? memory.state : 'unknown';
+      const rawIndex = memory.index && typeof memory.index === 'object' ? memory.index : null;
+      const revokeReasons = ['no-intent', 'already-revoked', 'no-provenance', 'provisioning', 'project-inactive'];
+      return {
+        state,
+        projectId: typeof memory.projectId === 'string' ? memory.projectId : null,
+        association: typeof memory.association === 'string' ? memory.association : null,
+        store: memory.store === 'present' ? 'present' : 'absent',
+        canRevoke: memory.canRevoke === true,
+        canRevokeReason: memory.canRevoke === true
+          ? null
+          : (revokeReasons.includes(memory.canRevokeReason) ? memory.canRevokeReason : 'unknown'),
+        cleanup: {
+          pending: memory.cleanup?.pending === true,
+          operationId: typeof memory.cleanup?.operationId === 'string' ? memory.cleanup.operationId : null,
+          fromPath: typeof memory.cleanup?.fromPath === 'string' ? memory.cleanup.fromPath : null,
+        },
+        rekey: {
+          pending: memory.rekey?.pending === true,
+          operationId: typeof memory.rekey?.operationId === 'string' ? memory.rekey.operationId : null,
+          fromPath: typeof memory.rekey?.fromPath === 'string' ? memory.rekey.fromPath : null,
+          toPath: typeof memory.rekey?.toPath === 'string' ? memory.rekey.toPath : null,
+        },
+        consent: memory.consent && typeof memory.consent === 'object'
+          ? {
+            trust: typeof memory.consent.trust === 'string' ? memory.consent.trust : null,
+            root: typeof memory.consent.root === 'string' ? memory.consent.root : null,
+            revokedAt: memory.consent.revokedAt ?? null,
+          }
+          : null,
+        operationId: typeof memory.operationId === 'string' ? memory.operationId : null,
+        index: rawIndex
+          ? {
+            state: ['idle', 'queued', 'running', 'done', 'failed'].includes(rawIndex.state) ? rawIndex.state : 'idle',
+            sources: Number.isFinite(rawIndex.sources) ? rawIndex.sources : 0,
+            lastFinishedAt: rawIndex.lastFinishedAt ?? null,
+          }
+          : null,
+      };
+    }
+
     function paNormalizeTrackingRow(row) {
       if (!row || typeof row !== 'object') return null;
       const path = String(row.path ?? '');
@@ -4406,6 +4636,8 @@ window.__ModuleLoader__.load({
         // `resolves` sólo se usa si la API manda un booleano; el panel no deduce el veredicto.
         resolves: typeof row.resolves === 'boolean' ? row.resolves : null,
         relation: typeof row.relation === 'string' ? row.relation : null,
+        // R1.2 · Q-01: estado de memoria derivado en el servidor. Ausente = el perfil no lo publica.
+        memory: paNormalizeMemory(row.memory),
         sessionProject,
       };
     }
@@ -4438,6 +4670,7 @@ window.__ModuleLoader__.load({
           lastStatus: row ? row.lastStatus : (item.state || null),
           resolves: row ? row.resolves : null,
           sessionProject: row ? row.sessionProject : null,
+          memory: row ? row.memory : null,
         });
       });
       rows.forEach((row, pathKey) => {
@@ -4454,6 +4687,7 @@ window.__ModuleLoader__.load({
           lastStatus: row.lastStatus,
           resolves: row.resolves,
           sessionProject: row.sessionProject,
+          memory: row.memory,
         });
       });
       return out;
@@ -4493,6 +4727,30 @@ window.__ModuleLoader__.load({
       if (status === 'ok') return { label: t('ux.ws.stOk'), tone: 'ok' };
       if (status === 'missing') return { label: t('ux.ws.stMissing'), tone: 'warn' };
       if (status === 'unknown') return { label: t('ux.ws.stUnknown'), tone: 'neutral' };
+      return null;
+    }
+
+    /**
+     * R1.2 · Eje de memoria: se pinta **aparte** de seguimiento y disponibilidad. `ready` describe la
+     * memoria (identidad + almacén + asociación), nunca la indexación; el índice tiene su propio
+     * rótulo para que nadie lea «memoria lista» como «documentos indexados».
+     */
+    function paMemoryState(memory, t) {
+      if (!memory) return null;
+      if (memory.state === 'ready') return { label: t('ux.track.memoryReady'), tone: 'ok' };
+      if (memory.state === 'provisioning') return { label: t('ux.track.memoryProvisioning'), tone: 'warn' };
+      if (memory.state === 'store-missing') return { label: t('ux.track.memoryStoreMissing'), tone: 'bad' };
+      if (memory.state === 'incomplete') return { label: t('ux.track.memoryIncomplete'), tone: 'warn' };
+      if (memory.state === 'archived') return { label: t('ux.track.memoryArchived'), tone: 'neutral' };
+      if (memory.state === 'none') return { label: t('ux.track.memoryNone'), tone: 'neutral' };
+      return { label: t('ux.track.memoryUnknown'), tone: 'neutral' };
+    }
+
+    function paMemoryIndexLabel(memory, t) {
+      if (!memory || !memory.index) return null;
+      if (memory.index.state === 'queued') return t('ux.track.indexQueued');
+      if (memory.index.state === 'running') return t('ux.track.indexRunning');
+      if (memory.index.state === 'failed') return t('ux.track.indexFailed');
       return null;
     }
 
@@ -4537,6 +4795,9 @@ window.__ModuleLoader__.load({
       // ruta tal cual la ve la persona y no la clave canónica en minúsculas.
       if (op.path) body.path = op.path;
       if (op.projectId) body.projectId = op.projectId;
+      // R1.2 · `pa/1.6.0`: el toggle que prepara memoria lo declara; sin él, el servidor conserva el
+      // comportamiento de 1.5.0.
+      if (op.intent === 'provision') body.intent = 'provision';
       return { path: '/tracking', options: { method: 'PUT', body } };
     }
 
@@ -4551,6 +4812,10 @@ window.__ModuleLoader__.load({
     function paViewTracking(state, t, dispatch) {
       const tr = state.tracking || { loaded: false, loading: false, items: [], error: null, filter: 'all' };
       const ws = state.workspaces || { loaded: false, source: null, items: [] };
+      // El contrato pa/1.6 añade `intent` y las rutas move/revoke. Un panel nuevo contra un 1.5
+      // conocido no debe enviar campos ni rutas que ese servidor rechaza; la ausencia de versión se
+      // trata como el contrato actual para no degradar un host que aún no la publica.
+      const supportsLifecycle = !state.apiVersion || /^pa\/1\.6(?:\.|$)/.test(String(state.apiVersion));
       const head = paSectionHead(t('ux.track.title'), t('ux.track.sub'));
       // Texto obligatorio (§8 de la especificación): visible en todos los estados de la vista.
       const policy = el('p', { className: 'lcr-pa-hint lcr-pa-policy', 'data-tracking-policy': '1' },
@@ -4558,6 +4823,51 @@ window.__ModuleLoader__.load({
       const notice = state.notice
         ? el('p', { className: 'lcr-pa-notice', role: 'status', 'data-tracking-notice': state.notice.code },
           t(state.notice.code, state.notice.values))
+        : null;
+      // R1.2 · confirmación de una acción avanzada. No se ejecuta en el primer clic: mover y revocar
+      // son actos humanos con consecuencia y se confirman con el alcance delante.
+      const admin = state.trackingAdmin || null;
+      const adminPanel = admin
+        ? paCard(
+          t(admin.action === 'move' ? 'ux.track.move' : 'ux.track.revoke'),
+          el('div', { className: 'lcr-pa-stack', 'data-tracking-admin': admin.action },
+            el('p', { className: 'lcr-pa-hint' },
+              t(admin.action === 'move' ? 'ux.track.moveScope' : 'ux.track.revokeScope')),
+            admin.action === 'move'
+              ? el('label', { className: 'lcr-pa-field' },
+                el('span', null, t('ux.track.moveNewPath')),
+                el('input', {
+                  type: 'text',
+                  className: 'lcr-input lcr-mono',
+                  value: admin.newPath,
+                  placeholder: 'C:\\\\ruta\\\\nueva',
+                  'data-tracking-move-input': '1',
+                  onChange: (event) => dispatch({ type: 'tracking-admin-input', value: event.target.value }),
+                }))
+              : null,
+            admin.action === 'revoke'
+              ? el('p', { className: 'lcr-pa-hint lcr-pa-mono', 'data-tracking-admin-entries': '1' },
+                t('ux.track.revokeEntries', {
+                  items: [
+                    admin.consent?.trust ? `${t('ux.track.revokeTrust')}: ${admin.consent.trust}` : null,
+                    admin.consent?.root ? `${t('ux.track.revokeRoot')}: ${admin.consent.root}` : null,
+                  ].filter(Boolean).join(' · ') || t('ux.track.revokeNoEntries'),
+                }))
+              : null,
+            el('div', { className: 'lcr-pa-toolbar' },
+              el('button', {
+                type: 'button',
+                className: 'lcr-pa-btn',
+                'data-tracking-admin-confirm': '1',
+                disabled: admin.action === 'move' && String(admin.newPath ?? '').trim() === '',
+                onClick: () => dispatch({ type: 'tracking-admin-confirm' }),
+              }, t(admin.action === 'move' ? 'ux.track.moveConfirm' : 'ux.track.revokeConfirm')),
+              el('button', {
+                type: 'button',
+                className: 'lcr-pa-btn lcr-pa-btn--ghost',
+                'data-tracking-admin-cancel': '1',
+                onClick: () => dispatch({ type: 'tracking-admin-cancel' }),
+              }, t('ux.track.adminCancel')))))
         : null;
       const selection = paSelectionOf(state);
       // `pa_selection` no participa en la resolución de contexto (D-UX22-05): se muestra aparte,
@@ -4647,6 +4957,13 @@ window.__ModuleLoader__.load({
         const st = paTrackingState(row, t);
         const av = paTrackingAvailability(row.lastStatus, t);
         const checked = row.state === 'on';
+        const memory = row.memory || null;
+        const memState = paMemoryState(memory, t);
+        const memIndex = paMemoryIndexLabel(memory, t);
+        // Activar un workspace sin memoria lista pide provisión; reactivar uno con memoria lista no
+        // (el servidor encola la sincronización incremental por su cuenta). Un proyecto archivado
+        // no se reprovisiona: el contrato dice «sin provisión» y el servidor lo rechazaría.
+        const needsProvision = memory ? (memory.state !== 'ready' && memory.state !== 'archived') : true;
         // El interruptor mueve el eje A entre seguido y pausado; dejar de seguir es una acción
         // aparte y explícita, para que apagar el control no borre una decisión sin querer.
         const toggleAction = checked ? 'pause' : (row.state === 'paused' ? 'resume' : 'enable');
@@ -4676,6 +4993,23 @@ window.__ModuleLoader__.load({
             el('div', { className: 'lcr-pa-track-path' }, el(PaPath, { path: row.path, t, onCopy: state.copyText }))),
           el('td', { className: 'lcr-pa-track-cell lcr-pa-track-cell--state', role: 'cell', 'data-label': label.state },
             paStateChip(st.label, st.tone),
+            // R1.2 · eje de memoria, separado del seguimiento y de la disponibilidad.
+            memState
+              ? el('div', { className: 'lcr-pa-track-note lcr-pa-track-memory', 'data-tracking-memory': memory.state },
+                paStateChip(memState.label, memState.tone))
+              : null,
+            memIndex
+              ? el('div', { className: 'lcr-pa-track-note', 'data-tracking-index': memory.index.state },
+                t('ux.track.index') + ': ' + memIndex)
+              : null,
+            memory?.cleanup?.pending
+              ? el('div', { className: 'lcr-pa-track-note', 'data-tracking-cleanup': 'pending' },
+                t('ux.track.cleanupPending'))
+              : null,
+            memory?.rekey?.pending
+              ? el('div', { className: 'lcr-pa-track-note', 'data-tracking-rekey': 'pending' },
+                t('ux.track.rekeyPending'))
+              : null,
             av ? el('div', { className: 'lcr-pa-track-note' }, t('ux.track.availability') + ': ' + av.label) : null,
             row.state === 'on' && !row.project
               ? el('div', { className: 'lcr-pa-track-note', 'data-tracking-no-project': '1' }, t('ux.track.onNoProject'))
@@ -4706,7 +5040,13 @@ window.__ModuleLoader__.load({
                   'aria-label': t('ux.track.toggle') + ': ' + row.title,
                   'data-tracking-toggle': row.pathKey,
                   onClick: known
-                    ? () => dispatch({ type: 'tracking-op', action: toggleAction, state: checked ? 'paused' : 'on', ...base })
+                    ? () => dispatch({
+                      type: 'tracking-op',
+                      action: toggleAction,
+                      state: checked ? 'paused' : 'on',
+                      intent: (toggleAction === 'enable' || toggleAction === 'resume') && needsProvision && supportsLifecycle ? 'provision' : null,
+                      ...base,
+                    })
                     : undefined,
                 })),
               row.hasRow && known
@@ -4724,6 +5064,51 @@ window.__ModuleLoader__.load({
                   'data-tracking-op': 'remove',
                   onClick: () => dispatch({ type: 'tracking-op', action: 'remove', ...base }),
                 }, t('ux.track.remove'))
+                : null,
+              // R1.2 · acciones avanzadas: revocar el acceso que creó LifeCode RAG y mover la carpeta
+              // conservando la memoria. Revocar exige prueba de propiedad: sin ella el control queda
+              // deshabilitado y se explica por qué.
+              row.hasRow && row.project && supportsLifecycle
+                ? el('details', { className: 'lcr-pa-advanced' },
+                  el('summary', null, t('ux.track.advanced')),
+                  el('div', { className: 'lcr-pa-advanced__body' },
+                    el('button', {
+                      type: 'button',
+                      className: 'lcr-pa-btn lcr-pa-btn--ghost',
+                      'data-tracking-revoke': row.pathKey,
+                      disabled: !(memory && memory.canRevoke),
+                      title: memory && memory.canRevoke ? t('ux.track.revoke')
+                        : t(!memory ? 'ux.track.revokeUnknown'
+                          : memory.canRevokeReason === 'already-revoked' ? 'ux.track.revokeAlready'
+                            : memory.canRevokeReason === 'provisioning' ? 'ux.track.revokeProvisioning'
+                              : memory.canRevokeReason === 'project-inactive' ? 'ux.track.revokeInactive'
+                                : memory.canRevokeReason === 'unknown' ? 'ux.track.revokeUnknown'
+                                  : 'ux.track.revokeUnproven'),
+                      onClick: memory && memory.canRevoke
+                        ? () => dispatch({
+                          type: 'tracking-admin-open', action: 'revoke',
+                          pathKey: row.pathKey, path: row.path, revision: row.revision,
+                        })
+                        : undefined,
+                    }, t('ux.track.revoke')),
+                    !memory || !memory.canRevoke
+                      ? el('p', { className: 'lcr-pa-hint', 'data-tracking-revoke-unproven': '1' },
+                        t(!memory ? 'ux.track.revokeUnknown'
+                          : memory.canRevokeReason === 'already-revoked' ? 'ux.track.revokeAlready'
+                            : memory.canRevokeReason === 'provisioning' ? 'ux.track.revokeProvisioning'
+                              : memory.canRevokeReason === 'project-inactive' ? 'ux.track.revokeInactive'
+                                : memory.canRevokeReason === 'unknown' ? 'ux.track.revokeUnknown'
+                                  : 'ux.track.revokeUnproven'))
+                      : null,
+                    el('button', {
+                      type: 'button',
+                      className: 'lcr-pa-btn lcr-pa-btn--ghost',
+                      'data-tracking-move': row.pathKey,
+                      onClick: () => dispatch({
+                        type: 'tracking-admin-open', action: 'move',
+                        pathKey: row.pathKey, path: row.path, revision: row.revision,
+                      }),
+                    }, t('ux.track.move'))))
                 : null,
               el('span', { className: 'lcr-pa-muted' }, t('ux.track.revision', { revision: paNum(row.revision) })))));
       });
@@ -4746,6 +5131,7 @@ window.__ModuleLoader__.load({
       return el('section', { className: 'lcr-pa-stack', 'data-view': 'tracking', 'data-tracking-state': 'list' },
         head,
         notice,
+        adminPanel,
         // F9 · la relectura falló pero había filas: se avisa sin tocarlas.
         tr.error
           ? el('div', { className: 'lcr-pa-error', role: 'alert', 'data-tracking-error': tr.error },
@@ -5180,16 +5566,48 @@ window.__ModuleLoader__.load({
                 if (alive) dispatch({ type: 'tracking-mutation-ok', op, data });
               } catch (failure) {
                 const reason = (failure && failure.code) || 'transport-error';
-                const conflict = reason === 'revision-conflict' || reason === 'tracking-stale-revision'
-                  || (failure && failure.status === 409);
-                if (conflict) {
-                  // Otro panel ganó el CAS: se recarga el estado vigente y se avisa. No se reintenta solo.
-                  try {
-                    const payload = await request('/tracking');
-                    if (alive) dispatch({ type: 'tracking-ok', payload });
-                  } catch { /* el aviso de conflicto ya explica lo ocurrido */ }
+                const conflict = reason === 'revision-conflict' || reason === 'tracking-stale-revision';
+                // Cualquier fallo puede haber dejado una escritura parcial (por ejemplo, la fila se
+                // creó y la provisión falló). Se relee SIEMPRE el estado real antes de avisar; el
+                // aviso no puede decir «no se cambió nada» sobre un estado que no se ha mirado.
+                let reloaded = false;
+                try {
+                  const payload = await request('/tracking');
+                  if (alive) dispatch({ type: 'tracking-ok', payload });
+                  reloaded = true;
+                } catch { /* el aviso de error ya explica lo ocurrido */ }
+                if (alive) dispatch({ type: 'tracking-mutation-error', op, reason, conflict, reloaded });
+              }
+              return;
+            }
+            if (job === 'tracking-admin') {
+              // R1.2 · acciones avanzadas: POST /tracking/move o /tracking/revoke. Llevan la revisión
+              // de la fila (CAS de la vista) y pasan por la compuerta del host en el servidor.
+              const admin = state.trackingAdmin;
+              if (!admin) return;
+              const route = admin.action === 'move' ? '/tracking/move' : '/tracking/revoke';
+              const body = admin.action === 'move'
+                ? {
+                  pathKey: admin.pathKey,
+                  newPath: String(admin.newPath ?? '').trim(),
+                  expectedRevision: admin.revision,
                 }
-                if (alive) dispatch({ type: 'tracking-mutation-error', op, reason, conflict });
+                : { pathKey: admin.pathKey, expectedRevision: admin.revision };
+              try {
+                const data = await request(route, { method: 'POST', body, mutation: true });
+                if (alive) dispatch({ type: 'tracking-admin-ok', admin, data });
+              } catch (failure) {
+                const reason = (failure && failure.code) || 'transport-error';
+                const conflict = reason === 'revision-conflict';
+                // También aquí se relee siempre: un movimiento puede haber completado el rebind y
+                // fallar después; el panel no puede afirmar «no se cambió nada» sin mirar.
+                let reloaded = false;
+                try {
+                  const payload = await request('/tracking');
+                  if (alive) dispatch({ type: 'tracking-ok', payload });
+                  reloaded = true;
+                } catch { /* el aviso de error ya explica lo ocurrido */ }
+                if (alive) dispatch({ type: 'tracking-admin-error', reason, conflict, reloaded });
               }
               return;
             }
@@ -5229,14 +5647,15 @@ window.__ModuleLoader__.load({
                 if (alive) dispatch({ type: 'selection-ok', selection: data.selection });
               } catch (failure) {
                 const reason = (failure && failure.code) || 'transport-error';
-                if (reason === 'revision-conflict') {
-                  // Otro panel ganó: se recarga la revisión vigente y se avisa; no se reintenta solo.
-                  try {
-                    const snapshot = await request('/snapshot');
-                    if (alive) dispatch({ type: 'hydrate', snapshot });
-                  } catch { /* el aviso de conflicto ya es suficiente */ }
-                }
-                if (alive) dispatch({ type: 'selection-error', reason });
+                // Cualquier fallo puede haber dejado la selección escrita; se relee el estado real
+                // antes de avisar. Sólo un 409 de revisión es «otro panel» (misma regla que L5).
+                let reloaded = false;
+                try {
+                  const snapshot = await request('/snapshot');
+                  if (alive) dispatch({ type: 'hydrate', snapshot });
+                  reloaded = true;
+                } catch { /* el aviso de error ya explica lo ocurrido */ }
+                if (alive) dispatch({ type: 'selection-error', reason, reloaded });
               }
             }
           } catch (failure) {
@@ -5571,6 +5990,12 @@ window.__ModuleLoader__.load({
       .lcr-pa-track-actions > * { flex: 0 0 auto; }
       .lcr-pa-track-actions .lcr-pa-toggle--inline { flex-wrap: wrap; }
       .lcr-pa-track-actions .lcr-pa-muted { white-space: normal; }
+      /* R1.2: acciones avanzadas dentro de la columna de acciones. Se apilan y no recortan el texto. */
+      .lcr-pa-advanced { flex: 1 0 100%; min-width: 0; }
+      .lcr-pa-advanced > summary { cursor: pointer; font-size: 11px; color: var(--pa-muted); padding: 2px 0; }
+      .lcr-pa-advanced__body { display: flex; flex-direction: column; gap: 6px; padding: 4px 0 0 10px; border-left: 2px solid var(--pa-border); margin-top: 4px; }
+      .lcr-pa-advanced__body .lcr-pa-btn { width: 100%; text-align: center; }
+      .lcr-pa-track-memory { margin-top: 4px; }
       /* Los cortes son los de PA_TRACK_BREAKPOINTS: los mismos números que decide paTrackingLayout,
          interpolados aquí para que la hoja y la función no puedan separarse. */
       @media (max-width: ${PA_TRACK_BREAKPOINTS.compact}px) {

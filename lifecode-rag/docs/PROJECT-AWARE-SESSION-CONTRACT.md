@@ -153,3 +153,20 @@ Reglas duras:
 | Sesión expirada que intenta reactivarse | Rechazado; se exige sesión nueva (`session-expired`) |
 | Selección revocada mientras corre una consulta | La consulta en curso termina con la instantánea de autorización; la siguiente falla `scope-forbidden` |
 | Grant revocado mientras corre una consulta | Ámbitos ya abiertos terminan; los no abiertos se omiten con `grant-revoked`; respuesta `partial:true` |
+
+## 9. Registro de revisión R1.2 — OFF, reactivación y provisión (`pa/1.6.0`, 2026-11-24)
+
+**La escalera de §3 no cambia.** Ni el orden ni la precedencia: selección explícita de sesión → seguimiento
+`on` → cwd ∩ raíces → workspace abierto con trust → nada. R1.2 no introduce un modo de resolución nuevo.
+
+| Cambio | Efecto en la resolución |
+|---|---|
+| El alta provisiona memoria y escribe consentimiento | El escalón de seguimiento pasa a tener `project_id` y raíz/trust reales: una sesión nueva resuelve sin `select --session` |
+| OFF (Q07) | El escalón de seguimiento no resuelve (`state` deja de ser `on`) y la fila muestra «Sin seguimiento»; la resolución cae al `cwd` (o a la selección explícita), sin error de permisos. `tracking-not-resolving` se reserva a `paused`/disponibilidad, no a OFF |
+| Reactivación (Q10) | Misma fila, mismo `project_id`; se encola una sincronización incremental como operación `kind='sync'` aparte |
+| `session_scope` | No se toca: no lo creó el toggle. Una sesión con selección explícita sigue mandando aunque el seguimiento esté OFF |
+| `pa_selection` | Sigue sin participar en la resolución; es selección visual del panel |
+
+**Provisionar no crea selección.** El acto escribe consentimiento de la ruta exacta, proyecto de
+conocimiento, almacén y asociación; no `session_scope` ni `pa_selection`. La autorización de lectura sigue
+siendo independiente: revocarla (Q08) no apaga el seguimiento y apagarlo no la revoca.
