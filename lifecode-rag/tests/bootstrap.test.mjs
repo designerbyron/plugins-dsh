@@ -97,14 +97,14 @@ test('ensureRegistry: raíz temporal vacía → registra creado, en v3 y con wor
     assert.equal(summary.path, path);
     assert.equal(summary.created, true, 'esta llamada es la que crea el registro');
     assert.equal(summary.version, REGISTRY_VERSION);
-    assert.equal(REGISTRY_VERSION, 3);
+    assert.equal(REGISTRY_VERSION, 4);
     assert.ok(summary.tables.includes('workspace_tracking'), `faltan tablas: ${summary.tables.join(', ')}`);
 
     // Lo mismo, leído de vuelta del fichero: los dos marcadores y la tabla en disco.
     const opened = openRegistry({ root: box.root, create: false });
     try {
-      assert.equal(Number(opened.db.prepare('PRAGMA user_version').get().user_version), 3);
-      assert.equal(opened.db.prepare("SELECT value FROM meta WHERE key='registry_version'").get().value, '3');
+      assert.equal(Number(opened.db.prepare('PRAGMA user_version').get().user_version), 4);
+      assert.equal(opened.db.prepare("SELECT value FROM meta WHERE key='registry_version'").get().value, '4');
       const tables = opened.db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name);
       assert.ok(tables.includes('workspace_tracking'));
       // El contenedor nace vacío: ninguna tabla de contenido tiene filas (`D-IMPL-12`).
@@ -179,7 +179,7 @@ test('ensureRegistry: registro v3 con datos → created:false y el contenido pre
 
     const summary = ensureRegistry({ root: box.root, now: T0 + 60_000 });
     assert.equal(summary.created, false);
-    assert.equal(summary.version, 3);
+    assert.equal(summary.version, 4);
 
     const after = openRegistry({ root: box.root, create: false });
     try {
@@ -276,7 +276,7 @@ test('apply(): cargar el plugin en un perfil vacío deja el registro en v3 y la 
     assert.equal(existsSync(registryPath(box.root)), true, 'apply() tiene que dejar el registro creado');
     const opened = openRegistry({ root: box.root, create: false });
     try {
-      assert.equal(Number(opened.db.prepare('PRAGMA user_version').get().user_version), 3);
+      assert.equal(Number(opened.db.prepare('PRAGMA user_version').get().user_version), 4);
       assert.equal(count(opened.db, 'projects'), 0, 'sin datos: sólo el contenedor');
     } finally {
       closeRegistry(opened.db);
@@ -323,8 +323,8 @@ test('integración: GET /pa/tracking pasa de registry-unavailable a 200 tras ens
     assert.deepEqual(payload.items, [], 'un perfil nuevo no tiene seguimiento');
     assert.equal(payload.counts.total, 0);
     assert.equal(payload.counts.on, 0);
-    assert.equal(payload.version, 'pa/1.5.0');
-    assert.equal(PA_VERSION, 'pa/1.5.0');
+    assert.equal(payload.version, 'pa/1.6.0');
+    assert.equal(PA_VERSION, 'pa/1.6.0');
 
     // Garantizar el registro no sembró nada en el perfil.
     const opened = openRegistry({ root: box.root, create: false });

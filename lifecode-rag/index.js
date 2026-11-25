@@ -19,7 +19,8 @@ import { legacyRagRoot, profileRoot } from './lib/profile.mjs';
 import { ragRoot, storePaths } from './lib/paths.mjs';
 import { resolveConfig, resolveDataRoot, resolveProfileKey } from './lib/config-resolve.mjs';
 import { createToolDefinitions } from './lib/tools.mjs';
-import { ensureRegistry } from './lib/registry.mjs';
+import { ensureRegistry, openRegistry } from './lib/registry.mjs';
+import { recoverLifecycle } from './lib/lifecycle.mjs';
 import { API_PREFIX, createApiHandler } from './lib/server.mjs';
 import { PA_PREFIX, createPaHandler } from './lib/pa-api.mjs';
 import { createAutomation } from './lib/automation.mjs';
@@ -151,9 +152,43 @@ export function apply(ctx) {
     logger.warn?.(`lifecode-rag registro: el registro del perfil no se pudo preparar (${error?.code ?? error?.message ?? error})`);
   }
 
+  // R1.2 · Recuperación al arrancar: cierra o reanuda provisiones y movimientos que quedaron
+  // abiertos. Es idempotente y no repite efectos a ciegas; si no puede abrir el registro, el
+  // diagnóstico sigue disponible en la API y no se impide cargar el plugin.
+  try {
+    const opened = openRegistry({ root: profile, create: false });
+    try {
+      const recovered = recoverLifecycle(opened.db, {
+        profileRoot: profile, profileKey: resolveProfileKey(process.env),
+      });
+      if (recovered.provisions > 0 || recovered.moves > 0) {
+        logger.debug?.(`lifecode-rag ciclo de vida: recuperación ${JSON.stringify(recovered)}`);
+      }
+    } finally {
+      opened.db.close();
+    }
+  } catch (error) {
+    logger.warn?.(`lifecode-rag ciclo de vida: la recuperación no pudo ejecutarse (${error?.code ?? error?.message ?? error})`);
+  }
+
   for (const definition of createToolDefinitions({ config, root: profile, services })) {
     ctx.tools.register(definition);
   }
+
+  // Sincronización Project-Aware (PA5 + R1.2): el planificador se crea antes de la API porque el
+  // toggle le pide drenar la cola tras provisionar o reactivar. El temporizador es el del host
+  // (`ctx.timer.interval`): devuelve disposer y muere con el plugin. Dentro del host NO se cae a
+  // `setInterval` global; si el servicio no está, `start()` devuelve `no-timer` y queda en `status()`.
+  const interval = (callback, delay) => {
+    const current = ctx.get('timer');
+    if (!current || typeof current.interval !== 'function') {
+      throw new Error('el host no ofrece ctx.timer.interval');
+    }
+    return current.interval(callback, delay);
+  };
+  const scheduler = createSyncScheduler({
+    env: process.env, root: profile, dataRoot: resolveDataRoot(process.env), logger, interval,
+  });
 
   // API del Workspace v0.2 (almacén único). En un perfil Project-Aware no hay `rag.sqlite3` legado:
   // exponerla allí mostraría un almacén distinto del que consultan las herramientas, así que sólo se
@@ -165,10 +200,12 @@ export function apply(ctx) {
     // PA01: toda la API PA pasa por la compuerta de autenticación del host antes de tocar el almacén.
     const authorize = hostGate(ctx, logger);
     const paHandler = createPaHandler({
-      profileRoot: profile, profileKey: resolveProfileKey(process.env), env: process.env, authorize,
+      profileRoot: profile, profileKey: resolveProfileKey(process.env), dataRoot: resolveDataRoot(process.env), env: process.env, authorize,
       // UX-2.1: las fuentes del host viajan como objeto plano con getters; el núcleo no conoce DSH
       // y cada petición resuelve el servicio en ese momento (no se congela el `null` del arranque).
       services,
+      // R1.2: la cola de sincronización se drena fuera de la petición humana.
+      scheduler,
     });
     ctx.effect(() => webServer.register({ kind: 'prefix', path: PA_PREFIX, handler: paHandler }));
   }
@@ -196,22 +233,8 @@ export function apply(ctx) {
     });
   }
 
-  // Sincronización Project-Aware (PA5) programada con el temporizador del host: su disposer cierra el
-  // intervalo cuando el plugin se descarga o el contexto se libera. La raíz es la del PERFIL: el
-  // registro Project-Aware vive ahí, no en la raíz legada (pasarla mal dejaba la automatización en un
-  // `no-registry` silencioso en cada tick).
-  //
-  // M6.7 §3.1: dentro del host NO se cae a `setInterval` global. Si `ctx.timer` no está en el momento
-  // de programar, se lanza y `start()` devuelve `no-timer`; el motivo queda en `status()`. Un intervalo
-  // global creado aquí sería invisible para el teardown del plugin y sobreviviría a la descarga.
-  const interval = (callback, delay) => {
-    const current = ctx.get('timer');
-    if (!current || typeof current.interval !== 'function') {
-      throw new Error('el host no ofrece ctx.timer.interval');
-    }
-    return current.interval(callback, delay);
-  };
-  const scheduler = createSyncScheduler({ env: process.env, root: profile, logger, interval });
+  // Sincronización Project-Aware (PA5): arranque del planificador creado arriba. Su `start()` drena
+  // una vez la cola durable (R1.2) aunque la automatización periódica esté desactivada.
   ctx.effect(() => {
     const started = scheduler.start();
     if (started?.started === false && started.reason) {

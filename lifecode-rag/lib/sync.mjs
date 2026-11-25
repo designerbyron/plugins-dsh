@@ -29,7 +29,8 @@ import { SKIP_DIRECTORIES } from './inputs.mjs';
 import { ingestFiles } from './ingest.mjs';
 import { beginOperation, finishOperation, listInterruptedOperations, recordStep } from './operations.mjs';
 import { PROTECTED_SEGMENTS, isSensitiveName } from './policy.mjs';
-import { appendRegistryAudit } from './registry.mjs';
+import { appendRegistryAudit, pathKeyFor } from './registry.mjs';
+import { assertRootUnchanged } from './roots-structure.mjs';
 import { openScopeStore } from './scope-stores.mjs';
 
 export const SYNC_STATES = Object.freeze(['present', 'missing', 'unreadable']);
@@ -199,6 +200,34 @@ export function markSyncOutcome({ registryDb, scopeKind, scopeId, batch, result,
  * `ingestFiles` confirma una transacción por fichero, así que «lo que está en `sources` con ese
  * hash» es exactamente lo confirmado. El resto se queda sin marca y la pasada siguiente lo reintenta.
  */
+/**
+ * Si un move retiró la raíz de un lote en vuelo, reubica las fuentes que ya estaban en el almacén
+ * (o que esta pasada escribió) bajo la raíz nueva. Así no quedan dos URIs para el mismo fichero ni se
+ * pierde el contenido cambiado. No toca fuentes de raíces que siguen autorizadas.
+ */
+function reconcileRevokedBatchSources({ db, batch, currentRoots, now }) {
+  if (currentRoots.length !== 1) return 0;
+  const target = currentRoots[0];
+  let changed = 0;
+  withTransaction(db, () => {
+    for (const entry of batch) {
+      if (currentRoots.some((root) => root.id === entry.rootId)) continue;
+      const sources = db.prepare('SELECT id, collection FROM sources WHERE uri = ?').all(entry.abs);
+      if (sources.length === 0) continue;
+      const nextUri = join(target.path, entry.key);
+      if (nextUri === entry.abs) continue;
+      for (const source of sources) {
+        const conflict = db.prepare('SELECT id FROM sources WHERE uri = ? AND collection = ? AND id <> ?')
+          .get(nextUri, source.collection, source.id);
+        if (conflict) db.prepare('DELETE FROM sources WHERE id = ?').run(source.id);
+        else db.prepare('UPDATE sources SET uri = ?, updated_at = ? WHERE id = ?').run(nextUri, now, source.id);
+        changed += 1;
+      }
+    }
+  });
+  return changed;
+}
+
 export function reconcileSyncFromStore({ registryDb, store, scopeKind, scopeId, batch, started }) {
   let present = 0;
   for (const item of batch) {
@@ -245,7 +274,7 @@ export function assertScopeSyncable({ registryDb, scope, sessionId = null, now =
     });
   }
   const roots = registryDb
-    .prepare(`SELECT id, path, state FROM roots WHERE scope_kind = ? AND scope_id = ? AND state = 'authorized' ORDER BY path`)
+    .prepare(`SELECT id, path, path_key, state FROM roots WHERE scope_kind = ? AND scope_id = ? AND state = 'authorized' ORDER BY path`)
     .all(scope.kind, scope.id);
   if (roots.length === 0) {
     throw new RagError('sync-root-unavailable', 'el ámbito no tiene raíces autorizadas', {
@@ -364,7 +393,26 @@ export async function syncScope({
   };
 
   const { roots } = assertScopeSyncable({ registryDb, scope, sessionId, now });
-  summary.roots = roots.map((root) => ({ root_id: root.id, path: root.path }));
+  // Una raíz sustituida por junction/symlink deja de representar lo autorizado: no se recorre.
+  // Una raíz ausente se documenta como error de la pasada, no como un `missing` de sus ficheros.
+  const walkableRoots = [];
+  const rootState = [];
+  for (const root of roots) {
+    try {
+      assertRootUnchanged({ path: root.path, path_key: root.path_key, scope_id: scopeId });
+      walkableRoots.push(root);
+      rootState.push({ root_id: root.id, path: root.path });
+    } catch (error) {
+      summary.complete = false;
+      const failureCode = error?.cause?.code === 'source-unreadable'
+        ? 'ENOENT'
+        : (error?.cause?.code ?? error?.code ?? 'root-changed');
+      const failure = { code: failureCode, message: error?.message ?? 'la raíz cambió', path: root.path };
+      summary.errors.push({ root_id: root.id, path: root.path, code: failure.code, message: failure.message });
+      rootState.push({ root_id: root.id, path: root.path, complete: false, error: failure });
+    }
+  }
+  summary.roots = rootState;
 
   // El modelo se toma del proveedor REAL, no de la config en crudo: con un proveedor remoto la
   // etiqueta guardada en `vectors.model` es `remote:<modelo>` y comparar contra el nombre de la
@@ -399,7 +447,10 @@ export async function syncScope({
 
   const operation = dryRun
     ? null
-    : beginOperation(registryDb, { kind: SYNC_OPERATION_KIND, now: started, detail: { scope_kind: scopeKind, scope_id: scopeId } });
+    : beginOperation(registryDb, {
+      kind: SYNC_OPERATION_KIND, now: started,
+      detail: { scope_kind: scopeKind, scope_id: scopeId, owner_pid: process.pid },
+    });
   if (operation) summary.operation = operation.id;
 
   const rows = readSyncRows(registryDb, { scopeKind, scopeId });
@@ -421,9 +472,13 @@ export async function syncScope({
 
   try {
     // ---- Observar ----
-    for (const root of roots) {
+    for (const root of walkableRoots) {
       if (signal?.aborted) { summary.cancelled = true; break; }
-      const walkLimit = Math.max(maxFiles * 20, 1_000);
+      // El recorrido debe poder ver todo el árbol: el límite de ficheros por pasada decide cuántos
+      // se INDEXAN, no cuántos se observan. Con `maxFiles*20` un workspace de más de 1.000 ficheros
+      // volvía siempre al mismo prefijo y nunca avanzaba. El tope alto sigue protegiendo de árboles
+      // patológicos (node_modules y similares ya se saltan).
+      const walkLimit = Math.max(maxFiles * 200, 20_000);
       const walk = walkRoot(root.path, { limit: walkLimit });
       summary.scanned += walk.files.length;
       if (!walk.complete) {
@@ -506,7 +561,7 @@ export async function syncScope({
       }
       if (previous?.last_hash && previous.last_hash !== probe.sha256) summary.changed += 1;
       else summary.new += 1;
-      pending.push({ ...item, sha256: probe.sha256, bytes: probe.bytes });
+      pending.push({ ...item, sha256: probe.sha256, bytes: probe.bytes, fresh: sourceExists === null });
     }
 
     // ---- Desapariciones (sólo con observación completa de su raíz) ----
@@ -524,6 +579,10 @@ export async function syncScope({
     }
 
     if (operation) recordStep(registryDb, { operationId: operation.id, step: 'observe', now: started, effectKey: `${operation.id}:observe` });
+
+    // Revalidación por fichero: mapea la ruta que entrega `ingestFiles` a la raíz observada para
+    // comprobar que sigue siendo la misma y que no fue sustituida por un junction.
+    const pendingByAbs = new Map(pending.map((item) => [item.abs, item]));
 
     // ---- Aplicar ----
     if (!dryRun && pending.length > 0) {
@@ -564,8 +623,30 @@ export async function syncScope({
                       details: { reason: 'budget-exhausted', where: 'sync:file', budget_ms: budget },
                     });
                   }
-                  // Revalidación por fichero: una revocación o un archivado a mitad para el ciclo.
-                  assertScopeSyncable({ registryDb, scope, sessionId, now });
+                  // Revalidación por fichero: una revocación, un archivado o un movimiento a mitad
+                  // para el ciclo. Se comprueba también que la raíz del fichero siga autorizada y que
+                  // su ruta real no haya sido sustituida por un junction.
+                  const current = assertScopeSyncable({ registryDb, scope, sessionId, now });
+                  const item = pendingByAbs.get(file);
+                  if (item) {
+                    const currentRoot = current.roots.find((root) => root.id === item.rootId);
+                    if (!currentRoot) {
+                      throw new RagError('scope-forbidden', 'la raíz del fichero se revocó durante la sincronización', {
+                        details: { scope_id: scope.id, scope_kind: scope.kind, root_id: item.rootId, reason: 'root-revoked' },
+                      });
+                    }
+                    assertRootUnchanged({ path: currentRoot.path, path_key: currentRoot.path_key, scope_id: scope.id });
+                    // Una subcarpeta puede sustituirse por un junction entre `walkRoot` y la ingesta.
+                    // No basta con que la raíz no cambie: el destino real del fichero debe seguir
+                    // dentro de la raíz autorizada.
+                    const rootKey = pathKeyFor(currentRoot.path);
+                    const fileKey = pathKeyFor(file);
+                    if (fileKey !== rootKey && !fileKey.startsWith(`${rootKey}/`)) {
+                      throw new RagError('scope-forbidden', 'el fichero resolvió fuera de la raíz autorizada', {
+                        details: { scope_id: scope.id, scope_kind: scope.kind, root_id: item.rootId, path: file, reason: 'file-outside-root' },
+                      });
+                    }
+                  }
                 },
               });
               result.ingested.push(...partial.ingested);
@@ -575,6 +656,12 @@ export async function syncScope({
           } catch (error) {
             // Una ingesta interrumpida no devuelve lista de confirmados: se publica lo que el almacén
             // demuestra que sí entró (una transacción por fichero), y el resto queda para reintentar.
+            // Si la interrupción fue un move que retiró la raíz, las fuentes nuevas escritas bajo la
+            // ruta vieja se retiran antes de reconciliar: el siguiente sync no debe duplicarlas.
+            try {
+              const current = assertScopeSyncable({ registryDb, scope, sessionId, now });
+              reconcileRevokedBatchSources({ db, batch, currentRoots: current.roots, now: started });
+            } catch { /* una raíz ausente no impide reconciliar el resto */ }
             const recovered = reconcileSyncFromStore({ registryDb, store: db, scopeKind, scopeId, batch, started });
             if (recovered.present > 0) summary.ingested += recovered.present;
             if (error?.details?.reason === 'budget-exhausted') {
@@ -590,9 +677,21 @@ export async function syncScope({
           if (budgetStopped) {
             if (operation) recordStep(registryDb, { operationId: operation.id, step: 'apply', now: now(), effectKey: `${operation.id}:apply` });
           } else {
-            // `sync_state` se marca DESPUÉS de la ingesta. Marcarlo antes (dentro de `authorize`) dejaba
-            // una ventana en la que un corte del proceso publicaba `present` con el hash nuevo sin que
-            // la fuente existiera: la pasada siguiente lo veía «sin cambios» y nunca se indexaba.
+            // `sync_state` se marca DESPUÉS de la ingesta. Marcarlo antes dejaba una ventana en la que
+            // un corte publicaba `present` con el hash nuevo sin que la fuente existiera.
+            // Revalidar el lote justo antes de escribir el estado: si el move retiró la raíz vieja
+            // durante la ingesta, no se escribe un `root_id` que ya no existe (FK).
+            const current = assertScopeSyncable({ registryDb, scope, sessionId, now });
+            for (const item of batch) {
+              if (!current.roots.some((root) => root.id === item.rootId)) {
+                // Las fuentes del lote que quedaron bajo la raíz retirada se reubican bajo la raíz
+                // nueva; las que ya estaban en el almacén conservan su contenido cambiado.
+                const moved = reconcileRevokedBatchSources({ db, batch, currentRoots: current.roots, now: started });
+                throw new RagError('scope-forbidden', 'una raíz se revocó durante la ingesta del lote', {
+                  details: { scope_id: scope.id, scope_kind: scope.kind, root_id: item.rootId, reason: 'root-revoked', moved },
+                });
+              }
+            }
             markSyncOutcome({ registryDb, scopeKind, scopeId, batch, result, started });
             summary.ingested = result.ingested.length;
             summary.skipped = result.skipped.length;
@@ -729,17 +828,54 @@ function scopeHasSource({ store, profileRoot, profileKey, scope, uri, sha256 }) 
 /**
  * Ámbitos activos con al menos una raíz autorizada: lo que una pasada automática puede tocar.
  * Un ámbito sin raíces no tiene nada que sincronizar y no se incluye (no es un error).
+ *
+ * R1.2 · Q07: un proyecto con seguimiento existe y no está `on` **no se sincroniza** (OFF y `paused`
+ * detienen la indexación automática sin borrar nada). Un proyecto con una provisión en curso tampoco:
+ * su raíz ya está autorizada pero la asociación aún no está escrita, y no debe empezar a indexar a
+ * mitad de la saga. Las bibliotecas no tienen seguimiento y conservan su comportamiento.
  */
 export function activeSyncScopes(registryDb) {
   const rows = registryDb
     .prepare(`SELECT scope_kind, scope_id, COUNT(*) AS roots FROM roots WHERE state = 'authorized' GROUP BY scope_kind, scope_id`)
     .all();
   if (rows.length === 0) return [];
+  const trackingState = registryDb.prepare('SELECT state FROM workspace_tracking WHERE project_id = ?');
+  const openProvision = registryDb.prepare("SELECT 1 AS open FROM provision_intents WHERE project_id = ? AND state = 'open' LIMIT 1");
+  const provisionedMemory = registryDb.prepare("SELECT 1 AS provisioned FROM provision_intents WHERE project_id = ? AND state = 'done' LIMIT 1");
+  // Un movimiento con el rekey aún pendiente no se indexa: la ruta nueva todavía no está
+  // representada en el almacén y una pasada la duplicaría. La obligación vive en el journal.
+  const pendingRekey = new Set();
+  for (const operation of registryDb.prepare("SELECT detail FROM operations WHERE kind = 'rekey' AND state = 'started'").all()) {
+    try {
+      const detail = operation.detail ? JSON.parse(operation.detail) : null;
+      if (detail?.project_id) pendingRekey.add(detail.project_id);
+    } catch { /* un detalle ilegible no bloquea el resto */ }
+  }
+  // Una limpieza de acceso pendiente también deja dos raíces autorizadas temporalmente: indexar
+  // ahora duplicaría las fuentes de la ruta vieja y la nueva. Se espera a que F-02 termine.
+  const pendingCleanup = new Set();
+  for (const operation of registryDb.prepare("SELECT detail FROM operations WHERE kind = 'cleanup' AND state = 'started'").all()) {
+    try {
+      const detail = operation.detail ? JSON.parse(operation.detail) : null;
+      if (detail?.project_id) pendingCleanup.add(detail.project_id);
+    } catch { /* un detalle ilegible no bloquea el resto */ }
+  }
   const scopes = [];
   for (const row of rows) {
     const table = row.scope_kind === 'prj' ? 'projects' : 'libraries';
     const item = registryDb.prepare(`SELECT id, name, status FROM ${table} WHERE id = ?`).get(row.scope_id);
     if (!item || item.status !== 'active') continue;
+    if (row.scope_kind === 'prj') {
+      const tracking = trackingState.get(item.id);
+      if (tracking && tracking.state !== 'on') continue;
+      // R1.2 · Q07/Q09: una memoria provisionada SIN fila de seguimiento (se quitó la fila) ha
+      // dejado de estar gestionada por el workspace; no se indexa sola. Los proyectos heredados
+      // (sin intención de provisión) conservan el comportamiento anterior.
+      if (!tracking && provisionedMemory.get(item.id)) continue;
+      if (openProvision.get(item.id)) continue;
+      if (pendingRekey.has(item.id)) continue;
+      if (pendingCleanup.has(item.id)) continue;
+    }
     scopes.push({ kind: row.scope_kind, id: item.id, name: item.name, roots: row.roots });
   }
   return scopes.sort((left, right) => `${left.kind}:${left.name}`.localeCompare(`${right.kind}:${right.name}`));

@@ -26,6 +26,7 @@ import { loadConfig } from './paths.mjs';
 import { profileKey, profileRoot, registryPath } from './profile.mjs';
 import { appendRegistryAudit, closeRegistry, openRegistry } from './registry.mjs';
 import { activeSyncScopes, syncScopes } from './sync.mjs';
+import { claimSyncRequest, finishSyncRequest, listSyncRequests, reclaimInterruptedSyncRequests, requeueSyncRequest } from './provision-store.mjs';
 
 const state = new WeakMap();
 const MAX_BACKOFF_FACTOR = 8;
@@ -69,6 +70,8 @@ export function createSyncScheduler({
   let disposeTimer = null;
   let controller = null;
   let running = false;
+  let draining = false;
+  let drainScheduled = false;
   let nextAttemptAt = 0;
   const status = {
     enabled: false,
@@ -225,10 +228,121 @@ export function createSyncScheduler({
     }
   }
 
+  /**
+   * R1.2 · Drena la cola durable (`sync_requests`): una petición por ámbito, coalescente.
+   *
+   * No depende de `automation.enabled`: una reactivación humana encola trabajo aunque el
+   * mantenimiento periódico esté apagado. Sí respeta los presupuestos de la configuración. Cada
+   * petición se reclama de forma condicional (estado + `requested_at`), así una petición que llega
+   * durante la pasada no se pierde ni se pisa: queda `queued` para la siguiente.
+   *
+   * @returns {Promise<{at:number, results:Array, skipped?:boolean, reason?:string}>}
+   */
+  async function drain({ limit = 10 } = {}) {
+    if (draining || running) return { skipped: true, reason: draining ? 'drain-running' : 'sync-running', results: [] };
+    if (!existsSync(registryFile)) return { skipped: true, reason: 'no-registry', results: [] };
+    draining = true;
+    let registry = null;
+    const results = [];
+    // El teardown anula `controller`; se captura al empezar para que el bucle pueda abortar.
+    const signal = controller?.signal ?? null;
+    try {
+      registry = openRegistry({ root, create: false, now: now() });
+      const queued = listSyncRequests(registry.db, { state: 'queued', limit });
+      if (queued.length === 0) return { at: now(), results };
+      const config = currentConfig();
+      for (const request of queued) {
+        if (signal?.aborted) break;
+        const claim = claimSyncRequest(registry.db, {
+          scopeKind: request.scopeKind, scopeId: request.scopeId, now: now(),
+        });
+        if (!claim.claimed) continue;
+        const scopes = activeSyncScopes(registry.db)
+          .filter((scope) => scope.id === request.scopeId && scope.kind === request.scopeKind);
+        if (scopes.length === 0) {
+          // El ámbito dejó de ser sincronizable (OFF, archivado o sin raíces) entre encolar y drenar.
+          finishSyncRequest(registry.db, {
+            scopeKind: request.scopeKind, scopeId: request.scopeId, requestedAt: claim.request.requestedAt,
+            state: 'failed', errorCode: 'scope-not-syncable', now: now(),
+          });
+          results.push({ scope_kind: request.scopeKind, scope_id: request.scopeId, skipped: true, reason: 'scope-not-syncable' });
+          continue;
+        }
+        const run = await syncScopes({
+          registryDb: registry.db,
+          profileRoot: root,
+          profileKey: profileKey(env),
+          scopes,
+          config,
+          embedder,
+          now,
+          signal,
+          limit: config.automation.maxFilesPerRun,
+          budgetMs: config.automation.tickBudgetMs,
+          monotonic,
+          actor: 'automation',
+        });
+        const item = run[0] ?? null;
+        const partial = Boolean(item && (item.outcome === 'partial' || item.complete === false || item.budget_exhausted === true));
+        const progressed = Boolean(item && ((item.ingested ?? 0) > 0 || (item.new ?? 0) > 0
+          || (item.changed ?? 0) > 0 || (item.reappeared ?? 0) > 0 || (item.missing ?? 0) > 0));
+        if (partial && progressed) {
+          // Pasada parcial con avance: se reencola para continuar donde quedó (presupuesto o
+          // `too-many-files`). Sin avance se cierra `failed`: reencolar sería un bucle.
+          requeueSyncRequest(registry.db, {
+            scopeKind: request.scopeKind, scopeId: request.scopeId,
+            requestedAt: claim.request.requestedAt, operationId: item?.operation ?? null,
+            errorCode: 'partial', now: now(),
+          });
+          results.push({ ...item, requeued: true });
+          continue;
+        }
+        const failed = !item || item.cancelled === true || item.failed > 0 || (partial && !progressed);
+        finishSyncRequest(registry.db, {
+          scopeKind: request.scopeKind, scopeId: request.scopeId, requestedAt: claim.request.requestedAt,
+          state: failed ? 'failed' : 'done',
+          operationId: item?.operation ?? null,
+          errorCode: failed ? (partial ? (item.stop_reason ?? 'partial') : (item?.errors?.[0]?.code ?? 'sync-failed')) : null,
+          now: now(),
+        });
+        if (item) results.push(item);
+      }
+      status.lastRunAt = now();
+      status.lastResult = { drained: results.length, results };
+      return { at: now(), results };
+    } finally {
+      if (registry) closeRegistry(registry.db);
+      draining = false;
+    }
+  }
+
+  /**
+   * Pide un drenaje fuera del ciclo de la petición que lo provocó. El trabajo ya está en disco: si el
+   * proceso muere antes de ejecutarlo, la fila sigue `queued` y se drena al arrancar.
+   */
+  function drainSoon() {
+    if (drainScheduled) return { scheduled: true, already: true };
+    drainScheduled = true;
+    const run = () => {
+      drainScheduled = false;
+      drain().catch((error) => logger.warn?.(`lifecode-rag sincronización: drenaje falló: ${error?.message ?? error}`));
+    };
+    if (typeof queueMicrotask === 'function') queueMicrotask(run);
+    else setTimeout(run, 0);
+    return { scheduled: true };
+  }
+
   /** Tick del temporizador: nunca propaga y deja constancia de los fallos consecutivos. */
   async function tick() {
     // Después de `stop()` el temporizador ya no existe; un callback rezagado no debe ejecutar nada.
     if (!disposeTimer) return;
+    // Un drenaje en curso ya está sincronizando; `runOnce` no puede solaparse con él.
+    if (draining) {
+      status.skippedTicks += 1;
+      status.lastSkippedAt = now();
+      status.lastSkipReason = 'drain-running';
+      return;
+    }
     if (running) {
       status.skippedTicks += 1;
       status.lastSkippedAt = now();
@@ -260,6 +374,15 @@ export function createSyncScheduler({
       return;
     }
     try {
+      // R1.2: la cola de peticiones humanas se drena antes de la pasada completa. Si drenó algo, el
+      // tick no repite la pasada sobre los mismos ámbitos (la siguiente hará el mantenimiento).
+      const drained = await drain();
+      if (drained.results && drained.results.length > 0) {
+        status.consecutiveFailures = 0;
+        status.lastError = null;
+        nextAttemptAt = 0;
+        return;
+      }
       const result = await runOnce({ signal: controller?.signal });
       if (!result?.skipped) {
         status.consecutiveFailures = 0;
@@ -288,6 +411,25 @@ export function createSyncScheduler({
 
   function start() {
     const config = currentConfig();
+    // Recuperación de la cola tras una caída: una petición que quedó `running` hace más de cinco
+    // minutos no puede seguir viva; se cierra como fallida y, si procede, se vuelve a pedir. Antes de
+    // drenar, nunca después: si no, el drenaje vería una fila `running` que ya nadie ejecuta.
+    try {
+      if (existsSync(registryFile)) {
+        const opened = openRegistry({ root, create: false, now: now() });
+        try {
+          // En un arranque de perfil, cualquier petición `running` pertenece a la instancia anterior:
+          // el perfil es único. No se espera la ventana de 5 minutos (una caída justo después de
+          // reclamar dejaba la fila `running` y `drain()` sólo lee `queued`).
+          reclaimInterruptedSyncRequests(opened.db, { now: now(), olderThanMs: 0 });
+        } finally { closeRegistry(opened.db); }
+      }
+    } catch (error) {
+      logger.warn?.(`lifecode-rag sincronización: no se pudo recuperar la cola: ${error?.message ?? error}`);
+    }
+    // La cola es durable y no depende de la automatización periódica: si el proceso anterior murió
+    // con trabajo encolado, este arranque lo drena aunque `automation.enabled` sea false.
+    drainSoon();
     if (!config.automation.enabled) {
       status.enabled = false;
       return { started: false, reason: 'disabled' };
@@ -343,7 +485,7 @@ export function createSyncScheduler({
     return { stopped: true };
   }
 
-  return { start, stop, runOnce, status: statusSnapshot, tick };
+  return { start, stop, runOnce, drain, drainSoon, status: statusSnapshot, tick };
 }
 
 export function syncSchedulerFor(deps) {

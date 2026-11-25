@@ -28,7 +28,7 @@ Comparación blob por blob (`git cat-file blob` vs árbol de trabajo vs manifies
 `git archive HEAD lifecode-rag | tar -x` en un directorio fuera del repositorio:
 
 - **405 archivos**, ninguno no versionado, **cero logs** (los 9 excluidos no entraron), **sin `node_modules`**.
-- `package.json`: `@local/lifecode-rag` v1.0.0, `engines.node >=22.5.0`, `engines.dsh >=0.2.2-rc.3 <0.3.0`,
+- `package.json` del snapshot histórico: `@local/lifecode-rag` v1.0.0; el paquete actual `@designerbyron/lifecode-rag` 1.6.0 declara `engines.node >=22.16.0 <23.0.0 || >=24.0.0`, `engines.dsh >=0.2.2-rc.3 <0.3.0`;
   **`dependencies` vacío**. Node utilizado: v24.21.0.
 - Contenido exacto del commit; ninguna dependencia de archivos locales no versionados.
 

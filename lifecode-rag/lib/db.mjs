@@ -1,7 +1,7 @@
 /**
  * Apertura, inicialización y comprobaciones baratas del almacén SQLite de LifeCode RAG.
  *
- * `node:sqlite` es una capacidad del propio host (Node 24 / Electron 44), no una dependencia: el
+ * `node:sqlite` es una capacidad del propio host (disponible desde Node 22.13; FTS5 desde 22.16; Node 24/Electron 44), no una dependencia: el
  * plugin no importa nada de `@deepseek-ai/*`. El fichero lleva `application_id` propio para que un
  * `rag.sqlite3` de otro producto se rechace en vez de interpretarse.
  *
@@ -144,7 +144,7 @@ function sizeOf(path) {
  *
  * @returns {{ db: DatabaseSync, paths: ReturnType<typeof storePaths>, created: boolean }}
  */
-export function openDatabase({ root, create = false, now = Date.now() } = {}) {
+export function openDatabase({ root, create = false, readOnly = false, now = Date.now() } = {}) {
   const paths = storePaths(root);
   const existed = existsSync(paths.database);
   if (!existed && !create) {
@@ -152,21 +152,24 @@ export function openDatabase({ root, create = false, now = Date.now() } = {}) {
       details: { path: paths.database },
     });
   }
-  if (create && !existsSync(paths.root)) mkdirSync(paths.root, { recursive: true });
-  if (create && !existsSync(paths.backups)) mkdirSync(paths.backups, { recursive: true });
+  if (create && !readOnly && !existsSync(paths.root)) mkdirSync(paths.root, { recursive: true });
+  if (create && !readOnly && !existsSync(paths.backups)) mkdirSync(paths.backups, { recursive: true });
 
   let db;
   try {
-    db = new DatabaseSync(paths.database);
+    // `readOnly` se reserva para copias de diagnóstico: SQLite puede crear `-wal`/`-shm`
+    // aunque la conexión sea de sólo lectura. El almacén original no se abre con esta opción.
+    db = new DatabaseSync(paths.database, readOnly ? { readOnly: true } : {});
   } catch (error) {
     throw openError(error, paths.database);
   }
-  try {    configureConnection(db, { file: true });
+  try {    configureConnection(db, { file: !readOnly });
     const appId = pragmaNumber(db, 'application_id');
     const version = pragmaNumber(db, 'user_version');
     const tables = tableNames(db);
 
     if (tables.length === 0) {
+      if (readOnly) throw new RagError('store-not-initialized', 'el almacén no tiene esquema para diagnóstico');
       if (appId !== 0) throw new RagError('store-not-rag', 'application_id presente sin esquema');
       if (existed) {
         // El fichero EXISTÍA y no tiene esquema: un corte durante un checkpoint, un disco lleno o una
@@ -191,6 +194,11 @@ export function openDatabase({ root, create = false, now = Date.now() } = {}) {
       if (version > SCHEMA_VERSION) {
         throw new RagError('store-version-unsupported', 'el almacén es de una versión más nueva', {
           details: { found: version, supported: SCHEMA_VERSION },
+        });
+      }
+      if (version < SCHEMA_VERSION && readOnly) {
+        throw new RagError('store-migration-required', 'el almacén necesita migración; doctor no la ejecuta', {
+          details: { found: version, supported: SCHEMA_VERSION, readOnly: true },
         });
       }
       if (version < SCHEMA_VERSION) migrate(db, version, now);

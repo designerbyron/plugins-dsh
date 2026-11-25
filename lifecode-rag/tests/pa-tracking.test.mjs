@@ -1,10 +1,10 @@
 /**
- * UX-2.2 · API humana del seguimiento (`GET/PUT/DELETE /pa/tracking`, `pa/1.5.0`) y campos
+ * UX-2.2 · API humana del seguimiento (`GET/PUT/DELETE /pa/tracking`, `pa/1.6.0`) y campos
  * aditivos de `GET /pa/workspaces`.
  *
  * Cada prueba monta el handler real (`createPaHandler`) contra un registro project-aware real
  * (`makeWorld` sobre `mkdtemp`) y un doble del registro de workspaces del Host. Lo que se fija:
- *   - el `GET` publica `items`, `counts`, `asOf` y `version: pa/1.5.0`, con proyecto y relación;
+ *   - el `GET` publica `items`, `counts`, `asOf` y `version: pa/1.6.0`, con proyecto y relación;
  *   - el `PUT` crea con `expectedRevision: 0`, devuelve revisión 1 y audita la acción humana
  *     (`enable`, `actor='human'`) — nunca la crea el modelo;
  *   - una revisión vieja es `409 revision-conflict` y **no** deja rastro (ni fila ni auditoría);
@@ -111,7 +111,7 @@ function seedTracking(world, { path, state = 'on', projectId = null, revision = 
   }));
 }
 
-test('GET /tracking: items, counts, asOf y pa/1.5.0, con una fila por seguimiento', async () => {
+test('GET /tracking: items, counts, asOf y pa/1.6.0, con una fila por seguimiento', async () => {
   const world = await makeWorld();
   try {
     const suelto = join(world.base, 'sin-proyecto');
@@ -121,9 +121,9 @@ test('GET /tracking: items, counts, asOf y pa/1.5.0, con una fila por seguimient
     assert.equal(response.status, 200);
     const payload = data(response);
     assert.deepEqual(Object.keys(payload).sort(), ['asOf', 'counts', 'items', 'truncated', 'version']);
-    assert.equal(payload.version, 'pa/1.5.0');
+    assert.equal(payload.version, 'pa/1.6.0');
     assert.equal(payload.truncated, false, 'todo el conjunto cabe en la página');
-    assert.equal(PA_VERSION, 'pa/1.5.0');
+    assert.equal(PA_VERSION, 'pa/1.6.0');
     assert.equal(typeof payload.asOf, 'number');
     assert.equal(payload.items.length, 2, 'una fila por seguimiento, ni más ni menos');
     const porClave = new Map(payload.items.map((row) => [row.pathKey, row]));
@@ -382,7 +382,7 @@ test('GET /tracking funciona sin proyecto activo, como /workspaces', async () =>
   }
 });
 
-test('compatibilidad: pa/1.3.0 y pa/1.4.0 siguen respondiendo igual bajo pa/1.5.0', async () => {
+test('compatibilidad: pa/1.3.0 y pa/1.4.0 siguen respondiendo igual bajo pa/1.6.0', async () => {
   const world = await makeWorld();
   try {
     const handler = handlerFor(world, { registry: fakeRegistry([hostWorkspace('ws_a', world.dirA)]) });
@@ -397,7 +397,7 @@ test('compatibilidad: pa/1.3.0 y pa/1.4.0 siguen respondiendo igual bajo pa/1.5.
     ]) {
       assert.equal(Object.prototype.hasOwnProperty.call(payload, key), true, `el snapshot perdió ${key}`);
     }
-    assert.equal(payload.version, 'pa/1.5.0');
+    assert.equal(payload.version, 'pa/1.6.0');
     assert.deepEqual(Object.keys(data(await call(handler, '/config'))).sort(), ['config', 'mode', 'profile', 'service', 'version']);
     const history = await call(handler, '/history' + project);
     assert.equal(history.status, 200);

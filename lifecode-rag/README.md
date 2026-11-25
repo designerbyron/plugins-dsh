@@ -6,13 +6,13 @@ fragmentos compactos, citables y con presupuesto de tokens.
 
 No depende de `@deepseek-ai/*`, no usa el almacén del Skill Center y no comparte rutas privadas con él.
 
-**Paquete:** `@designerbyron/lifecode-rag` · **versión 1.5.11** · contrato público de herramientas
-**v0.1.0** (congelado) · API del panel `pa/1.5.0`.
+**Paquete:** `@designerbyron/lifecode-rag` · **versión 1.6.0** · contrato público de herramientas
+**v0.1.0** (congelado) · API del panel `pa/1.6.0`.
 
 Identificadores internos que **no** cambian con el nombre del paquete: id del plugin `lifecode-rag`,
 herramientas `lifecode_rag_*` y rutas `/lifecode-rag/pa/*`.
 
-**Requisitos:** Node.js ≥ 22.5 (usa `node:sqlite`) y DeepSeek Harness ≥ 0.2.2-rc.3 y < 0.3.0.
+**Requisitos:** Node.js ≥ 22.16 (22.16–22.x o ≥24; `node:sqlite` con FTS5) y DeepSeek Harness ≥ 0.2.2-rc.3 y < 0.3.0.
 
 ## Modelo Project-Aware
 
@@ -57,14 +57,14 @@ sesión, no en el prompt.
 Instalación desde el registro público, en el directorio del perfil de DSH:
 
 ```sh
-npm install @designerbyron/lifecode-rag@1.5.11
+npm install @designerbyron/lifecode-rag@1.6.0
 ```
 
 `package.json` del perfil:
 
 ```json
 {
-  "dependencies": { "@designerbyron/lifecode-rag": "1.5.11" },
+  "dependencies": { "@designerbyron/lifecode-rag": "1.6.0" },
   "dsh": { "profile": { "bundles": ["lifecode-rag"] } }
 }
 ```
@@ -208,9 +208,9 @@ npm run check            # estructura, cero dependencias, red acotada
 ```
 
 Las pruebas y las herramientas de desarrollo viven en el repositorio, no en el paquete publicado
-(`files` excluye `tests/` y `tools/`). La suite de la rama que produce esta 1.5.8 tiene **697 casos** y cubre
+(`files` excluye `tests/` y `tools/`). La suite de la rama que produce esta 1.6.0 tiene **811 casos** y cubre
 las siete herramientas, la administración por API, los workspaces del Host, el seguimiento de workspaces, la
-interfaz y los 54 códigos de error con su mapa HTTP. Los comandos `npm test` y `npm run check` **sólo existen
+interfaz y los 64 códigos de error con su mapa HTTP. Los comandos `npm test` y `npm run check` **sólo existen
 en el repositorio**: el manifiesto empaquetado no lleva `scripts`, así que en una instalación desde el TAR se
 ejecutan con `node --test` y `node tools/check.mjs` sobre la copia de origen.
 

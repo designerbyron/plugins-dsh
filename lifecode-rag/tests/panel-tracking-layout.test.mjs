@@ -197,17 +197,17 @@ const emptySnapshot = okData({
 
 /** Nombres y rutas deliberadamente largos: son los que estiraban la tabla. */
 const LARGO = 'plataforma-de-facturacion-electronica-corporativo-saas-clientes-2026';
-const RUTA_LARGA = 'C:/xampp/htdocs/corporativo-saas-clientes/' + LARGO;
+const RUTA_LARGA = 'C:/workspace/corporativo-saas-clientes/' + LARGO;
 
 const WORKSPACES = [
   { id: 'ws-1', path: RUTA_LARGA, pathKey: 'w-on', title: LARGO, state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
-  { id: 'ws-2', path: 'C:/xampp/htdocs/rc150-lab', pathKey: 'w-paused', title: 'rc150-lab', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
-  { id: 'ws-3', path: 'C:/xampp/htdocs/plugins-dhs', pathKey: 'w-off', title: 'plugins-dhs', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
+  { id: 'ws-2', path: 'C:/workspace/rc150-lab', pathKey: 'w-paused', title: 'rc150-lab', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
+  { id: 'ws-3', path: 'C:/workspace/plugins-dhs', pathKey: 'w-off', title: 'plugins-dhs', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
 ];
 
 const TRACKING = [
   { pathKey: 'w-on', path: RUTA_LARGA, state: 'on', revision: 7, project: null, lastStatus: 'ok' },
-  { pathKey: 'w-paused', path: 'C:/xampp/htdocs/rc150-lab', state: 'paused', revision: 3, project: { id: 'prj-1', name: 'plugins-dhs' }, lastStatus: 'ok' },
+  { pathKey: 'w-paused', path: 'C:/workspace/rc150-lab', state: 'paused', revision: 3, project: { id: 'prj-1', name: 'plugins-dhs' }, lastStatus: 'ok' },
 ];
 
 /** Monta el panel real y lo deja en Seguimiento con las tres filas (seguido, pausado, sin seguimiento). */
@@ -323,7 +323,8 @@ test('T-LAYOUT-02: los tres estados emiten sus botones completos dentro de la co
   assert.equal(toggleOf(pausedContainer).label, 'Reanudar');
   assert.equal(toggleOf(pausedContainer).props['aria-checked'], 'false');
   assert.deepEqual(buttonsOf(pausedContainer).filter((button) => button.props.role !== 'switch')
-    .map((button) => button.text), ['Dejar de seguir', 'Quitar fila']);
+    .map((button) => button.text), ['Dejar de seguir', 'Quitar fila', 'Revocar acceso de lectura', 'Mover carpeta'],
+    'R1.2: la fila con proyecto añade las acciones avanzadas, también con su texto íntegro');
 
   // Sin seguimiento: sólo se ofrece seguir; no hay «Dejar de seguir» ni fila que quitar.
   const offContainer = actionsContainerOf(rows[2]);

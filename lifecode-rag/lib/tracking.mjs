@@ -38,6 +38,9 @@ export const TRACKING_ACTIONS = Object.freeze({
   pause: 'pause',
   resume: 'resume',
   reassociate: 'reassociate',
+  // R1.2: la saga de provisión escribe la asociación con CAS; se audita como un acto humano más,
+  // distinto de `reassociate` (que mueve una asociación ya existente entre proyectos).
+  associate: 'associate',
 });
 
 const STATE_VALUES = new Set(Object.values(TRACKING_STATES));

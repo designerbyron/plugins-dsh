@@ -7,7 +7,7 @@ reiniciado, no se ha tocado ningún perfil real.
 
 | | |
 |---|---|
-| Node | `>=22.5.0` (usa `node:sqlite`) |
+| Node | `>=22.16.0 <23.0.0 || >=24.0.0` (usa `node:sqlite`) |
 | DSH | `>=0.2.2-rc.3 <0.3.0` (probado contra 0.2.2-rc.5) |
 | Dependencias npm | **ninguna** (`dependencies` vacío) |
 | Almacén | SQLite propio; `schema_version 3`, sin migraciones pendientes |
@@ -41,10 +41,10 @@ reiniciado, no se ha tocado ningún perfil real.
 
 ## Activación en un entorno aislado (procedimiento, no ejecutado)
 
-Existe un laboratorio permanente en `C:/xampp/htdocs/skill-compiler-lab-2026-11-05` con `home/` y
+Existe un laboratorio permanente en `<WORKSPACE>/skill-compiler-lab-2026-11-05` con `home/` y
 `electron/` propios. Para LifeCode RAG:
 
-1. Crear `C:/xampp/htdocs/lifecode-rag-lab/home` y `…/electron` (nuevos, vírgenes).
+1. Crear `<WORKSPACE>/lifecode-rag-lab/home` y `…/electron` (nuevos, vírgenes).
 2. Copiar el plugin **desde el commit**, no del árbol de trabajo:
    `git archive dfe70f5 lifecode-rag | tar -x -C <lab>/plugins` (o apuntar el workspace al repo y dejar que el
    host lo cargue desde el árbol).

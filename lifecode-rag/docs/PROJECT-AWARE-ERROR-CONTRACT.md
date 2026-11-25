@@ -33,6 +33,7 @@ en cerrado con el código correspondiente.
 | `root-symlink` | Autorización | La raíz es un enlace, junction o reparse point, o su ruta canónica no coincide con la registrada | `path`, `linkTarget?`, `canonical`, `reason` | No se registra la raíz |
 | `root-changed` | Integridad | El destino real de una raíz registrada cambió (sustitución por junction/symlink, reparse del proveedor) | `path`, `expected?`, `actual` | Se falla en cerrado antes de usar la raíz |
 | `registry-unavailable` | Infraestructura | No existe el registro del perfil o no se puede abrir | `profile_id`, `path?` | Ninguna operación |
+| `store-migration-required` | Integridad | El almacén existe en una versión anterior y `doctor` se ejecuta en modo diagnóstico sin migrarlo | `found`, `supported`, `readOnly` | No se migra ni se escribe; se informa para una migración explícita |
 | `registry-corrupt` | Integridad | `integrity_check` falla, `path_key` duplicado, cadena de auditoría rota | `profile_id`, `check`, `detail` | No se escribe; se informa |
 | `scope-store-unavailable` | Infraestructura | Falta el `rag.sqlite3` de un ámbito, está ocupado por otra conexión o sigue migrando | `scope_id`, `scope_kind`, `reason`, `state`, `retryable` | Falla la operación completa: no se entrega un subconjunto que parezca exhaustivo |
 | `scope-store-corrupt` | Integridad | Metadatos incoherentes, `schema_version` futura, `store_state` no `ready`, `integrity_check` o `foreign_key_check` fallan | `scope_id`, `scope_kind`, `check`, `findings?` | No se lee ni se entrega contenido; no se repara solo |
@@ -111,3 +112,23 @@ informa `scope-store-unavailable` con `state: 'missing'` y `retryable: false`.
   (`lifecode-rag/tests/recovery.test.mjs`).
 - Prueba de operación incierta: una fila `started` bloquea con `operation-uncertain` y la reconciliación sólo
   cierra la fila (`lifecode-rag/tests/partial-results.test.mjs`).
+
+## 7. R1.2 · códigos del ciclo de vida (`pa/1.6.0`)
+
+Se añaden al sobre público; no cambian los códigos anteriores. La compuerta del Host sigue siendo la primera:
+sin ella, `PUT` con `intent` y las acciones avanzadas responden `503 authorization-unavailable`.
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `provisioning-failed` | 422 | la saga no completó; `details.failedStep`, `retryable`, `compensated` |
+| `memory-exclusive` | 409 | 1:1:1: otro workspace posee la memoria o el proyecto ya tiene otra raíz; `details.reason` incluye `project-associated`, `project-is-workspace`, `project-has-other-roots`, `root-is-library`, `root-owner-conflict`, `cleanup-pending` |
+| `move-conflict` | 409 | destino ocupado, raíz ajena, contención, dos raíces, almacén ausente o rekey pendiente; `details.reason` incluye `destination-tracked`, `source-root-not-owned`, `containment`, `project-has-other-roots`, `store-absent`, `destination-root-other`, `rekey-pending` |
+| `move-failed` | 422 | el movimiento no completó; `details.operationId`, `retryable` |
+| `sync-in-progress` | 409 | hay una sincronización viva del proyecto; `details.operationId`, `retryable` |
+| `revocation-not-proven` | 409 | no hay `consent_trust_key`/`consent_root_id` que demuestren propiedad |
+| `workspace-missing` | 422 | la carpeta no existe o no se puede leer |
+| `registry-migration-conflict` | 409 | el preflight v4 encontró duplicados; no se migra ni se elige dueño |
+
+**Verificación.** `tests/pa-lifecycle-api.test.mjs`, `tests/provisioning.test.mjs` y
+`tests/tracking-migration.test.mjs`. Los códigos nuevos se mapean en `lib/errors.mjs`; la UI muestra el
+`code` con su texto, nunca un éxito si el servidor devolvió error.

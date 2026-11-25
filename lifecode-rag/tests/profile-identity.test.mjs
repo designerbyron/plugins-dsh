@@ -70,3 +70,27 @@ test('la raíz de datos del perfil usa el nombre resuelto', () => {
     assert.equal(root, join(home, 'lifecode-rag', 'profiles', 'desktop'));
   });
 });
+
+test('LIFECODE_RAG_DATA y LIFECODE_RAG_PROFILE gobiernan la raíz PA sin DSH', () => {
+  withProfiles([], ({ base }) => {
+    const data = join(base, 'data');
+    const root = profileRoot({ LIFECODE_RAG_DATA: data, LIFECODE_RAG_PROFILE: 'custom' }, []);
+    assert.equal(root, join(data, 'profiles', 'custom'));
+    assert.equal(profileKey({ LIFECODE_RAG_DATA: data, LIFECODE_RAG_PROFILE: 'custom' }, []), 'custom');
+    assert.throws(
+      () => profileRoot({ LIFECODE_RAG_DATA: 'relative/data' }, []),
+      /LIFECODE_RAG_DATA/,
+    );
+  });
+});
+
+test('el perfil saneado no puede escapar de profiles/ ni confundirse con . o ..', () => {
+  for (const raw of ['..', '.', 'Laboratório', 'Lab Uno']) {
+    const key = profileKey({ LIFECODE_RAG_PROFILE: raw }, []);
+    assert.equal(key.includes('/') || key.includes(String.fromCharCode(92)), false);
+    assert.notEqual(key, '.');
+    assert.notEqual(key, '..');
+  }
+  const root = profileRoot({ LIFECODE_RAG_DATA: 'C:/data', LIFECODE_RAG_PROFILE: '..' }, []);
+  assert.equal(root.includes('..'), false);
+});

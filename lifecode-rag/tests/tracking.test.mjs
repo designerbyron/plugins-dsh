@@ -42,11 +42,11 @@ function row(overrides = {}) {
   };
 }
 
-test('los tres ejes y las cinco acciones son los del contrato, y no hay otros', () => {
+test('los tres ejes y las seis acciones humanas son las del contrato, y no hay otras', () => {
   assert.deepEqual(Object.values(TRACKING_STATES), ['on', 'off', 'paused']);
   assert.deepEqual(Object.values(TRACKING_STATUSES), ['ok', 'missing', 'unknown']);
   assert.deepEqual(Object.values(TRACKING_ASSOCIATIONS), ['explicit', 'pending', 'conflict']);
-  assert.deepEqual(Object.values(TRACKING_ACTIONS), ['enable', 'disable', 'pause', 'resume', 'reassociate']);
+  assert.deepEqual(Object.values(TRACKING_ACTIONS), ['enable', 'disable', 'pause', 'resume', 'reassociate', 'associate']);
 });
 
 test('transiciones válidas del eje A: pause, resume, disable y enable', () => {

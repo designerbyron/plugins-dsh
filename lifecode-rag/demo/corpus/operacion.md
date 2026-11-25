@@ -3,7 +3,7 @@
 ## Requisitos
 
 - DeepSeek Harness Desktop 0.2.2-rc.3 o compatible.
-- Node 22.5 o superior (el host incluye Node 24).
+- Node 22.16 o superior (22.16–22.x o ≥24; el host incluye Node 24).
 - Windows, macOS o Linux. El producto se probó en Windows 11.
 
 ## Instalación (M6, requiere autorización)

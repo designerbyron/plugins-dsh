@@ -938,9 +938,9 @@ selección del perfil.
     "items": [
       {
         "id": "6b1f…-uuid",
-        "path": "C:\\xampp\\htdocs\\plugins-dhs",
-        "pathKey": "c:/xampp/htdocs/plugins-dhs",
-        "title": "plugins-dhs",
+        "path": "C:\\work\\example",
+        "pathKey": "c:/work/example",
+        "title": "example",
         "state": "ok",
         "stateReason": null,
         "sessions": { "known": 2, "live": 1, "historical": 1 },
@@ -1171,3 +1171,88 @@ un 100 % de cobertura sin un solo documento.
 **Evidencia.** `tests/panel-coverage.test.mjs` (definición, «Sin datos» con cero documentos, retrato
 real sin almacén, texto de las tres tarjetas en ES/EN con 0/1/varios proyectos) y
 `tests/panel-provenance.test.mjs` (un perfil vacío no hereda métricas ni porcentajes).
+
+## 22. Registro de revisión R1.2 · ciclo de vida de la memoria (`pa/1.6.0`, 2026-11-24)
+
+**Por qué sube la versión.** La forma es aditiva (`intent` opcional, rutas nuevas), pero el **efecto** del
+toggle cambia: con `intent:'provision'` el acto humano prepara memoria y escribe consentimiento de la ruta
+exacta. Un cliente que no envía `intent` conserva el comportamiento de 1.5.0 sin cambios.
+
+### 22.1 Rutas
+
+| Método | Ruta | Cuerpo / query | Respuesta | Compuerta |
+|---|---|---|---|---|
+| `PUT` | `/lifecode-rag/pa/tracking` | `{pathKey, state, projectId?, expectedRevision, path, intent?}` — `intent` sólo `"provision"` y exige `state:"on"` | `{changed, item, revision, memory?}` | autenticación + CSRF; con `intent` además **compuerta del Host** (503 sin ella) |
+| `GET` | `/lifecode-rag/pa/tracking` | `?limit=` | `{items, counts, truncated, asOf, version}`; cada `item` incluye `memory` | autenticación |
+| `DELETE` | `/lifecode-rag/pa/tracking?pathKey=…&expectedRevision=N` | — | `{changed:true}` (conserva memoria y consentimiento) | autenticación + CSRF |
+| `POST` | `/lifecode-rag/pa/tracking/move` | `{pathKey, newPath, expectedRevision}` | `{operationId, item, memory, integrity}` | autenticación + CSRF + **compuerta del Host** |
+| `POST` | `/lifecode-rag/pa/tracking/revoke` | `{pathKey, expectedRevision}` | `{changed, complete, remaining, alreadyRevoked, revokedAt, removed, left, item, integrity}` | autenticación + CSRF + **compuerta del Host** |
+
+`POST /pa/tracking` sigue respondiendo `405`; mover y revocar tienen ruta propia y no se disfrazan de una
+mutación del toggle.
+
+### 22.2 Objeto `memory` (derivado, Q-01)
+
+```jsonc
+{
+  "state": "ready",            // ready | provisioning | none | incomplete | store-missing | archived
+  "projectId": "prj_…",
+  "projectStatus": "active",
+  "association": "explicit",   // explicit | pending | conflict
+  "store": "present",          // present | absent (no abre el SQLite en una lectura)
+  "intent": "done",            // open | done | abandoned | null
+  "operationId": "op_…",
+  "consent": { "trust": "c:/ruta", "root": "rt_…", "revokedAt": null },
+  "canRevoke": true,
+  "canRevokeReason": null,       // null | no-intent | already-revoked | no-provenance | provisioning | project-inactive
+  "cleanup": { "pending": false, "operationId": null, "fromPath": null },
+  "rekey": { "pending": false, "operationId": null, "fromPath": null, "toPath": null },
+  "index": { "state": "queued", "reason": "provision", "operationId": null,
+             "sources": 0, "present": 0, "missing": 0, "unreadable": 0 }
+}
+```
+
+`memory.state='ready'` significa «identidad + almacén presentes + asociación explícita», **no** «documentos
+indexados»: el índice tiene su propio eje (`queued|running|done|failed|idle`) y el panel los pinta separados.
+En la respuesta de `PUT` con `intent:'provision'` se añade `reused` y el mensaje contractual literal
+**«Memoria lista. Ya puedes indexar»**; la sincronización inicial va en cola, no dentro de la petición.
+
+**Revocación parcial (H1).** `POST /tracking/revoke` sólo puede anunciar revocación total cuando
+`complete:true` (y `remaining:[]`). `remaining` mide **raíces autorizadas y confianzas que cubren la ruta**
+(`trusted_roots`): una confianza preexistente del padre mantiene el acceso de lectura aunque no quede
+ninguna raíz. Si queda cualquiera de las dos, responde `complete:false` y el panel muestra «el acceso de
+lectura continúa»: la acción retiró lo propio, no el acceso ajeno. `changed` indica si se retiró algo; no
+equivale a «acceso revocado».
+
+### 22.3 Códigos nuevos
+
+| Código | HTTP | Cuándo |
+|---|---|---|
+| `provisioning-failed` | 422 | la saga no completó; `details.operationId`, `failedStep`, `retryable` |
+| `memory-exclusive` | 409 | otro workspace ya posee esa memoria (índice único), o el proyecto ya tiene raíces en otra carpeta; `details.reason` incluye `project-associated`, `project-is-workspace`, `project-has-other-roots`, `root-is-library`, `root-owner-conflict` y `cleanup-pending` |
+| `move-conflict` | 409 | destino seguido, raíz de otro ámbito, solapamiento o rekey pendiente; `details.reason` incluye `destination-tracked`, `source-root-not-owned`, `containment`, `project-has-other-roots`, `store-absent`, `destination-root-other` y `rekey-pending` |
+| `move-failed` | 422 | el movimiento no completó; `details.operationId`, `retryable` |
+| `sync-in-progress` | 409 | hay una sincronización viva del proyecto; `details.operationId`, `retryable` |
+| `revocation-not-proven` | 409 | no hay `consent_trust_key`/`consent_root_id` que demuestren propiedad |
+| `workspace-missing` | 422 | la carpeta no existe o no se puede leer |
+| `registry-migration-conflict` | 409 | el preflight v4 encontró duplicados; no se migra |
+
+### 22.4 Estados visibles y controles
+
+| Estado | Texto ES | Control |
+|---|---|---|
+| `provisioning` | «Preparando memoria» | — |
+| `ready` | «Memoria lista» | índice aparte: «en cola» / «indexando…» / «la última pasada falló» |
+| `none` | «Sin memoria todavía» | el toggle envía `intent:'provision'` |
+| `incomplete` | «Asociación pendiente» | el toggle completa la provisión |
+| `store-missing` | «Memoria no disponible» | el toggle reprovisiona el MISMO proyecto |
+| `archived` | «Proyecto archivado» | sin provisión |
+| Revocar | «Revocar acceso de lectura» | en «Avanzado»; deshabilitado si `canRevoke=false`, con explicación |
+| Mover | «Mover carpeta» | en «Avanzado»; confirmación con la ruta nueva y el alcance |
+
+El panel no muestra `project_id` como identidad ni presenta OFF como denegación de permisos. Revocar no
+apaga el seguimiento y apagar el seguimiento no revoca: son dos actos separados.
+
+**Evidencia.** `tests/pa-lifecycle-api.test.mjs`, `tests/provisioning.test.mjs`,
+`tests/sync-lifecycle.test.mjs`, `tests/tracking-migration.test.mjs` y `tests/client.test.mjs` (toggle, mover,
+revocar sin prueba). Ver `docs/IMPLEMENTATION-R1.2-DECISIONS.md` para las decisiones y su justificación.

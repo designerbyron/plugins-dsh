@@ -261,10 +261,21 @@ function applyTrackingWork(db, {
       }
       const nextProjectId = requestedProject ?? null;
       const association = nextProjectId === null ? 'pending' : 'explicit';
-      db.prepare(`INSERT INTO workspace_tracking
-          (path_key, path, workspace_id, project_id, state, association, bound_by, bound_at, updated_at, revision)
-        VALUES (?, ?, ?, ?, ?, ?, 'human', ?, ?, 1)`)
-        .run(key, path, workspaceId ?? null, nextProjectId, state, association, at, at);
+      try {
+        db.prepare(`INSERT INTO workspace_tracking
+            (path_key, path, workspace_id, project_id, state, association, bound_by, bound_at, updated_at, revision)
+          VALUES (?, ?, ?, ?, ?, ?, 'human', ?, ?, 1)`)
+          .run(key, path, workspaceId ?? null, nextProjectId, state, association, at, at);
+      } catch (error) {
+        if (nextProjectId && /UNIQUE|unique/.test(String(error?.message ?? ''))) {
+          const owner = db.prepare('SELECT path_key FROM workspace_tracking WHERE project_id = ?').get(nextProjectId);
+          throw new RagError('memory-exclusive', 'esa memoria ya está asociada a otro workspace; no se comparte', {
+            details: { reason: 'project-associated', projectId: nextProjectId, ownerPathKey: owner?.path_key ?? null },
+            cause: error,
+          });
+        }
+        throw error;
+      }
       appendRegistryAudit(db, {
         at: now,
         actor: 'human',
@@ -313,14 +324,29 @@ function applyTrackingWork(db, {
     const transitionAction = stateChanged ? actionForTransition(current.state, state) : null;
     const nextRevision = Number(current.revision) + 1;
     const nextBoundAt = projectChanged ? at : current.bound_at;
-    const info = db.prepare(`UPDATE workspace_tracking
-        SET workspace_id = ?, project_id = ?, state = ?, association = ?,
-            bound_by = 'human', bound_at = ?, updated_at = ?, revision = ?
-      WHERE path_key = ? AND revision = ?`)
-      .run(
-        nextWorkspaceId, nextProjectId, state, nextAssociation,
-        nextBoundAt, at, nextRevision, key, Number(current.revision),
-      );
+    let info;
+    try {
+      info = db.prepare(`UPDATE workspace_tracking
+          SET workspace_id = ?, project_id = ?, state = ?, association = ?,
+              bound_by = 'human', bound_at = ?, updated_at = ?, revision = ?
+        WHERE path_key = ? AND revision = ?`)
+        .run(
+          nextWorkspaceId, nextProjectId, state, nextAssociation,
+          nextBoundAt, at, nextRevision, key, Number(current.revision),
+        );
+    } catch (error) {
+      // El índice único v4 convierte un `project_id` ya poseído por otro workspace en un error de
+      // dominio. Sin esta traducción, el camino heredado (PUT sin `intent`) respondía 500.
+      if (nextProjectId && /UNIQUE|unique/.test(String(error?.message ?? ''))) {
+        const owner = db.prepare('SELECT path_key FROM workspace_tracking WHERE project_id = ? AND path_key <> ?')
+          .get(nextProjectId, key);
+        throw new RagError('memory-exclusive', 'esa memoria ya está asociada a otro workspace; no se comparte', {
+          details: { reason: 'project-associated', projectId: nextProjectId, ownerPathKey: owner?.path_key ?? null },
+          cause: error,
+        });
+      }
+      throw error;
+    }
     if (Number(info.changes) !== 1) {
       throw new RagError('revision-conflict', 'el seguimiento cambió durante la escritura', {
         details: { reason: 'revision-mismatch', pathKey: key, expectedRevision: expected },
@@ -363,6 +389,90 @@ function applyTrackingWork(db, {
 
     return { changed: true, item: readTracking(db, { pathKey: key }), revision: nextRevision };
   }, { immediate: true });
+}
+
+/**
+ * R1.2 · Escribe la asociación definitiva workspace → proyecto durante la provisión.
+ *
+ * Es un CAS puro: exige la revisión vigente, comprueba que el proyecto exista y esté activo, y deja
+ * la fila en `association='explicit'`. El índice único parcial
+ * `workspace_tracking_project_exclusive` convierte «una memoria por workspace» en una propiedad del
+ * dato: si otro workspace ya apunta a ese proyecto, la escritura falla y se traduce a
+ * `memory-exclusive` sin haber cambiado nada.
+ */
+export function associateTracking(db, {
+  pathKey, projectId, expectedRevision, operationId = null, now = Date.now(),
+} = {}) {
+  return guardStore(() => withTransaction(db, () => {
+    const key = requirePathKey(pathKey);
+    const expected = requireExpectedRevision(expectedRevision);
+    const project = requireProjectId(db, projectId);
+    if (project === null || project === undefined) {
+      throw invalid('la asociación necesita un proyecto', { reason: 'missing-field', field: 'projectId' });
+    }
+    const projectRow = db.prepare('SELECT id, status FROM projects WHERE id = ?').get(project);
+    if (!projectRow || projectRow.status !== 'active') {
+      throw new RagError('invalid-argument', 'el proyecto de la asociación no está activo', {
+        details: { reason: 'project-not-active', projectId: project },
+      });
+    }
+    const current = rawRow(db, key);
+    if (!current) {
+      throw new RagError('not-found', 'ese workspace no está seguido', { details: { pathKey: key } });
+    }
+    if (Number(current.revision) !== expected) {
+      throw new RagError('revision-conflict', 'el seguimiento cambió mientras se preparaba la memoria', {
+        details: {
+          reason: 'revision-mismatch', pathKey: key,
+          expectedRevision: expected, currentRevision: Number(current.revision),
+        },
+      });
+    }
+    if ((current.project_id ?? null) === project && current.association === 'explicit') {
+      return { changed: false, item: readTracking(db, { pathKey: key }), revision: expected };
+    }
+    const at = String(now);
+    const nextRevision = expected + 1;
+    let info;
+    try {
+      info = db.prepare(`UPDATE workspace_tracking
+          SET project_id = ?, association = 'explicit', bound_by = 'human', bound_at = ?, updated_at = ?, revision = ?
+        WHERE path_key = ? AND revision = ?`)
+        .run(project, at, at, nextRevision, key, expected);
+    } catch (error) {
+      if (/UNIQUE|unique/.test(String(error?.message ?? ''))) {
+        const owner = db.prepare('SELECT path_key FROM workspace_tracking WHERE project_id = ? AND path_key <> ?')
+          .get(project, key);
+        throw new RagError('memory-exclusive',
+          'esa memoria ya está asociada a otro workspace; no se comparte', {
+            details: { reason: 'project-associated', projectId: project, ownerPathKey: owner?.path_key ?? null },
+            cause: error,
+          });
+      }
+      throw error;
+    }
+    if (Number(info.changes) !== 1) {
+      throw new RagError('revision-conflict', 'el seguimiento cambió durante la asociación', {
+        details: { reason: 'revision-mismatch', pathKey: key, expectedRevision: expected },
+      });
+    }
+    appendRegistryAudit(db, {
+      at: now,
+      actor: 'human',
+      sessionId: null,
+      action: TRACKING_ACTIONS.associate,
+      target: key,
+      outcome: 'ok',
+      detail: {
+        pathKey: key,
+        operationId,
+        revision: nextRevision,
+        previous: { projectId: current.project_id ?? null, association: current.association },
+        next: { projectId: project, association: 'explicit' },
+      },
+    });
+    return { changed: true, item: readTracking(db, { pathKey: key }), revision: nextRevision };
+  }, { immediate: true }));
 }
 
 /**

@@ -1,6 +1,6 @@
 {
   "name": "@designerbyron/lifecode-rag",
-  "version": "1.5.11",
+  "version": "1.6.0",
   "type": "module",
   "main": "index.js",
   "description": "Recuperación local, independiente y auditable para el ecosistema LifeCode (plugin de DeepSeek Harness)",
@@ -16,7 +16,7 @@
     "local-first"
   ],
   "engines": {
-    "node": ">=22.5.0",
+    "node": ">=22.16.0 <23.0.0 || >=24.0.0",
     "dsh": ">=0.2.2-rc.3 <0.3.0"
   },
   "dsh": {

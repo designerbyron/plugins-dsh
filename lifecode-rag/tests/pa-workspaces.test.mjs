@@ -8,7 +8,7 @@
  *   - ninguna escritura del registro del Host se invoca (T-W2-12), con doble que lanza y registra;
  *   - la selección global y el registro del perfil quedan idénticos (T-W2-13);
  *   - `pa/1.3.0` sigue respondiendo con la misma forma y `pa/1.4.0` sólo añade (T-W2-14/15);
- *     `pa/1.5.0` añade el seguimiento sin quitar ninguna de esas claves.
+ *     `pa/1.6.0` añade el seguimiento sin quitar ninguna de esas claves.
  *
  * Nada toca `~/.dsh`: el perfil es `mkdtemp` y el registro del host es un doble en memoria.
  */
@@ -339,9 +339,9 @@ test('T-W2-14/15: las rutas de pa/1.3.0 conservan su forma y el snapshot no pier
     for (const key of KEYS_1_3_0) {
       assert.equal(Object.prototype.hasOwnProperty.call(payload, key), true, `el snapshot perdió ${key}`);
     }
-    assert.equal(payload.version, 'pa/1.5.0');
-    // UX-2.2 sube el contrato a `pa/1.5.0` de forma aditiva: las claves de 1.3.0 siguen todas.
-    assert.equal(PA_VERSION, 'pa/1.5.0');
+    assert.equal(payload.version, 'pa/1.6.0');
+    // UX-2.2 sube el contrato a `pa/1.6.0` de forma aditiva: las claves de 1.3.0 siguen todas.
+    assert.equal(PA_VERSION, 'pa/1.6.0');
     const config = await call(handler, '/config');
     assert.deepEqual(Object.keys(data(config)).sort(), ['config', 'mode', 'profile', 'service', 'version']);
     const history = await call(handler, '/history' + project);

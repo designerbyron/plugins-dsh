@@ -43,9 +43,9 @@ function raiz(projectId, name, path) {
 test('T-W2-01: tres workspaces medidos producen tres filas normalizadas', () => {
   const payload = projectWorkspaces({
     workspaces: [
-      ws('C:/xampp/htdocs/plugins-dhs', { id: 'ws_1', sessionIds: ['s1', 's2'] }),
-      ws('C:/xampp/htdocs/businesssuite', { id: 'ws_2' }),
-      ws('C:/xampp/htdocs/lifecode-rag-lab', { id: 'ws_3', state: 'missing' }),
+      ws('C:/workspace/htdocs/plugins-dhs', { id: 'ws_1', sessionIds: ['s1', 's2'] }),
+      ws('C:/workspace/businesssuite', { id: 'ws_2' }),
+      ws('C:/workspace/lifecode-rag-lab', { id: 'ws_3', state: 'missing' }),
     ],
     liveIds: new Set(['s1']),
   });
@@ -55,7 +55,7 @@ test('T-W2-01: tres workspaces medidos producen tres filas normalizadas', () => 
   assert.equal(payload.truncated, false);
   const first = payload.items[0];
   assert.equal(first.id, 'ws_1');
-  assert.equal(first.pathKey, clave('C:/xampp/htdocs/plugins-dhs'));
+  assert.equal(first.pathKey, clave('C:/workspace/htdocs/plugins-dhs'));
   assert.equal(first.state, 'ok');
   assert.deepEqual(first.sessions, { known: 2, live: 1, historical: 1 });
   assert.equal(first.project, null);
@@ -95,8 +95,8 @@ test('sin servicio de sesiones el desglose es null, nunca cero', () => {
 });
 
 test('T-W2-07: anidados — gana la raíz más específica y el padre no hereda el proyecto', () => {
-  const padre = 'C:/xampp/htdocs/plugins-dhs';
-  const hijo = 'C:/xampp/htdocs/plugins-dhs/lifecode-rag';
+  const padre = 'C:/workspace/htdocs/plugins-dhs';
+  const hijo = 'C:/workspace/htdocs/plugins-dhs/lifecode-rag';
   const payload = projectWorkspaces({
     workspaces: [ws(padre, { id: 'ws_padre' }), ws(hijo, { id: 'ws_hijo' })],
     roots: [raiz('prj_1', 'lifecode-rag', hijo)],
@@ -113,15 +113,15 @@ test('T-W2-07: anidados — gana la raíz más específica y el padre no hereda 
 
 test('un workspace dentro de una raíz se relaciona como inside', () => {
   const payload = projectWorkspaces({
-    workspaces: [ws('C:/xampp/htdocs/plugins-dhs/lifecode-rag/lib')],
-    roots: [raiz('prj_1', 'plugins-dhs', 'C:/xampp/htdocs/plugins-dhs')],
+    workspaces: [ws('C:/workspace/htdocs/plugins-dhs/lifecode-rag/lib')],
+    roots: [raiz('prj_1', 'plugins-dhs', 'C:/workspace/htdocs/plugins-dhs')],
   });
   assert.equal(payload.items[0].relation, 'inside');
   assert.equal(payload.items[0].project.name, 'plugins-dhs');
 });
 
 test('una raíz DENTRO del workspace no convierte el contenedor en ese proyecto', () => {
-  const match = projectForPathKey(clave('C:/xampp/htdocs'), [raiz('prj_1', 'hijo', 'C:/xampp/htdocs/hijo')]);
+  const match = projectForPathKey(clave('C:/workspace'), [raiz('prj_1', 'hijo', 'C:/workspace/hijo')]);
   assert.equal(match, null);
 });
 
@@ -161,19 +161,19 @@ test('T-W2-10: un workspace sin proyecto RAG queda con project null y relation n
 });
 
 test('T-W2-11: la ruta se publica tal cual la guardó el Host, sin reescribirla', () => {
-  const original = 'C:\\xampp\\htdocs\\plugins-dhs\\';
+  const original = 'C:\\workspace\\htdocs\\plugins-dhs\\';
   const payload = projectWorkspaces({ workspaces: [ws(original)] });
   assert.equal(payload.items[0].path, original);
   assert.equal(payload.items[0].pathKey, pathKeyOf(original));
 });
 
 test('pathKey: misma clave para barra final, barra invertida y mayúsculas en Windows', () => {
-  const base = clave('C:/xampp/htdocs/plugins-dhs');
-  assert.equal(clave('C:/xampp/htdocs/plugins-dhs/'), base);
-  assert.equal(clave('C:\\xampp\\htdocs\\plugins-dhs'), base);
-  if (WIN) assert.equal(clave('c:/XAMPP/htdocs/PLUGINS-DHS'), base);
+  const base = clave('C:/workspace/htdocs/plugins-dhs');
+  assert.equal(clave('C:/workspace/htdocs/plugins-dhs/'), base);
+  assert.equal(clave('C:\\workspace\\htdocs\\plugins-dhs'), base);
+  if (WIN) assert.equal(clave('c:/WORKSPACE/htdocs/PLUGINS-DHS'), base);
   // Paridad con la regla del registro: si una cambia y la otra no, esta prueba lo dice.
-  assert.equal(clave('C:/xampp/htdocs/plugins-dhs//'), normalizeKey('C:/xampp/htdocs/plugins-dhs//'));
+  assert.equal(clave('C:/workspace/htdocs/plugins-dhs//'), normalizeKey('C:/workspace/htdocs/plugins-dhs//'));
 });
 
 test('entradas inválidas se descartan y se cuentan; no producen filas fantasma', () => {

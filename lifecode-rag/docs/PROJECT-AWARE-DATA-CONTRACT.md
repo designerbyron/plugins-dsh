@@ -52,7 +52,7 @@ está cubierto por pruebas en PA1.
 
 ```sql
 PRAGMA application_id = 1279480402;  -- 'LCRR' (registro Project-Aware); el almacén de ámbito conserva 'LCRG'
-PRAGMA user_version = 3;             -- v3 (UX-2.2): añade workspace_tracking. Migración aditiva desde v2.
+PRAGMA user_version = 4;             -- v4 (R1.2): añade provision_intents y sync_requests. Migración aditiva desde v3.
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
@@ -63,7 +63,7 @@ CREATE TABLE meta (
 
 -- Una fila por perfil; profile_id es el identificador estable del perfil del host.
 INSERT INTO meta(key, value) VALUES
-  ('registry_version', '1'),
+  ('registry_version', '4'),
   ('profile_id', :profile_id),
   ('created_at', :now);
 
@@ -428,3 +428,94 @@ timestamp: dos intentos distintos del mismo efecto deben producir la misma clave
 - **Auditoría:** `audit_registry` no cambia de forma; `actor` ya admitía `human`/`host` y `action` es libre. Las
   cinco acciones humanas (`enable`/`disable`/`pause`/`resume`/`reassociate`) y `tracking.reconcile` (siempre
   `actor='host'`) viven ahí.
+- **R1.2:** la lista de acciones de seguimiento pasa a **seis**: se añade `associate`, la asociación
+  transaccional que ejecuta la saga de provisión (actor `human`, con `consent_trust_key`/`consent_root_id`
+  como prueba). No es un control independiente del panel: el panel sigue exponiendo el toggle, la pausa, la
+  reanudación, quitar la fila y las acciones avanzadas de mover/revocar. El movimiento se audita como
+  `tracking.move` y la revocación como `access.revoke`.
+
+## 10. Registro de revisión R1.2 (2026-11-24) — `user_version` 4
+
+**Alcance.** Ciclo de vida de la memoria por proyecto de trabajo. Migración **aditiva**: no reescribe
+ninguna fila existente; un registro v3 se abre, migra y conserva sus recuentos.
+
+### 10.1 DDL nuevo
+
+```sql
+-- Intención durable de provisión: una fila por workspace.
+CREATE TABLE provision_intents (
+  path_key          TEXT PRIMARY KEY,
+  operation_id      TEXT NOT NULL UNIQUE REFERENCES operations(id) ON DELETE RESTRICT,
+  expected_revision INTEGER NOT NULL CHECK (expected_revision >= 0),
+  project_id        TEXT,                 -- identidad RESERVADA: puede no existir aún en projects
+  state             TEXT NOT NULL CHECK (state IN ('open','done','abandoned')),
+  consent_trust_key TEXT,                 -- pathKey de trusted_roots que creó ESTE acto (o NULL)
+  consent_root_id   TEXT,                 -- id de la raíz que creó ESTE acto (o NULL)
+  revoked_at        TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+) STRICT;
+
+-- Cola durable y coalescente de sincronización: una fila por ámbito.
+CREATE TABLE sync_requests (
+  scope_kind   TEXT NOT NULL CHECK (scope_kind IN ('prj','lib')),
+  scope_id     TEXT NOT NULL,
+  state        TEXT NOT NULL CHECK (state IN ('queued','running','done','failed')),
+  reason       TEXT NOT NULL,
+  operation_id TEXT,
+  requested_at TEXT NOT NULL,
+  started_at   TEXT,
+  finished_at  TEXT,
+  error_code   TEXT,
+  updated_at   TEXT NOT NULL,
+  PRIMARY KEY (scope_kind, scope_id),
+  CHECK ((scope_kind='prj' AND substr(scope_id,1,4)='prj_')
+      OR (scope_kind='lib' AND substr(scope_id,1,4)='lib_'))
+) STRICT;
+
+CREATE INDEX provision_intents_state ON provision_intents(state);
+CREATE INDEX sync_requests_state     ON sync_requests(state, requested_at);
+
+-- 1:1:1 como propiedad del dato. Índice único PARCIAL: un proyecto sin workspace sigue permitido.
+CREATE UNIQUE INDEX workspace_tracking_project_exclusive
+  ON workspace_tracking(project_id) WHERE project_id IS NOT NULL;
+```
+
+### 10.2 Preflight obligatorio
+
+Antes de crear el índice único, la migración ejecuta:
+
+```sql
+SELECT project_id, COUNT(*) AS n, GROUP_CONCAT(path_key, ' | ') AS rutas
+FROM workspace_tracking
+WHERE project_id IS NOT NULL
+GROUP BY project_id
+HAVING COUNT(*) > 1;
+```
+
+Si devuelve filas, la migración **aborta** con `registry-migration-conflict`, deja el registro en su versión
+de origen y publica las filas implicadas (`projectId`, `pathKey`, `path`, `state`, `association`, `revision`). No
+elige propietario, no borra filas y no fusiona memorias. Se reintenta sólo después de que una persona
+resuelva el conflicto.
+
+### 10.3 Invariantes del esquema
+
+| Regla | Dónde se garantiza |
+|---|---|
+| Una memoria por workspace | `workspace_tracking_project_exclusive` |
+| Una provisión en vuelo por workspace | `provision_intents.path_key` (PK) |
+| Una intención por operación | `provision_intents.operation_id` (UNIQUE) |
+| Fencing por revisión | `provision_intents.expected_revision` comparado antes de asociar |
+| Procedencia de la revocación | `consent_trust_key` / `consent_root_id`; `addedBy` **no** prueba propiedad |
+| Coalescencia de sincronización | `sync_requests` PK `(scope_kind, scope_id)` |
+
+### 10.4 Compatibilidad y vuelta atrás
+
+- Un registro v1/v2/v3 migra a v4 en la misma transacción `BEGIN IMMEDIATE`; si falla, vuelve a su versión
+  de origen.
+- `provision_intents.project_id` **no** lleva FK: es una identidad reservada antes de crear el proyecto.
+- Un binario anterior a 1.6.0 **no abre** un registro v4 (`store-version-unsupported`). La vuelta atrás
+  exige restaurar el registro del respaldo del acto o fijar `user_version=3` y eliminar las estructuras
+  nuevas; no se hace `DROP` automático.
+- `audit_registry` no cambia: R1.2 añade acciones (`associate`, `tracking.move`, `access.revoke`,
+  `access.revoke.skipped`, `sync.enqueue.failed`) al campo libre `action`.

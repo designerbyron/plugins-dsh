@@ -90,7 +90,15 @@ export function addTrustedRoot(db, {
       return { created: false, changed: false, root: existing };
     }
     const updated = roots.map((entry) => (entry.pathKey === info.key
-      ? { ...entry, state: 'trusted', readAuthorization: readAuthorization === true }
+      ? {
+          ...entry,
+          state: 'trusted',
+          readAuthorization: readAuthorization === true,
+          // Renovar la concesión también cuando se activa la lectura: una limpieza diferida compara
+          // `addedAt` y no puede retirar una autorización que no existía cuando se encoló.
+          addedAt: (existing.state === 'revoked' || existing.readAuthorization !== (readAuthorization === true))
+            ? now : entry.addedAt,
+        }
       : entry));
     const [root] = writeTrustedRoots(db, updated).filter((entry) => entry.pathKey === info.key);
     audit(db, {
@@ -120,19 +128,59 @@ export function addTrustedRoot(db, {
   return { created: true, changed: true, root: record };
 }
 
-/** Revoca la confianza sin tocar los proyectos ya registrados ni sus almacenes. */
-export function removeTrustedRoot(db, { path, removedBy = 'human', now = Date.now() } = {}) {
-  const info = inspectRoot(path);
+/**
+ * Revoca la confianza sin tocar los proyectos ya registrados ni sus almacenes.
+ *
+ * R1.2: la variante por `pathKey` no toca el sistema de ficheros. Es la que usan la revocación y el
+ * movimiento: retirar un permiso no puede exigir que la carpeta exista todavía (si desapareció, el
+ * permiso sigue siendo real y debe poder retirarse).
+ */
+export function removeTrustedRootByKey(db, { pathKey, removedBy = 'human', now = Date.now() } = {}) {
+  if (typeof pathKey !== 'string' || pathKey.trim() === '') {
+    throw new RagError('invalid-argument', 'la confianza a revocar necesita su pathKey', {
+      details: { reason: 'missing-field', field: 'pathKey' },
+    });
+  }
   const roots = listTrustedRoots(db);
-  const existing = roots.find((entry) => entry.pathKey === info.key);
+  const existing = roots.find((entry) => entry.pathKey === pathKey);
   if (!existing) return { changed: false, root: null };
-  const updated = roots.map((entry) => (entry.pathKey === info.key ? { ...entry, state: 'revoked' } : entry));
+  if (existing.state === 'revoked') return { changed: false, root: existing };
+  const updated = roots.map((entry) => (entry.pathKey === pathKey ? { ...entry, state: 'revoked' } : entry));
   writeTrustedRoots(db, updated);
   audit(db, {
-    at: now, actor: removedBy, action: 'trust.remove', target: info.key,
-    detail: { path: info.canonical },
+    at: now, actor: removedBy, action: 'trust.remove', target: pathKey,
+    detail: { path: existing.path },
   });
   return { changed: true, root: { ...existing, state: 'revoked' } };
+}
+
+/**
+ * Elimina por completo una confianza creada por un acto que después falló (compensación). No se usa
+ * para una revocación humana: esa deja la entrada `revoked` como historia. Aquí la entrada no debe
+ * sobrevivir porque el acto que la creó no llegó a existir; si el acto se reintenta, debe crear una
+ * confianza nueva y propia.
+ */
+export function deleteTrustedRootByKey(db, { pathKey, removedBy = 'human', now = Date.now() } = {}) {
+  if (typeof pathKey !== 'string' || pathKey.trim() === '') {
+    throw new RagError('invalid-argument', 'la confianza a eliminar necesita su pathKey', {
+      details: { reason: 'missing-field', field: 'pathKey' },
+    });
+  }
+  const roots = listTrustedRoots(db);
+  const existing = roots.find((entry) => entry.pathKey === pathKey);
+  if (!existing) return { changed: false, root: null };
+  writeTrustedRoots(db, roots.filter((entry) => entry.pathKey !== pathKey));
+  audit(db, {
+    at: now, actor: removedBy, action: 'trust.delete', target: pathKey,
+    detail: { path: existing.path, reason: 'compensated' },
+  });
+  return { changed: true, root: existing };
+}
+
+/** Revoca la confianza por ruta (uso administrativo/CLI; exige que la ruta exista). */
+export function removeTrustedRoot(db, { path, removedBy = 'human', now = Date.now() } = {}) {
+  const info = inspectRoot(path);
+  return removeTrustedRootByKey(db, { pathKey: info.key, removedBy, now });
 }
 
 /** El workspace confiable activo más específico que contiene la clave dada. */

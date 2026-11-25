@@ -179,8 +179,8 @@ test('el cwd de un proyecto abierto gana al contenedor aunque ambos estén confi
 test('listOpenProjects omite workspaces cuyo directorio ya no existe', async () => {
   const projects = await listOpenProjects({
     list: () => [
-      workspace('ws_ok', 'C:/xampp/htdocs/plugins-dhs', ['s1']),
-      workspace('ws_missing', 'C:/xampp/htdocs/borrado', ['s2'], { status: 'missing-dir' }),
+      workspace('ws_ok', 'C:/workspace/plugins-dhs', ['s1']),
+      workspace('ws_missing', 'C:/workspace/borrado', ['s2'], { status: 'missing-dir' }),
     ],
   });
   assert.deepEqual(projects.map((entry) => entry.id), ['ws_ok']);

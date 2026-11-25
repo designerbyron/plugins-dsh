@@ -10,8 +10,12 @@ export const REGISTRY_APPLICATION_ID = 1_279_480_402; // 'LCRR'
  * v2: añade `pa_selection` (selección de proyecto persistida con revisión monotónica, CR-1).
  * v3: añade `workspace_tracking` (seguimiento de workspace por perfil, UX-2.2). Aditiva: ninguna
  *     tabla ni fila existente se toca; la vuelta atrás se documenta (no se hace `DROP`).
+ * v4: ciclo de vida de la memoria (R1.2). Aditiva: `provision_intents` (intención durable con
+ *     fencing y procedencia), `sync_requests` (cola durable y coalescente de sincronización) y el
+ *     índice único parcial que convierte 1:1:1 en propiedad del dato. El índice se crea SÓLO si el
+ *     preflight no encuentra duplicados; si los hay, la migración aborta sin elegir propietario.
  */
-export const REGISTRY_VERSION = 3;
+export const REGISTRY_VERSION = 4;
 
 /**
  * Tabla del seguimiento (UX-2.2, `D-IMPL-01`). Una fila por `path_key` —la identidad— y dos ejes
@@ -40,6 +44,56 @@ const WORKSPACE_TRACKING_INDEXES = Object.freeze([
   `CREATE INDEX IF NOT EXISTS workspace_tracking_project ON workspace_tracking(project_id)`,
   `CREATE INDEX IF NOT EXISTS workspace_tracking_state ON workspace_tracking(state, last_status)`,
 ]);
+
+/**
+ * R1.2 · Intención durable de provisión. Una fila por workspace (`path_key` es la clave), con la
+ * operación del journal que la ejecuta, la revisión que la persona vio (`expected_revision`, fencing),
+ * la identidad reservada y la **procedencia** de lo que el acto creó. Sin esos dos últimos campos la
+ * revocación existiría pero no podría demostrar propiedad (Q08).
+ */
+const PROVISION_INTENTS_TABLE = `CREATE TABLE IF NOT EXISTS provision_intents (
+  path_key          TEXT PRIMARY KEY,
+  operation_id      TEXT NOT NULL UNIQUE REFERENCES operations(id) ON DELETE RESTRICT,
+  expected_revision INTEGER NOT NULL CHECK (expected_revision >= 0),
+  -- Identidad RESERVADA: puede no existir todavía en projects (se persiste antes de crear el
+  -- proyecto para que una caída no invente otra). Por eso no lleva FK.
+  project_id        TEXT,
+  state             TEXT NOT NULL CHECK (state IN ('open','done','abandoned')),
+  consent_trust_key TEXT,
+  consent_root_id   TEXT,
+  revoked_at        TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
+) STRICT`;
+
+/**
+ * R1.2 · Cola durable de sincronización por ámbito. Una fila por ámbito (coalescencia): una petición
+ * nueva actualiza la existente en vez de apilar trabajo. `operation_id` se rellena cuando el
+ * planificador la toma; así se distingue «en cola» de «en curso» sin depender de la memoria del proceso.
+ */
+const SYNC_REQUESTS_TABLE = `CREATE TABLE IF NOT EXISTS sync_requests (
+  scope_kind   TEXT NOT NULL CHECK (scope_kind IN ('prj','lib')),
+  scope_id     TEXT NOT NULL,
+  state        TEXT NOT NULL CHECK (state IN ('queued','running','done','failed')),
+  reason       TEXT NOT NULL,
+  operation_id TEXT,
+  requested_at TEXT NOT NULL,
+  started_at   TEXT,
+  finished_at  TEXT,
+  error_code   TEXT,
+  updated_at   TEXT NOT NULL,
+  PRIMARY KEY (scope_kind, scope_id),
+  CHECK ((scope_kind='prj' AND substr(scope_id,1,4)='prj_')
+      OR (scope_kind='lib' AND substr(scope_id,1,4)='lib_'))
+) STRICT`;
+
+const SYNC_REQUESTS_INDEXES = Object.freeze([
+  `CREATE INDEX IF NOT EXISTS sync_requests_state ON sync_requests(state, requested_at)`,
+]);
+
+/** Índice de exclusividad 1:1:1. Ver `preflightExclusiveTracking` en `registry.mjs`. */
+const WORKSPACE_TRACKING_EXCLUSIVE = `CREATE UNIQUE INDEX IF NOT EXISTS workspace_tracking_project_exclusive
+  ON workspace_tracking(project_id) WHERE project_id IS NOT NULL`;
 
 export const REGISTRY_DDL = Object.freeze([
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT`,
@@ -209,6 +263,12 @@ export const REGISTRY_DDL = Object.freeze([
   `CREATE UNIQUE INDEX operation_steps_effect
      ON operation_steps(operation_id, effect_key) WHERE effect_key IS NOT NULL`,
 
+  PROVISION_INTENTS_TABLE,
+  `CREATE INDEX provision_intents_state ON provision_intents(state)`,
+
+  SYNC_REQUESTS_TABLE,
+  ...SYNC_REQUESTS_INDEXES,
+
   `CREATE INDEX projects_status        ON projects(status)`,
   `CREATE INDEX roots_scope            ON roots(scope_kind, scope_id, state)`,
   `CREATE INDEX grants_project_open   ON grants(project_id) WHERE revoked_at IS NULL`,
@@ -216,6 +276,7 @@ export const REGISTRY_DDL = Object.freeze([
   `CREATE INDEX session_scope_expiry  ON session_scope(state, expires_at)`,
   `CREATE INDEX pa_selection_project  ON pa_selection(project_id)`,
   ...WORKSPACE_TRACKING_INDEXES,
+  WORKSPACE_TRACKING_EXCLUSIVE,
   `CREATE INDEX sync_state_status     ON sync_state(scope_kind, scope_id, status)`,
   `CREATE INDEX audit_registry_at     ON audit_registry(at)`,
 ]);
@@ -245,5 +306,16 @@ export const REGISTRY_MIGRATIONS = Object.freeze({
   3: Object.freeze([
     WORKSPACE_TRACKING_TABLE,
     ...WORKSPACE_TRACKING_INDEXES,
+  ]),
+
+  // v4 · R1.2: intención durable + cola de sincronización + exclusividad 1:1:1. El índice único va
+  // el último y `migrateRegistry` ejecuta antes el preflight de duplicados: si lo violara alguna fila,
+  // la transacción se revierte y el registro se queda en v3 con `registry-migration-conflict`.
+  4: Object.freeze([
+    PROVISION_INTENTS_TABLE,
+    `CREATE INDEX IF NOT EXISTS provision_intents_state ON provision_intents(state)`,
+    SYNC_REQUESTS_TABLE,
+    ...SYNC_REQUESTS_INDEXES,
+    WORKSPACE_TRACKING_EXCLUSIVE,
   ]),
 });

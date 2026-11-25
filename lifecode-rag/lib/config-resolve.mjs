@@ -26,6 +26,10 @@ export const PROFILE_ENV = 'LIFECODE_RAG_PROFILE';
 
 /** Raíz de datos propia; si no se declara, la histórica del home (compatibilidad). */
 export function resolveDataRoot(env = process.env) {
+  // Si `LIFECODE_RAG_ROOT` fija el perfil, las herramientas y la API deben leer la misma capa
+  // de configuración que ese perfil; no se mezcla con otra `LIFECODE_RAG_DATA`.
+  const root = env?.LIFECODE_RAG_ROOT;
+  if (typeof root === 'string' && root.trim() !== '') return root.trim();
   const own = env?.[DATA_ROOT_ENV];
   if (typeof own === 'string' && own.trim() !== '') return own.trim();
   return ragRoot(env);
@@ -33,8 +37,8 @@ export function resolveDataRoot(env = process.env) {
 
 /** Perfil propio; si no se declara, el histórico (nombre del perfil del host). */
 export function resolveProfileKey(env = process.env) {
-  const own = env?.[PROFILE_ENV];
-  if (typeof own === 'string' && own.trim() !== '') return own.trim();
+  // `LIFECODE_RAG_PROFILE` es una identidad, no un nombre de fichero: se sanea igual que el perfil
+  // del host para que la API, el scheduler y las rutas del almacén no discrepen con Unicode.
   return legacyProfileKey(env);
 }
 
