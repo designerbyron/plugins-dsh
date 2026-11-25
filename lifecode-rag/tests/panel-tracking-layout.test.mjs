@@ -197,17 +197,17 @@ const emptySnapshot = okData({
 
 /** Nombres y rutas deliberadamente largos: son los que estiraban la tabla. */
 const LARGO = 'plataforma-de-facturacion-electronica-corporativo-saas-clientes-2026';
-const RUTA_LARGA = 'C:/xampp/htdocs/corporativo-saas-clientes/' + LARGO;
+const RUTA_LARGA = 'C:/workspace/corporativo-saas-clientes/' + LARGO;
 
 const WORKSPACES = [
   { id: 'ws-1', path: RUTA_LARGA, pathKey: 'w-on', title: LARGO, state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
-  { id: 'ws-2', path: 'C:/xampp/htdocs/rc150-lab', pathKey: 'w-paused', title: 'rc150-lab', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
-  { id: 'ws-3', path: 'C:/xampp/htdocs/plugins-dhs', pathKey: 'w-off', title: 'plugins-dhs', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
+  { id: 'ws-2', path: 'C:/workspace/rc150-lab', pathKey: 'w-paused', title: 'rc150-lab', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
+  { id: 'ws-3', path: 'C:/workspace/plugins-dhs', pathKey: 'w-off', title: 'plugins-dhs', state: 'ok', sessions: { known: 1, live: 0 }, relation: 'exact' },
 ];
 
 const TRACKING = [
   { pathKey: 'w-on', path: RUTA_LARGA, state: 'on', revision: 7, project: null, lastStatus: 'ok' },
-  { pathKey: 'w-paused', path: 'C:/xampp/htdocs/rc150-lab', state: 'paused', revision: 3, project: { id: 'prj-1', name: 'plugins-dhs' }, lastStatus: 'ok' },
+  { pathKey: 'w-paused', path: 'C:/workspace/rc150-lab', state: 'paused', revision: 3, project: { id: 'prj-1', name: 'plugins-dhs' }, lastStatus: 'ok' },
 ];
 
 /** Monta el panel real y lo deja en Seguimiento con las tres filas (seguido, pausado, sin seguimiento). */

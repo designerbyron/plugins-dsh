@@ -1,23 +1,25 @@
 # LifeCode RAG 1.6.0 — Release readiness R1.2
 
 **Fecha:** 2026-11-25 (America/Costa_Rica, UTC−06:00)
-**Estado:** candidato de integración preparado; **sin commit, push, tag, publicación, instalación ni despliegue**.
-**Worktree:** `C:/xampp/htdocs/plugins-dhs-memory-lifecycle`
+**Estado:** integración local completada con el commit `67e7c8cbb0c96069f305f7514740ecd910e04e6c`; **sin push, tag, publicación, instalación ni despliegue**.
+**Worktree:** `<WORKTREE>`
 **Rama:** `feature/project-memory-lifecycle` · **HEAD:** `36148704e191d0689061b6b594135fe5e94d84bc`
 **Base:** LifeCode RAG 1.5.11 · **Contrato:** `pa/1.6.0` · **Registry:** v4
+**Commit local:** `67e7c8cbb0c96069f305f7514740ecd910e04e6c` (43 archivos)
 
 > Este informe no declara verificaciones que no se hayan ejecutado. Las secciones marcadas
 > **Auditorías completadas**; el candidato queda preparado sin commit, push ni publicación.
 
 ## 1. Estado inicial y hashes
 
-- Worktree: 43 entradas — 31 modificadas y 12 no versionadas.
-- Release `C:/xampp/htdocs/plugins-dhs-release/lifecode-rag`: rama
+- Worktree antes de la integración: 43 entradas (31 modificadas y 12 no versionadas).
+- Commit local: `67e7c8cbb0c96069f305f7514740ecd910e04e6c` (43 archivos).
+- Release `<RELEASE>`: rama
   `release/lifecode-rag-1.5.11`, HEAD `3614870`, árbol limpio.
 - Documentos:
-  - `IMPLEMENTATION-R1.2-DECISIONS.md`: `139163b12856b801226ebe542557edb60cb1e1fb751b68625f9cefc970b5e044`
-  - `IMPLEMENTATION-R1.2-FINAL-ACCEPTANCE.md`: `e5e09b9e9744791559bf52de6c68fa5fc10f59b353b52d32921c35d5c9d31115`
-  - `IMPLEMENTATION-R1.2-CONTINUATION.md`: `b4cfeefbc608e0b961f23ed1991367cfb492a08577696557988ddaf45f61bc7a`
+  - `IMPLEMENTATION-R1.2-DECISIONS.md`: `ea3e873f535a9409162e4559c03f5a79a9cd08a3c6ceeaf8d7b6b5df77849c94`
+  - `IMPLEMENTATION-R1.2-FINAL-ACCEPTANCE.md`: `b5fcbdea7e6bd2f7d973935ea1eae0f71df31b5df06dcb6b556cf89f0c08b176`
+  - `IMPLEMENTATION-R1.2-CONTINUATION.md`: `334e9f34af33b3df09db2a2476c4cf9170fc78eda8d5ce245dad1d1d9bec70ac`
 - Freeze de referencia: `r12-freeze-2026-11-25-final3`, manifiesto 483/483 OK.
 - Parche completo inicial: `r12-audit-full.patch`, sha256
   `d497f52c567bfed6d8b4aa4d0387e84c80240eda85a65f1c8fc77b54111fbbfd`; incluye los archivos
@@ -104,8 +106,8 @@ rutas personales en el paquete. `git diff --check`: limpio.
 ### Excluidos
 
 - `cache/scratch/**` (freeze, parches, cookies, laboratorio, capturas y sondas).
-- Copias de laboratorio `dsh-lab-*`, `ws-*` y almacenes sintéticos.
-- Cualquier archivo del perfil real `C:/Users/BYRON/.dsh` y del release 1.5.11.
+- Copias de laboratorio `<LAB>-*`, `ws-*` y almacenes sintéticos.
+- Cualquier archivo del perfil real `<HOME>/.dsh` y del release 1.5.11.
 - Artefactos de auditoría y logs; no se incorporan al paquete ni al commit.
 
 ## 4. Hallazgos y correcciones
@@ -125,7 +127,7 @@ Auditoría independiente de seguridad (`deleg_77efb5ec`) **BLOCKED** inicialment
 
 ## 6. Host/UI ejecutados tras D-26/R-1
 
-Laboratorio sintético `dsh-lab-release2`, con `DSH_HOME`, `LIFECODE_RAG_ROOT`, `DSH_PROFILE=desktop`,
+Laboratorio sintético `<LAB>`, con `DSH_HOME`, `LIFECODE_RAG_ROOT`, `DSH_PROFILE=desktop`,
 `--user-data-dir` propios y el plugin actual enlazado por junction. No se usó el perfil real ni el
 almacén real.
 
@@ -158,8 +160,8 @@ de padre (revocación parcial). No se declara más de lo medido.
 
 ```text
 node --test --test-concurrency=1
-805 tests, 805 pass, 0 fail, 0 skipped
-73.695 s
+810 tests, 810 pass, 0 fail, 0 skipped
+74.217 s
 ```
 
 Base 1.5.11: 714/714. La diferencia son las pruebas nuevas de ciclo de vida, cleanup/rekey,
@@ -169,7 +171,7 @@ multiproceso, API y panel.
 
 ```text
 node tools/check.mjs   → limpio: 7 herramientas, manifiesto/exports correctos
-node tools/hermetic.mjs → 805 pass, 0 fail
+node tools/hermetic.mjs → 810 pass, 0 fail
                           ✓ hermético: el almacén real no cambió (6 fichero(s))
 ```
 
@@ -185,15 +187,15 @@ Auditoría independiente de seguridad (`deleg_77efb5ec`): **BLOCKED** por H1, H2
 - Sin rutas personales de laboratorio en `lib/`, `tests/`, `index.js`, `client.js` o `package.json`;
   `npm pack --dry-run` produce **80 archivos** y no incluye informes internos.
 - `git diff --check`: limpio.
-- El release 1.5.11 y el almacén real no se modificaron; hermética 805 con 6 ficheros intactos.
+- El release 1.5.11 y el almacén real no se modificaron; hermética 810 con 6 ficheros intactos.
 - H1 (rekey Unicode/barra final) y M2 (`LIFECODE_RAG_DATA`/perfil) verificados con sondas en `mkdtemp`;
   la API, el scheduler y las herramientas comparten `dataRoot`/`profileKey`.
 
 ## 10. Parche actualizado
 
-**Generado al cierre**: `r12-audit-full.patch` se regenera tras la última medición con los 43 archivos
-actuales (incluidos no versionados); el sha256 final se registra en el parte de cierre. El parche
-inicial `d497f52c…` no incorpora el delta de Host ni las correcciones D-27/D-28.
+**Integración:** `r12-audit-full-final.patch`, sha256 `f68fbc7706a7adfb15bcb4f8c4cc08430a0f9e1180f808771629c3157195f722`, generado tras la última medición
+con los 43 archivos del commit. Este parche corresponde al árbol comprometido; las actualizaciones
+posteriores de este informe y del punto de continuación no forman parte del commit.
 
 ## 11. Mensaje de commit propuesto
 
@@ -215,7 +217,7 @@ provisión con consentimiento de ruta exacta, movimiento sin duplicar fuentes, r
 cleanup/rekey durables, recuperación al arranque, concurrencia multiproceso y panel de seguimiento.
 Contrato `pa/1.6.0` aditivo, registry v4 aditivo, cliente compatible con 1.5.0.
 
-**Verificación:** 805/805, `check` limpio, hermético 805 con almacén real intacto (6 ficheros),
+**Verificación:** 810/810, `check` limpio, hermético 810 con almacén real intacto (6 ficheros),
 migración v4 sobre copia, Host/UI sintético con dos ciclos de reinicio y rekey pendiente.
 
 **Riesgos:** instalación/publicación fuera de alcance; Host/UI probado sólo en laboratorio sintético;
@@ -280,16 +282,17 @@ lifecode-rag/docs/IMPLEMENTATION-R1.2-CONTINUATION.md
 lifecode-rag/docs/IMPLEMENTATION-R1.2-RELEASE-READINESS.md
 ```
 
-**Excluidos del staging:** `cache/scratch/**`, freeze/parches, laboratorios `dsh-lab-*`, capturas,
-cookies, `C:/Users/BYRON/.dsh/**`, el árbol sucio del propietario, el release 1.5.11, `node_modules`,
+**Excluidos del staging:** `cache/scratch/**`, freeze/parches, laboratorios `<LAB>-*`, capturas,
+cookies, `<HOME>/.dsh/**`, el árbol sucio del propietario, el release 1.5.11, `node_modules`,
 `*.sqlite3`, logs y `tools/`/`demo/`/`eval/`/`bench/` no versionados.
 
 ## 14. Estado Git final
 
-- HEAD `36148704e191d0689061b6b594135fe5e94d84bc`, rama `feature/project-memory-lifecycle`.
-- Sin commit, push, tag, reset, clean, stash, rebase ni instalación.
-- Worktree preservado; release 1.5.11 limpio.
-- Este informe se añade como archivo no versionado hasta que se autorice la integración.
+- Commit local: `67e7c8cbb0c96069f305f7514740ecd910e04e6c`, padre `36148704e191d0689061b6b594135fe5e94d84bc`.
+- 43 archivos en el commit, lista idéntica a la del apartado 13.
+- Inmediatamente tras el commit: árbol limpio, release 1.5.11 limpio.
+- Sin push, tag, PR, publicación, instalación, despliegue, reset, clean, stash ni rebase.
+- Actualizaciones posteriores de este informe y del punto de continuación quedan sin commit por diseño (documentación post-commit); no forman parte del commit 67e7c8c.
 
 
 **Restricción operativa M3:** host y CLI no deben compartir simultáneamente el mismo perfil; la cola reclama peticiones `running` sin marca de dueño al arrancar.

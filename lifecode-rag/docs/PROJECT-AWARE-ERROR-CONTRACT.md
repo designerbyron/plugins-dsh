@@ -33,6 +33,7 @@ en cerrado con el código correspondiente.
 | `root-symlink` | Autorización | La raíz es un enlace, junction o reparse point, o su ruta canónica no coincide con la registrada | `path`, `linkTarget?`, `canonical`, `reason` | No se registra la raíz |
 | `root-changed` | Integridad | El destino real de una raíz registrada cambió (sustitución por junction/symlink, reparse del proveedor) | `path`, `expected?`, `actual` | Se falla en cerrado antes de usar la raíz |
 | `registry-unavailable` | Infraestructura | No existe el registro del perfil o no se puede abrir | `profile_id`, `path?` | Ninguna operación |
+| `store-migration-required` | Integridad | El almacén existe en una versión anterior y `doctor` se ejecuta en modo diagnóstico sin migrarlo | `found`, `supported`, `readOnly` | No se migra ni se escribe; se informa para una migración explícita |
 | `registry-corrupt` | Integridad | `integrity_check` falla, `path_key` duplicado, cadena de auditoría rota | `profile_id`, `check`, `detail` | No se escribe; se informa |
 | `scope-store-unavailable` | Infraestructura | Falta el `rag.sqlite3` de un ámbito, está ocupado por otra conexión o sigue migrando | `scope_id`, `scope_kind`, `reason`, `state`, `retryable` | Falla la operación completa: no se entrega un subconjunto que parezca exhaustivo |
 | `scope-store-corrupt` | Integridad | Metadatos incoherentes, `schema_version` futura, `store_state` no `ready`, `integrity_check` o `foreign_key_check` fallan | `scope_id`, `scope_kind`, `check`, `findings?` | No se lee ni se entrega contenido; no se repara solo |

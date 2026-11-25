@@ -210,10 +210,11 @@ test('un prompt de sólo stopwords no abre la puerta léxica', async () => {
 test('el hook respeta el presupuesto: no bloquea el turno aunque el servicio no responda', async () => {
   const world = await makeEightWorld({ libraryCount: 0 });
   try {
+    // Un servicio que responde fuera del presupuesto: el pre-step no debe esperar su resolución.
+    const pending = new Promise((resolve) => setTimeout(resolve, 250));
     const services = {
       ...servicesFor(world),
-      // Un servicio que nunca resuelve: sin presupuesto, el pre-step colgaría el turno.
-      workingDirectory: { ensure: () => new Promise(() => {}) },
+      workingDirectory: { ensure: () => pending },
     };
     const collector = createAutoContext({
       services,

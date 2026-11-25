@@ -1,7 +1,7 @@
 # Implementación R1.2 — decisiones autónomas y matriz de trazabilidad
 
 **Producto:** LifeCode RAG · **Base:** 1.5.11 (`release/lifecode-rag-1.5.11`, HEAD `36148704`, tag en C4 `25a9ab16`)
-**Línea de desarrollo:** `feature/project-memory-lifecycle` · worktree aislado `C:/xampp/htdocs/plugins-dhs-memory-lifecycle`
+**Línea de desarrollo:** `feature/project-memory-lifecycle` · worktree aislado `<WORKTREE>`
 **Estado:** decisiones autónomas tomadas al amparo del mandato de implementación de R1.2. No se reabren Q07–Q10.
 
 Fuentes de verdad y hashes verificados al inicio:
@@ -460,7 +460,7 @@ La revisión independiente de release encontró defectos que se corrigieron ante
   peticiones antiguas sin dueño conservan la ventana.
 - **Paquete**: los informes internos de implementación salen de `files` para no publicar rutas personales
   ni IDs de auditoría; el ejemplo de `PA-UI` se saneó. `INTENT_STATES` muerto se retiró.
-- **Contratos/README**: `user_version=4`, 805 pruebas, 63 códigos y razones `cleanup-pending`/
+- **Contratos/README**: `user_version=4`, 805 pruebas, 64 códigos y razones `cleanup-pending`/
   `rekey-pending` documentadas.
 
 **Prueba:** `tests/provisioning.test.mjs` (mover tras revocar, carpeta ausente, compensación), `tests/
@@ -523,6 +523,32 @@ de dueño a `sync_requests`. Se documenta como condición, no como verificación
 **Prueba:** suite **805/805**; `probe-sync-move-race`, `probe-root-junction`,
 `probe-compensation-failure` y `probe-roots-open-intent` sobre el código actual; check y hermética
 805.
+
+---
+
+## D-30 · Correcciones de distribución: Node/FTS5, doctor no invasivo y presupuesto
+
+La revisión de distribución encontró defectos que la suite de 805 no cubría:
+
+- **Node/FTS5:** el rango `>=22.13 <23 || >=23.4` era falso: Node 22.13–22.15, 23.0–23.11 no incluyen
+  FTS5 y `CREATE VIRTUAL TABLE ... USING fts5` falla con `no such module: fts5`; Node 22.16–22.xx y
+  Node 24 sí. El rango corregido es `>=22.16.0 <23.0.0 || >=24.0.0`, y `doctor` aplica la misma
+  condición. Se ejecutó la suite completa en Node 22.16.0 (**810/810**, 74.491 s) y Node 24.21.0
+  (**810/810**, 74.217 s); Node 22.5/22.12/23.4 se rechazan por importación o FTS5.
+- **Doctor no invasivo:** `doctor` ya no abre el almacén original. Copia el `.sqlite3` y sus sidecars
+  a un directorio temporal, inspecciona la copia y ejecuta FTS sobre ella; una versión anterior se
+  informa como `store-migration-required` y **no se migra**. La prueba compara contenido, hashes y
+  `mtime` recursivos del almacén y del JSONL antes/después; no se crean `-wal`/`-shm`.
+- **Presupuesto de auto-contexto:** `withBudget` creaba un `Promise` de aborto sin señal que quedaba
+  pendiente; se elimina para el caso sin señal y se retira el listener al terminar. La prueba de
+  presupuesto usa un servicio que responde fuera del plazo, no una promesa pendiente.
+- **Higiene:** se sustituyeron rutas locales y nombres de perfil por marcadores neutros en los
+  documentos de R1.2 y en los fixtures de las pruebas. No se modificaron perfiles, stores ni el
+  release 1.5.11.
+
+**Prueba:** `tests/doctor.test.mjs` (8/8), `tests/auto-context.test.mjs` (14/14), suite **810/810** en
+Node 22.16 y 24; `check` limpio; hermética **810**, almacén real intacto (6 ficheros); `npm pack`
+80 archivos sin informes internos.
 
 ---
 

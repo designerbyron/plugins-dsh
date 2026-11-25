@@ -1,16 +1,18 @@
 # Punto de reanudación — R1.2
 
-**Actualizado:** 2026-11-25 · **Estado:** aceptación técnica cerrada; sin commit ni publicación.
+**Actualizado:** 2026-11-25 · **Estado:** integración local completada en `67e7c8cbb0c96069f305f7514740ecd910e04e6c`; sin push ni publicación.
 
 ## Dónde está el trabajo
 
-- Worktree: `C:/xampp/htdocs/plugins-dhs-memory-lifecycle`
+- Worktree: `<WORKTREE>`
 - Rama: `feature/project-memory-lifecycle`
 - HEAD: `36148704e191d0689061b6b594135fe5e94d84bc` (base 1.5.11)
-- Árbol: **43 entradas** (31 modificadas y 12 no versionadas: las 10 originales, este punto y
+- Commit local: `67e7c8cbb0c96069f305f7514740ecd910e04e6c` (43 archivos); el árbol quedó limpio justo tras el commit.
+- Árbol posterior: las actualizaciones de este punto y del informe de release-readiness quedan sin commit (documentación post-commit).
+- Árbol original: **43 entradas** (31 modificadas y 12 no versionadas: las 10 originales, este punto y
   el informe de release-readiness), sin commit, sin stash, sin reset
-- El árbol sucio del propietario (`C:/xampp/htdocs/plugins-dhs`) y el release
-  (`C:/xampp/htdocs/plugins-dhs-release/lifecode-rag`) no se tocaron.
+- El árbol sucio del propietario (`<REPO>`) y el release
+  (`<RELEASE>`) no se tocaron.
 
 ## Qué está cerrado
 
@@ -25,17 +27,17 @@
 ## Evidencia de la última medición
 
 ```sh
-cd C:/xampp/htdocs/plugins-dhs-memory-lifecycle/lifecode-rag
-node --test --test-concurrency=1     # 805 tests, 805 pass, 0 fail, 0 skipped
+cd <WORKTREE>/lifecode-rag
+node --test --test-concurrency=1     # 810 tests, 810 pass, 0 fail, 0 skipped
 node tools/check.mjs                 # limpio
-node tools/hermetic.mjs              # 805 pass; almacén real sin cambios (6 ficheros)
+node tools/hermetic.mjs              # 810 pass; almacén real sin cambios (6 ficheros)
 ```
 
 - Base 1.5.11: 714/714.
 - Migración v4 probada sobre copia del registro real: 3 proyectos, 3 raíces, 1 tracking,
   98 auditorías, 0 duplicados.
 - Host aislado de laboratorio: `pa/1.6.0`, provisión/movimiento/rekey reales; el host quedó apagado.
-- Almacén real `C:/Users/BYRON/.dsh/lifecode-rag`: intacto (hermética).
+- Almacén real `<HOME>/.dsh/lifecode-rag`: intacto (hermética).
 
 ## Documentos de referencia
 
@@ -53,7 +55,7 @@ node tools/hermetic.mjs              # 805 pass; almacén real sin cambios (6 fi
 
 ## No tocar al reanudar
 
-- `C:/Users/BYRON/.dsh/lifecode-rag` — almacén real; sólo copias en `mkdtemp`.
-- `C:/xampp/htdocs/plugins-dhs` — árbol sucio del propietario.
-- `C:/xampp/htdocs/plugins-dhs-release/lifecode-rag` — release 1.5.11 intacto.
+- `<HOME>/.dsh/lifecode-rag` — almacén real; sólo copias en `mkdtemp`.
+- `<REPO>` — árbol sucio del propietario.
+- `<RELEASE>` — release 1.5.11 intacto.
 - No recrear el worktree ni descartar las 43 entradas.

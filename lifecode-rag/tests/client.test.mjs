@@ -1367,7 +1367,7 @@ test('UX-1: las rutas se muestran acortadas y con acción explícita (D-UX-14)',
   const { mod } = loadModule({ document: fakeDocument() });
   const { paShortPath, paInitialState, paReduce, paRenderView, paTranslate } = mod.__test;
   assert.equal(paShortPath('C:/corto'), 'C:/corto');
-  const largo = 'C:/xampp/htdocs/businesssuite/apps/web/src/components/formulario-muy-largo.tsx';
+  const largo = 'C:/workspace/businesssuite/apps/web/src/components/formulario-muy-largo.tsx';
   const corto = paShortPath(largo);
   assert.equal(corto.length < largo.length, true);
   assert.equal(corto.includes('…'), true);
@@ -1422,7 +1422,7 @@ function stateConWorkspaces(payload, extra = {}) {
 
 function fila(overrides = {}) {
   return {
-    id: 'ws_1', path: 'C:/xampp/htdocs/plugins-dhs', pathKey: 'c:/xampp/htdocs/plugins-dhs',
+    id: 'ws_1', path: 'C:/workspace/plugins-dhs', pathKey: 'c:/workspace/plugins-dhs',
     title: 'plugins-dhs', state: 'ok', stateReason: null,
     sessions: { known: 2, live: 1, historical: 1 },
     project: { id: 'prj_1', name: 'plugins-dhs' }, relation: 'exact',

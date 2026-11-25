@@ -12,7 +12,7 @@ No depende de `@deepseek-ai/*`, no usa el almacén del Skill Center y no compart
 Identificadores internos que **no** cambian con el nombre del paquete: id del plugin `lifecode-rag`,
 herramientas `lifecode_rag_*` y rutas `/lifecode-rag/pa/*`.
 
-**Requisitos:** Node.js ≥ 22.5 (usa `node:sqlite`) y DeepSeek Harness ≥ 0.2.2-rc.3 y < 0.3.0.
+**Requisitos:** Node.js ≥ 22.16 (22.16–22.x o ≥24; `node:sqlite` con FTS5) y DeepSeek Harness ≥ 0.2.2-rc.3 y < 0.3.0.
 
 ## Modelo Project-Aware
 
@@ -208,9 +208,9 @@ npm run check            # estructura, cero dependencias, red acotada
 ```
 
 Las pruebas y las herramientas de desarrollo viven en el repositorio, no en el paquete publicado
-(`files` excluye `tests/` y `tools/`). La suite de la rama que produce esta 1.6.0 tiene **799 casos** y cubre
+(`files` excluye `tests/` y `tools/`). La suite de la rama que produce esta 1.6.0 tiene **810 casos** y cubre
 las siete herramientas, la administración por API, los workspaces del Host, el seguimiento de workspaces, la
-interfaz y los 63 códigos de error con su mapa HTTP. Los comandos `npm test` y `npm run check` **sólo existen
+interfaz y los 64 códigos de error con su mapa HTTP. Los comandos `npm test` y `npm run check` **sólo existen
 en el repositorio**: el manifiesto empaquetado no lleva `scripts`, así que en una instalación desde el TAR se
 ejecutan con `node --test` y `node tools/check.mjs` sobre la copia de origen.
 

@@ -255,13 +255,23 @@ export function createAutoContext({ services, config, logger = console, now = ()
       timer = setTimeout(() => resolve(null), ms);
       timer.unref?.();
     });
-    const aborted = new Promise((resolve) => {
-      if (!signal) return;
-      if (signal.aborted) resolve(null);
-      else signal.addEventListener('abort', () => resolve(null), { once: true });
-    });
+    const candidates = [promise, budget];
+    let onAbort;
+    if (signal) {
+      const aborted = new Promise((resolve) => {
+        if (signal.aborted) resolve(null);
+        else {
+          onAbort = () => resolve(null);
+          signal.addEventListener('abort', onAbort, { once: true });
+        }
+      });
+      candidates.push(aborted);
+    }
     promise.catch(() => {});
-    return Promise.race([promise, budget, aborted]).finally(() => clearTimeout(timer));
+    return Promise.race(candidates).finally(() => {
+      clearTimeout(timer);
+      if (onAbort) signal.removeEventListener('abort', onAbort);
+    });
   }
 
   /** Un fallo real (registro caído, almacén corrupto, revocación) no debe ser invisible. */
