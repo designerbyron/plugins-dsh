@@ -6,6 +6,10 @@ name: K7-E · publicación gobernada por Release humano
 # K8-E: acciones externas fijadas a SHA de 40 caracteres, verificadas contra los
 # repositorios oficiales. setup-node se fija a v5.0.0 porque el SHA de v4 no
 # acepta `package-manager-cache`; v5.0.0 sí lo acepta y conserva `cache: npm`.
+#
+# K8-F4: npm CLI fijado a 11.21.3 y publicación por etapas con `npm stage publish
+# --tag next`. El job vuelve a verificar el SHA-256 del contenido exacto que se
+# enviará a staging; no hay publicación pública directa ni dist-tag dinámico.
 
 on:
   release:
@@ -61,7 +65,17 @@ jobs:
           node-version: '24.21.0'
           package-manager-cache: false
 
-      - name: Puerta humana, tag, versión y dist-tag
+      - name: npm CLI 11.21.3 fijado
+        run: |
+          npm install --global npm@11.21.3
+          ACTUAL_NPM="$(npm --version)"
+          if [ "$ACTUAL_NPM" != "11.21.3" ]; then
+            echo "✖ npm fijado en 11.21.3, obtenido $ACTUAL_NPM" >&2
+            exit 1
+          fi
+          echo "✓ npm CLI $ACTUAL_NPM"
+
+      - name: Puerta humana, tag y versión
         id: gates
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
@@ -91,9 +105,8 @@ jobs:
           if (process.env.RELEASE_AUTHOR_TYPE !== 'User' || process.env.SENDER_TYPE !== 'User') {
             fail('el Release no fue publicado por una cuenta humana (author/sender ≠ User)');
           }
-          const distTag = isPrerelease ? 'next' : 'latest';
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${distTag}\nversion=${manifest.version}\n`);
-          console.log(`✓ ${tag} → ${manifest.version} → dist-tag ${distTag}`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${manifest.version}\n`);
+          console.log(`✓ ${tag} → ${manifest.version}; contenido enviado a staging con --tag next`);
           NODE
 
       - name: Verificar OIDC y ausencia de tokens npm permanentes
@@ -106,9 +119,8 @@ jobs:
             process.exit(1);
           };
           const npmVersion = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim();
-          const [major, minor, patch] = npmVersion.split('.').map(Number);
-          if (major < 11 || (major === 11 && minor < 5) || (major === 11 && minor === 5 && patch < 1)) {
-            fail(`npm ${npmVersion} < 11.5.1; Trusted Publishing requiere 11.5.1 o superior`);
+          if (npmVersion !== '11.21.3') {
+            fail(`npm ${npmVersion} ≠ 11.21.3; el staging exige la versión fijada exacta`);
           }
           const tokenVars = ['NODE_AUTH_TOKEN', 'NPM_TOKEN', 'NPM_AUTH_TOKEN', 'NPM_CONFIG__AUTH_TOKEN'];
           const present = tokenVars.filter((key) => Boolean(process.env[key]));
@@ -122,9 +134,94 @@ jobs:
           console.log(`✓ npm ${npmVersion}; OIDC disponible; sin tokens npm permanentes`);
           NODE
 
-      - name: Publicar en npm con provenance
+      - name: Verificar SHA-256 del contenido que se enviará a staging
         env:
-          DIST_TAG: ${{ steps.gates.outputs.dist_tag }}
+          EXPECTED_SHA256: fa2e9c9a193b8bc301541e66ca19444147739b866edfa748cea0af7955d512dc
         run: |
-          test "$DIST_TAG" = "next" || test "$DIST_TAG" = "latest"
-          npm publish --access public --provenance --tag "$DIST_TAG"
+          npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP" > "$RUNNER_TEMP/stage-pack.json"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const crypto = require('node:crypto');
+
+          const fail = (message) => {
+            console.error(`✖ ${message}`);
+            process.exit(1);
+          };
+          const EXPECTED_NAME = 'dsh-lifecode-skill-center';
+          const EXPECTED_VERSION = '1.1.0-rc.2';
+          const EXPECTED_FILENAME = 'dsh-lifecode-skill-center-1.1.0-rc.2.tgz';
+          const EXPECTED_SHA256 = process.env.EXPECTED_SHA256;
+          const runnerTemp = process.env.RUNNER_TEMP;
+
+          if (!EXPECTED_SHA256) fail('EXPECTED_SHA256 no definido');
+          if (!runnerTemp || !path.isAbsolute(runnerTemp)) fail('RUNNER_TEMP no es una ruta absoluta');
+          if (!process.env.GITHUB_ENV) fail('GITHUB_ENV no definido');
+
+          const packJson = path.join(runnerTemp, 'stage-pack.json');
+          let packaged;
+          try {
+            packaged = JSON.parse(fs.readFileSync(packJson, 'utf8'));
+          } catch (error) {
+            fail(`JSON de npm pack no legible: ${error.message}`);
+          }
+          if (!Array.isArray(packaged) || packaged.length !== 1) {
+            const found = Array.isArray(packaged) ? String(packaged.length) : 'un JSON no lista';
+            fail(`npm pack devolvió ${found}; se esperaba exactamente 1 paquete`);
+          }
+          const [pkg] = packaged;
+          if (pkg.name !== EXPECTED_NAME) fail(`name inesperado: ${pkg.name}`);
+          if (pkg.version !== EXPECTED_VERSION) fail(`version inesperada: ${pkg.version}`);
+          if (pkg.filename !== EXPECTED_FILENAME) fail(`filename inesperado: ${pkg.filename}`);
+
+          const tarball = path.resolve(runnerTemp, EXPECTED_FILENAME);
+          if (path.dirname(tarball) !== path.resolve(runnerTemp)) fail('el tarball no queda dentro de RUNNER_TEMP');
+          if (/[\r\n]/.test(tarball)) fail('la ruta del tarball contiene saltos de línea');
+          let stats;
+          try {
+            stats = fs.lstatSync(tarball);
+          } catch (error) {
+            fail(`tarball no accesible: ${error.message}`);
+          }
+          if (!stats.isFile()) fail('el tarball no es un fichero regular');
+
+          const actualSha256 = crypto.createHash('sha256').update(fs.readFileSync(tarball)).digest('hex');
+          if (actualSha256 !== EXPECTED_SHA256) {
+            console.error('✖ SHA-256 del contenido a staging NO coincide; staging detenido');
+            console.error(`  esperado (fijado en K8-C, no actualizar automáticamente): ${EXPECTED_SHA256}`);
+            console.error(`  obtenido: ${actualSha256}`);
+            process.exit(1);
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, `STAGE_TARBALL=${tarball}\n`);
+          console.log(`✓ tarball verificado y persistido: ${tarball}`);
+          console.log(`✓ SHA-256 del contenido a staging verificado: ${actualSha256}`);
+          NODE
+
+      - name: Enviar a staging con npm stage publish
+        env:
+          EXPECTED_SHA256: fa2e9c9a193b8bc301541e66ca19444147739b866edfa748cea0af7955d512dc
+        run: |
+          if [ -z "${STAGE_TARBALL:-}" ]; then
+            echo "✖ STAGE_TARBALL no definido; staging detenido" >&2
+            exit 1
+          fi
+          case "$STAGE_TARBALL" in
+            "$RUNNER_TEMP"/dsh-lifecode-skill-center-1.1.0-rc.2.tgz) ;;
+            *)
+              echo "✖ STAGE_TARBALL no corresponde al tarball verificado; staging detenido" >&2
+              exit 1
+              ;;
+          esac
+          if [ -L "$STAGE_TARBALL" ] || [ ! -f "$STAGE_TARBALL" ]; then
+            echo "✖ STAGE_TARBALL no es un fichero regular; staging detenido" >&2
+            exit 1
+          fi
+          ACTUAL_SHA256="$(sha256sum "$STAGE_TARBALL" | awk '{print $1}')"
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "✖ SHA-256 inmediatamente previo al staging NO coincide; staging detenido" >&2
+            echo "  esperado (fijado en K8-C, no actualizar automáticamente): $EXPECTED_SHA256" >&2
+            echo "  obtenido: $ACTUAL_SHA256" >&2
+            exit 1
+          fi
+          echo "✓ SHA-256 inmediatamente previo al staging verificado: $ACTUAL_SHA256"
+          npm stage publish "$STAGE_TARBALL" --tag next

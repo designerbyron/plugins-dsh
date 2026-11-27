@@ -6,6 +6,10 @@ name: K7-E · validación sin publicación
 # K8-E: acciones externas fijadas a SHA de 40 caracteres, permisos `contents: read`
 # explícitos por job y comparación obligatoria del SHA-256 del tarball contra el
 # valor fijado en K8-C (1.1.0-rc.2). El valor esperado no se actualiza solo.
+#
+# K8-F4: el job `artefacto` fija npm CLI 11.21.3 antes de empaquetar, la misma
+# versión que usará `npm stage publish`, para que el hash verificado corresponda
+# al contenido exacto que se enviará a staging. Este workflow nunca publica.
 
 on:
   push:
@@ -133,6 +137,16 @@ jobs:
           cache-dependency-path: lifecode-skill-center/package-lock.json
           package-manager-cache: false
 
+      - name: npm CLI 11.21.3 fijado para el empaquetado
+        run: |
+          npm install --global npm@11.21.3
+          ACTUAL_NPM="$(npm --version)"
+          if [ "$ACTUAL_NPM" != "11.21.3" ]; then
+            echo "✖ npm fijado en 11.21.3, obtenido $ACTUAL_NPM" >&2
+            exit 1
+          fi
+          echo "✓ npm CLI $ACTUAL_NPM"
+
       - name: Dependencias exactas
         run: npm ci --ignore-scripts
 
@@ -193,13 +207,13 @@ jobs:
 
       - name: Comparación obligatoria del SHA-256 fijado
         # Constante K8-C/K8-E. NUNCA se actualiza automáticamente: si el artefacto
-        # cambia, el job se detiene y explica la diferencia antes de publicar.
+        # cambia, el job se detiene y explica la diferencia antes de enviar a staging.
         env:
           EXPECTED_SHA256: fa2e9c9a193b8bc301541e66ca19444147739b866edfa748cea0af7955d512dc
         run: |
           ACTUAL_SHA256="$(sha256sum "$SC_TARBALL" | awk '{print $1}')"
           if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "✖ SHA-256 del tarball NO coincide con el valor fijado; publicación detenida" >&2
+            echo "✖ SHA-256 del tarball NO coincide con el valor fijado; staging detenido" >&2
             echo "  esperado (fijado en K8-C, no actualizar automaticamente): $EXPECTED_SHA256" >&2
             echo "  obtenido: $ACTUAL_SHA256" >&2
             echo "  explicacion: el contenido empaquetado o el entorno de empaquetado divergio del artefacto aprobado; revisar antes de cualquier promocion" >&2
