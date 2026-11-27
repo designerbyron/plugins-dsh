@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -113,6 +113,74 @@ function walk(root, prefix = '', out = []) {
 }
 
 /**
+ * Resuelve `npm-cli.js` sin asumir la distribución de Node del runner.
+ *
+ * Prioridad: `npm_execpath` (cuando es fichero regular) -> directorio global informado por
+ * `npm root -g` -> rutas derivadas de `process.execPath`. El comando de sondeo tiene argumentos
+ * fijos y no usa shell. Ninguna opción se acepta sin comprobar que es un fichero regular; si no
+ * hay ninguna, el error enumera todas las opciones y el motivo de cada rechazo.
+ */
+export function resolveNpmCli({
+  env = process.env,
+  execPath = process.execPath,
+  platform = process.platform,
+  root = PLUGIN_ROOT,
+  stat = statSync,
+  spawn = spawnSync,
+} = {}) {
+  const attempts = [];
+  const checked = (source, path) => {
+    let valid = false;
+    let reason = 'sin ruta';
+    if (typeof path === 'string' && path !== '') {
+      try {
+        valid = stat(path).isFile();
+        reason = valid ? 'fichero regular' : 'no es un fichero regular';
+      } catch (error) {
+        reason = `no accesible: ${error?.code ?? error?.message ?? 'error desconocido'}`;
+      }
+    }
+    attempts.push({ source, path: path ?? '', valid, reason });
+    return valid;
+  };
+
+  const execpath = typeof env.npm_execpath === 'string' ? env.npm_execpath.trim() : '';
+  if (checked('npm_execpath', execpath)) {
+    return { npmCli: execpath, source: 'npm_execpath', attempts, error: null };
+  }
+
+  const command = platform === 'win32' ? 'npm.cmd' : 'npm';
+  const probe = spawn(command, ['root', '-g'], {
+    cwd: root, encoding: 'utf8', windowsHide: true, maxBuffer: 4 * 1024 * 1024,
+  });
+  const lines = `${probe.stdout ?? ''}`.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const last = lines.at(-1) ?? '';
+  const globalRoot = probe.status === 0 && isAbsolute(last) ? last : '';
+  const globalCli = globalRoot === '' ? '' : join(globalRoot, 'npm', 'bin', 'npm-cli.js');
+  checked(globalRoot === '' ? 'npm root -g' : 'npm root -g -> npm/bin/npm-cli.js', globalCli);
+  if (globalRoot === '') {
+    attempts.at(-1).reason = probe.status === 0
+      ? 'npm root -g no devolvió una ruta global absoluta'
+      : `npm root -g falló (status=${probe.status}, error=${probe.error?.code ?? 'ninguno'})`;
+  }
+  if (probe.status === 0 && last !== '' && !isAbsolute(last)) {
+    attempts.push({ source: 'npm root -g', path: last, valid: false, reason: 'la ruta global devuelta no es absoluta' });
+  }
+
+  const nodeDir = dirname(execPath);
+  checked('process.execPath/lib/node_modules', join(nodeDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'));
+  checked('process.execPath/node_modules', join(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js'));
+
+  const selected = attempts.find((entry) => entry.valid);
+  const error = selected ? null : [
+    'No se pudo resolver npm-cli.js. Opciones comprobadas:',
+    ...attempts.map((entry) => `- ${entry.source}: ${entry.path || '(vacía)'} (${entry.reason})`),
+    'Causa: ninguna opción es un fichero regular.',
+  ].join('\n');
+  return { npmCli: selected?.path ?? null, source: selected?.source ?? null, attempts, error };
+}
+
+/**
  * @param {{ root?: string, destination?: string, keepArtifacts?: boolean, tarballPath?: string | null }} options
  */
 export function auditPackage({
@@ -136,11 +204,10 @@ export function auditPackage({
       if (!existsSync(tarballPath)) return { ok: false, checks, problems };
       tarball = tarballPath;
     } else {
-      const bundledNpm = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
-      const npmCli = process.env.npm_execpath && existsSync(process.env.npm_execpath)
-        ? process.env.npm_execpath
-        : bundledNpm;
-      if (!existsSync(npmCli)) throw new Error(`no se encontró npm-cli.js en ${npmCli}`);
+      const resolved = resolveNpmCli({ root });
+      if (!resolved.npmCli) throw new Error(resolved.error);
+      ok(true, `npm-cli.js resuelto desde ${resolved.source}: ${resolved.npmCli}`);
+      const npmCli = resolved.npmCli;
       const packed = spawnSync(process.execPath, [
         npmCli, 'pack', '--json', '--ignore-scripts', '--pack-destination', packDest,
       ], { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });

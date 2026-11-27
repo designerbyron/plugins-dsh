@@ -12,10 +12,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
+import { isAbsolute as isAbsolutePosix } from 'node:path/posix';
+import { isAbsolute as isAbsoluteWin32 } from 'node:path/win32';
 
 import {
   API_PREFIX, buildSnapshot, handleApiRequest, requestProjectCandidates, runAction,
 } from '../lib/api.mjs';
+import { normalizeCwd } from '../lib/format.mjs';
 import { emptyState, loadState, normalizeState, saveState } from '../lib/state.mjs';
 import { openRequest, projectRequest } from '../lib/requests.mjs';
 import { tempRoot } from './helpers.mjs';
@@ -25,6 +30,12 @@ const ELIGIBLE_ID = 'proyecto-gestionado-a1b2c3d4';
 const NO_CWD_ID = 'sin-workspace-11111111';
 const RELATIVE_ID = 'ruta-relativa-22222222';
 const LEGACY_ID = 'req-562393e0835f';
+// La elegibilidad usa `path.isAbsolute`: la fixture debe ser absoluta en el SO que ejecuta la prueba,
+// no sólo en Windows. `tmpdir()` + `join()` producen una ruta válida en Ubuntu y en Windows.
+const FIXTURE_BASE = join(tmpdir(), 'lsc-fase-g-fixture');
+const ELIGIBLE_CWD = join(FIXTURE_BASE, 'proyecto-gestionado');
+const DISCOVERED_CWD = join(FIXTURE_BASE, 'descubierto');
+const RELATIVE_CWD = 'carpeta-relativa';
 
 function seededRoot() {
   const root = tempRoot('lsc-fase-g');
@@ -32,9 +43,9 @@ function seededRoot() {
     ...emptyState(NOW),
     schemaVersion: 2,
     projects: {
-      [ELIGIBLE_ID]: { id: ELIGIBLE_ID, name: 'Proyecto gestionado', cwd: 'C:/x/proyecto-gestionado', createdAt: NOW, updatedAt: NOW, note: '' },
+      [ELIGIBLE_ID]: { id: ELIGIBLE_ID, name: 'Proyecto gestionado', cwd: ELIGIBLE_CWD, createdAt: NOW, updatedAt: NOW, note: '' },
       [NO_CWD_ID]: { id: NO_CWD_ID, name: 'Sin workspace', cwd: '', createdAt: NOW, updatedAt: NOW, note: '' },
-      [RELATIVE_ID]: { id: RELATIVE_ID, name: 'Ruta relativa', cwd: 'carpeta-relativa', createdAt: NOW, updatedAt: NOW, note: '' },
+      [RELATIVE_ID]: { id: RELATIVE_ID, name: 'Ruta relativa', cwd: RELATIVE_CWD, createdAt: NOW, updatedAt: NOW, note: '' },
     },
     requests: {
       [LEGACY_ID]: { id: LEGACY_ID, text: 'petición histórica', status: 'pending', createdAt: NOW, updatedAt: NOW },
@@ -116,7 +127,7 @@ test('G4: cwd, lista y permisos del cliente no otorgan identidad ni permisos', (
     text: 'que parezca de otro proyecto',
     scope: 'project',
     projectId: 'carpeta-descubierta-sin-alta',
-    cwd: 'C:/x/proyecto-gestionado',
+    cwd: ELIGIBLE_CWD,
     allowedProjects: [ELIGIBLE_ID],
     permissions: ['write'],
   }, root);
@@ -132,14 +143,14 @@ test('G4: cwd, lista y permisos del cliente no otorgan identidad ni permisos', (
 test('G5: la foto publica sólo proyectos gestionados y válidos, sin consultar workspaces', () => {
   const root = seededRoot();
   let listings = 0;
-  const registry = { list: () => { listings += 1; return [{ id: 'ws-1', path: 'C:/x/descubierto' }]; } };
+  const registry = { list: () => { listings += 1; return [{ id: 'ws-1', path: DISCOVERED_CWD }]; } };
   const response = handleApiRequest({
     root, registry, method: 'GET', pathname: `${API_PREFIX}/state`, search: '?scan=0', now: NOW,
   });
   assert.equal(response.status, 200);
   assert.equal(listings, 0, 'directiva §7: la foto no sondea el registro del Host');
   assert.deepEqual(response.body.requestProjects, [
-    { id: ELIGIBLE_ID, name: 'Proyecto gestionado', cwd: 'C:/x/proyecto-gestionado' },
+    { id: ELIGIBLE_ID, name: 'Proyecto gestionado', cwd: normalizeCwd(ELIGIBLE_CWD) },
   ]);
   assert.equal(response.body.requestProjects.some((entry) => entry.id === NO_CWD_ID), false);
   assert.equal(response.body.requestProjects.some((entry) => entry.id === RELATIVE_ID), false);
@@ -175,4 +186,24 @@ test('G8: openRequest rechaza projectId como número y global con cadena vacía 
   const global = openRequest(state, { text: 'y', scope: 'global', projectId: '' }, { now: NOW });
   assert.equal(global.ok, true);
   assert.equal(state.requests[global.id].projectId, null, 'la cadena vacía del cliente no se persiste');
+});
+
+test('G9: la fixture distingue una ruta absoluta de una relativa en el entorno de ejecución', () => {
+  // Regresión del fallo en Ubuntu: `C:/x/...` no es absoluta para path.isAbsolute() en POSIX.
+  assert.equal(isAbsolute(ELIGIBLE_CWD), true, `fixture no absoluta en esta plataforma: ${ELIGIBLE_CWD}`);
+  assert.equal(isAbsolute(normalizeCwd(ELIGIBLE_CWD)), true, 'normalizeCwd no debe volver relativa la ruta elegible');
+  assert.equal(isAbsolute(RELATIVE_CWD), false, 'la fixture relativa sigue siendo relativa');
+  // Cobertura de ambos dialectos con rutas representativas, sin depender del SO del runner.
+  assert.equal(isAbsolutePosix('/tmp/lsc-fase-g-fixture/proyecto-gestionado'), true);
+  assert.equal(isAbsoluteWin32('C:/lsc-fase-g-fixture/proyecto-gestionado'), true);
+  assert.equal(isAbsolutePosix(RELATIVE_CWD), false);
+  assert.equal(isAbsoluteWin32(RELATIVE_CWD), false);
+
+  const candidates = requestProjectCandidates({ state: loadState(seededRoot()).state });
+  assert.deepEqual(candidates.eligible.map((entry) => entry.id), [ELIGIBLE_ID]);
+  assert.deepEqual(candidates.rejected.map((entry) => entry.projectId).sort(), [NO_CWD_ID, RELATIVE_ID].sort());
+  assert.equal(ask({ text: 'absoluta', scope: 'project', projectId: ELIGIBLE_ID }, seededRoot()).ok, true);
+  const relative = ask({ text: 'relativa', scope: 'project', projectId: RELATIVE_ID }, seededRoot());
+  assert.equal(relative.ok, false);
+  assert.equal(relative.code, 'project-not-eligible', 'la ruta relativa nunca se admite');
 });
