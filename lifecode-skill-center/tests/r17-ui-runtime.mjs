@@ -341,7 +341,7 @@ export function createPanelHarness(options = {}) {
     },
     querySelectorAll: () => [],
     querySelector: () => null,
-    createElement: () => ({ setAttribute() {}, appendChild() {}, style: {} }),
+    createElement: () => ({ setAttribute() {}, appendChild() {}, remove() {}, style: {} }),
     head: { appendChild() {} },
     getElementById: () => null,
   };
@@ -448,7 +448,9 @@ export function createPanelHarness(options = {}) {
       if (typeof cleanup === 'function') cleanups.push(cleanup);
       return () => {};
     },
-    locale: {
+    // `localeService` permite reproducir el contrato real del Host (`getSnapshot().active` y un
+    // objeto devuelto por `getLocale`) y disparar el cambio de idioma sin recargar el panel.
+    locale: options.localeService ?? {
       register(namespace, dictionaries) {
         locales.push({ namespace, dictionaries });
         return () => {};

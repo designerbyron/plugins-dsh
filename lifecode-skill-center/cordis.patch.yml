@@ -5,4 +5,4 @@
 # que el Loader usa para dirigir la configuración, así que no cambia sin mover el perfil.
 - insert:
     - id: lifecode-skill-center
-      name: '@local/lifecode-skill-center'
+      name: 'dsh-lifecode-skill-center'

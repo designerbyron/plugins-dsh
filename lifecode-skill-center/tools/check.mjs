@@ -23,7 +23,8 @@ function ok(condition, message) {
 
 const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
-ok(manifest.name === '@local/lifecode-skill-center', `el nombre del paquete es ${manifest.name}`);
+ok(manifest.name === 'dsh-lifecode-skill-center', `el nombre del paquete es ${manifest.name}`);
+ok(manifest.private !== true, 'el paquete candidato es publicable; private impediría el RC');
 ok(manifest.type === 'module', 'el paquete tiene que ser ESM');
 ok(manifest.exports?.['.'] === './index.js', 'exports["."] tiene que ser ./index.js');
 ok(manifest.exports?.['./client'] === './client.js', 'exports["./client"] tiene que ser ./client.js');
@@ -42,7 +43,14 @@ ok(manifest.engines?.dsh !== undefined, 'el paquete declara el rango de Harness 
 ok(Array.isArray(manifest.files) && manifest.files.includes('cordis.patch.yml'), 'files whitelist incluye el parche del bundle');
 ok(manifest.files?.includes('client.js') && manifest.files?.includes('lib'), 'files whitelist incluye cliente y núcleo');
 
-for (const file of ['index.js', 'client.js', 'cordis.patch.yml', 'icon.svg', 'README.md']) {
+// K7-D: allowlist explícita. Nada de pruebas, herramientas, adaptadores locales, stores ni secretos.
+const forbiddenPackEntries = ['tests', 'tools', 'smoke', 'vendor-adapters', 'plans', 'node_modules', '.git', '.dsh'];
+for (const entry of forbiddenPackEntries) {
+  ok(!manifest.files?.includes(entry), `files no puede incluir ${entry}`);
+}
+ok(!/^npm:/.test(manifest.name) && !Object.values(manifest.exports ?? {}).some((value) => String(value).includes('npm:')), 'no se publican alias npm:');
+
+for (const file of ['index.js', 'client.js', 'cordis.patch.yml', 'icon.svg', 'README.md', 'LICENSE']) {
   ok(existsSync(join(root, file)), `falta ${file}`);
 }
 
@@ -70,6 +78,23 @@ for (const file of walk(join(root, 'lib'))) {
     ok(specifier.startsWith('./') || specifier.startsWith('node:'), `${name} importa «${specifier}», y el núcleo sólo puede importar node: o relativos`);
   }
   ok(!source.includes('@deepseek-ai/'), `${name} nombra un paquete del harness`);
+  // Fase E / estrategia C: el Vendor Importer es propio. Ni dependencia de Skill-Compiler, ni módulo
+  // `./vendor` exportado, ni llamadas de red en el núcleo (las pruebas inyectan bytes y `run`).
+  ok(!/@local\/skill-compiler|skill-compiler\/lib/.test(source), `${name} reutiliza Skill-Compiler como dependencia`);
+}
+
+if (existsSync(join(root, 'host', 'vendor-candidate.mjs'))) {
+  const candidateSource = readFileSync(join(root, 'host', 'vendor-candidate.mjs'), 'utf8');
+  ok(!/PINNED_FILES|PINNED_HARDENED_SCRIPT|LS0t|IyEvYmluL2Jhc2g/.test(candidateSource), 'el adaptador publicado no incrusta bytes del candidato');
+  ok(candidateSource.includes('resolvePinnedCandidateFromUpstream'), 'el adaptador resuelve el candidato desde el upstream fijado');
+}
+
+if (existsSync(join(root, 'lib', 'vendor.mjs'))) {
+  const vendorSource = readFileSync(join(root, 'lib', 'vendor.mjs'), 'utf8');
+  ok(!/\.\/vendor[\\/]/.test(vendorSource), 'lib/vendor.mjs importa el directorio ./vendor');
+  ok(!/\b(?:fetch|https?\.request|https?\.get)\s*\(/.test(vendorSource), 'lib/vendor.mjs hace red directamente');
+  ok(!/\b(?:writeFileSync|renameSync|unlinkSync|rmSync)\s*\(/.test(vendorSource), 'lib/vendor.mjs escribe ficheros: debe mutar el estado dentro de withState');
+  ok(/withState/.test(vendorSource) || /dentro de `withState`/.test(vendorSource), 'lib/vendor.mjs no declara la transacción con withState');
 }
 
 const client = readFileSync(join(root, 'client.js'), 'utf8');
@@ -80,7 +105,7 @@ ok(!client.includes('@deepseek-ai/'), 'client.js no puede nombrar paquetes del h
 ok(client.includes('window.__ModuleLoader__.load'), 'client.js tiene que registrarse con el cargador de módulos');
 
 // Que cada fichero se pueda al menos parsear: un error de sintaxis en el cliente sólo se vería al abrir el panel.
-for (const file of [...walk(join(root, 'lib')), join(root, 'index.js'), join(root, 'client.js'), ...walk(join(root, 'tests')), ...walk(join(root, 'tools'))]) {
+for (const file of [...walk(join(root, 'lib')), ...walk(join(root, 'host')), join(root, 'index.js'), join(root, 'client.js'), ...walk(join(root, 'tests')), ...walk(join(root, 'tools'))]) {
   const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
   ok(result.status === 0, `${relative(root, file)} no parsea: ${(result.stderr ?? '').split('\n')[0]}`);
 }

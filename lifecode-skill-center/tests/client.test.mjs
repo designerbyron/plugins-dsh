@@ -89,7 +89,7 @@ function loadClient() {
 
 test('el módulo se identifica con el nombre del paquete y sólo inyecta slots y locale', () => {
   const loaded = loadClient();
-  assert.equal(loaded.id, '@local/lifecode-skill-center');
+  assert.equal(loaded.id, 'dsh-lifecode-skill-center');
   assert.deepEqual([...loaded.module.inject], ['slots', 'locale']);
   assert.equal(typeof loaded.module.apply, 'function');
 });

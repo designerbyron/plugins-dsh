@@ -5,6 +5,48 @@ All notable changes to LifeCode Skill Center are documented here. The format fol
 its public plugin contract. Test counts and coverage figures are measurements of a specific run, not a
 promise; the promise is that the suite is green for the release being declared.
 
+## [1.1.0-rc.2] — 2026-11-26
+
+**Estado: RC no publicado, listo para aprobación humana.** Publica la identidad `dsh-lifecode-skill-center`
+y reconcilia el árbol de trabajo con la línea vendor completa, sin redistribuir contenido de terceros.
+
+### Added
+
+- **Adaptador Host sin bytes embebidos**: el manifiesto y las huellas del candidato viajan en el paquete;
+  los seis ficheros de Context7 y el script adaptado viven fuera de `files` y el resolvedor los obtiene
+  del tag/commit fijados sólo bajo solicitud humana, con firma verificada y SHA-256 por fichero.
+- **Comprobación del tarball publicable**: allowlist explícita y auditoría de nombre, versión, licencia,
+  entrypoints, exportaciones, parche Cordis, rango `engines.dsh`, secretos y contenido restringido.
+
+### Changed
+
+- La identidad pública pasa a `dsh-lifecode-skill-center@1.1.0-rc.2`; el id del bundle sigue siendo
+  `lifecode-skill-center` para no mover la configuración del perfil.
+- `engines.dsh` se fija en `>=0.2.0-0 <0.3.0`, rango compatible con el `dsh-tools 0.2.0-rc.2` medido
+  en el árbol y con el contrato v2 verificado por las pruebas.
+
+## [1.1.0] — 2026-11-26
+
+**Estado: candidato local en el worktree, no promocionado.** El plugin instalado sigue siendo el de la
+fase anterior; este paquete se entrega para que una persona lo instale con backup y DSH cerrado.
+
+### Added
+
+- **Fase I — vínculo histórico de solicitudes**: nueva colección `state.requestLinks`, escrita sólo por una
+  persona con rol *LifeCode Library Maintainer* desde el canal `browser`, que correlaciona
+  `req-562393e0835f` con la importación vendor fijada sin modificar la solicitud, sin activar la skill
+  y sin crear asignaciones. Dos acciones nuevas (`vendor-link-request`, `vendor-unlink-request`) con
+  `operationId` generado en backend, idempotencia, conflicto explícito y corrección auditada.
+- **Fase I — sección «Solicitud de origen»** en el panel del importador: muestra ID, texto histórico,
+  skill/versión, commit, operación original y manifest antes de la confirmación; después muestra la
+  relación sin presentar la petición como una importación pendiente. El cliente envía un cuerpo vacío.
+
+### Notas
+
+- La vinculación real sobre el almacén productivo **no se ejecutó**: queda como acción humana posterior.
+- Fase G (selector de ámbito) y Fase H (auditoría post-importación) viajan en el mismo árbol; sus
+  decisiones están registradas en `plans/LSC-UX-IA-VENDOR-001/`.
+
 ## [1.0.1] — 2026-11-09
 
 First stable release with the R16–R17.1 line. The plugin stops being a library panel with a project switch

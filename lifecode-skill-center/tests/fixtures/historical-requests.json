@@ -1,0 +1,37 @@
+{
+  "_source": "evidence/01-baseline-stores.txt (copia aislada de center.json de Fase A; no es un almacen real)",
+  "_schemaVersion": 2,
+  "_count": 3,
+  "requests": {
+    "req-f77c4f76b367": {
+      "id": "req-f77c4f76b367",
+      "text": "necesito una skill que compruebe que el plugin no escribe fuera de su carpeta",
+      "createdAt": "2026-11-09T07:00:57.104Z",
+      "status": "fulfilled",
+      "skillId": "comprueba-con-evidencia-que-un-plugin-de-dsh-no",
+      "fulfilledAt": "2026-11-09T07:01:55.224Z",
+      "by": "ai",
+      "note": ""
+    },
+    "req-ae7ed6149f96": {
+      "id": "req-ae7ed6149f96",
+      "text": "creame esa skill desde https://github.com/netresearch/context7-skill",
+      "createdAt": "2026-11-18T03:23:59.913Z",
+      "status": "dismissed",
+      "skillId": "",
+      "fulfilledAt": "2026-11-18T03:27:41.320Z",
+      "by": "",
+      "note": ""
+    },
+    "req-562393e0835f": {
+      "id": "req-562393e0835f",
+      "text": "vendoriza la skill desde https://github.com/netresearch/context7-skill",
+      "createdAt": "2026-11-18T03:28:07.079Z",
+      "status": "pending",
+      "skillId": "",
+      "fulfilledAt": "",
+      "by": "",
+      "note": ""
+    }
+  }
+}

@@ -25,9 +25,9 @@ function names(tools) {
   return tools.map((tool) => tool.name);
 }
 
-test('hay cinco herramientas y ninguna es de aprobar o activar', () => {
+test('hay seis herramientas y ninguna es de aprobar o activar', () => {
   const tools = centerTools({ root: store() });
-  assert.deepEqual(names(tools), ['lifecode_skill_search', 'lifecode_skill_create', 'lifecode_skill_improve', 'lifecode_skill_status', 'lifecode_skill_insight']);
+  assert.deepEqual(names(tools), ['lifecode_skill_search', 'lifecode_skill_create', 'lifecode_skill_improve', 'lifecode_skill_status', 'lifecode_skill_request', 'lifecode_skill_insight']);
   for (const tool of tools) {
     assert.equal(typeof tool.description, 'string');
     assert.ok(tool.description.length > 100, `la descripción de ${tool.name} tiene que explicar cuándo usarla`);

@@ -431,7 +431,7 @@ prueba del panel lo comprueba sobre el cuerpo del componente (ningún `useState`
 
 Segunda lección, del entorno: **cambiar `client.js` exige dos pasos, no uno**. El host construye el
 bundle de cliente al cargar el plugin y lo sirve con un identificador de contenido; recargar la página
-no lo reconstruye. La secuencia medida es: `plugin_manager set_bundle(@local/lifecode-skill-center,
+no lo reconstruye. La secuencia medida es: `plugin_manager set_bundle(dsh-lifecode-skill-center,
 enabled:false)` → `enabled:true` → recargar la página. Y para recargar de forma fiable en esta
 ventana, abrir *Herramientas de desarrollo* desde el menú **Solicitud** y recargar desde ahí: los
 atajos `Ctrl+R`/`F5` enviados por automatización no siempre llegan a la página.

@@ -10,7 +10,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { summarize } from './analytics.mjs';
 import { ACTIVITY_CATEGORY_FILTERS, ACTIVITY_DEFAULT_LIMIT, ACTIVITY_MAX_LIMIT, activityForResult, buildActivityFeed, decodeActivityCursor, knowledgeEventId, normalizeEvent } from './activity.mjs';
 import { buildInsights, parseFilters, EVENT_TYPES } from './insights.mjs';
@@ -36,7 +36,10 @@ import {
   toggleAssignment,
   advanceAssignments,
 } from './operations.mjs';
-import { dismissRequest, fulfillRequest, openRequest, requestView } from './requests.mjs';
+import {
+  blockRequest, claimRequest, deliverRequest, dismissRequest, failRequest, fulfillRequest,
+  linkProposal, openRequest, REQUEST_SCOPES, requestView, resumeRequest,
+} from './requests.mjs';
 import { candidateFromSkillFile } from './skillfile.mjs';
 import { scanExternalSkills } from './sources.mjs';
 import {
@@ -80,8 +83,29 @@ import * as inventoryModule from './inventory.mjs';
 import { detectCollisions } from './collisions.mjs';
 import * as preflightModule from './preflight.mjs';
 import * as projectsModule from './projects.mjs';
+import {
+  VENDOR_COMMIT_EVIDENCE, VENDOR_COMMIT_TREE, VENDOR_LICENSE_POLICY, VENDOR_MANIFEST_SHA256,
+  VENDOR_SKILL_ID, planVendorRollback, revertVendorImport, vendorImport, vendorValidate,
+} from './vendor.mjs';
+import {
+  VENDOR_LINK_REQUEST_ID, VENDOR_LINK_ROLE, linkVendorRequest, revertRequestLink, vendorRequestLinkOf,
+} from './request-links.mjs';
 
 export const API_VERSION = 1;
+
+/**
+ * Fase F: rol fijado en el backend (P-2). Ni `actor`, ni `role`, ni `userId` del cliente pueden
+ * otorgarlo. La identidad personal no existe en el Host medido: sólo hay peer admitido + sesión viva;
+ * por eso el rol se abre una sola vez con un bootstrap fail-closed y queda en el diario.
+ */
+export const VENDOR_MAINTAINER_ROLE = VENDOR_LINK_ROLE;
+const VENDOR_ACTIONS = new Set([
+  'vendor-enroll', 'vendor-review', 'vendor-import', 'vendor-rollback',
+  // Fase I: acciones humanas separadas; el modelo no tiene tool equivalente.
+  'vendor-link-request', 'vendor-unlink-request',
+]);
+/** El recibo lo escribe el dominio (no `withState`) para que un reintento no escriba nada. */
+const VENDOR_DOMAIN_RECEIPT_ACTIONS = new Set(['vendor-link-request', 'vendor-unlink-request']);
 
 /**
  * Contrato HTTP que implementa este backend (R16.2). Es aditivo: `apiVersion` sigue siendo 1 y las
@@ -102,6 +126,7 @@ export const CAPABILITY_IDS = [
   'preflight',
   'legacy-workspaces',
   'activity',
+  'panel-context',
 ];
 export const EXTERNAL_LIMIT = 140;
 
@@ -115,7 +140,7 @@ export const EXTERNAL_LIMIT = 140;
 export const API_PREFIX = '/lifecode-skill-center/api';
 
 /** Las acciones que cambian el catálogo que ve el agente: hay que invalidarlo después. */
-export const CHANGES_CATALOG = new Set(['create', 'publish', 'improve', 'decide', 'toggle', 'rollback', 'fork', 'import', 'import-bundle', 'evaluate', 'advance']);
+export const CHANGES_CATALOG = new Set(['create', 'publish', 'improve', 'decide', 'toggle', 'rollback', 'fork', 'import', 'import-bundle', 'evaluate', 'advance', 'vendor-import', 'vendor-rollback']);
 
 /** Los códigos de acción que tienen un estado HTTP propio; el resto conserva el 200 con `ok:false`. */
 const ACTION_HTTP_STATUS = Object.freeze({
@@ -330,6 +355,34 @@ export function identityPayload({ root, registry, workspaceItems = null } = {}) 
 
 /**
  * Inventario de identidad calculado en el acto:/**
+ * Fase G: proyectos que una solicitud puede declarar. La única fuente es el registro durable del centro
+ * (`state.projects`): un proyecto gestionado y con seguimiento. No se consulta el registro de workspaces
+ * del Host aquí (directiva §7: sondear `/api/state` no puede listar workspaces cada 20 s), no se camina
+ * ninguna carpeta y no se acepta una ruta ni un permiso enviados por el cliente. Un proyecto descubierto
+ * sin alta no existe en este mapa; un registro sin workspace válido (cwd ausente o relativo) se rechaza.
+ */
+export function requestProjectCandidates({ state } = {}) {
+  const eligible = [];
+  const rejected = [];
+  for (const [key, record] of Object.entries(state?.projects ?? {})) {
+    const id = String(key ?? '');
+    const recordedId = record?.id === undefined ? id : String(record.id);
+    const cwd = normalizeCwd(String(record?.cwd ?? ''));
+    if (id === '' || recordedId !== id || !isAbsolute(cwd)) {
+      rejected.push({ projectId: id, code: 'invalid-project' });
+      continue;
+    }
+    eligible.push({
+      id,
+      name: String(record?.name ?? '').trim() !== '' ? String(record.name) : id,
+      cwd,
+    });
+  }
+  eligible.sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+  return { eligible, byId: new Map(eligible.map((entry) => [entry.id, entry])), rejected };
+}
+
+/**
  * Inventario de identidad calculado en el acto: registros del centro + workspaces del Host + el manifiesto de
  * cada ruta conocida. Todo es síncrono (`workspaceRegistry.list()` lo es) para que la puerta de identidad
  * pueda decidir dentro de `runAction` sin convertir la API en asíncrona.
@@ -587,6 +640,8 @@ export function capabilitiesPayload({ now = new Date().toISOString(), pluginVers
       'GET /api/inventory': 'inventory',
       'GET /api/projects': 'projects',
       'GET /api/activity': 'activity',
+      'GET /api/state?panelProjectId': 'panel-context',
+      'POST /api#open': 'panel-context',
       'POST /api#inspect-project': 'inspect-project',
       'POST /api#register-project': 'register-project',
       'POST /api#adopt-project': 'adopt-project',
@@ -624,6 +679,8 @@ export function handleApiRequest({
   collisions: evidenceCollisions = null,
   pluginVersion = '',
   implementation = '',
+  handoff = null,
+  vendorBundle = null,
 } = {}) {
   const verb = String(method ?? 'GET').toUpperCase();
   const route = apiRouteOf(pathname);
@@ -742,7 +799,7 @@ export function handleApiRequest({
       return answer(detailStatus, detail);
     }
     if (route !== '' && route !== 'state') return notFound();
-    return answer(200, buildSnapshot({ root, cwd: cwd !== '' ? cwd : hostCwd, hostCwd, scan, dshHome, agentsHome, materializedRoot, now, analyticsDays, analyticsProject, analyticsSkill, analyticsFrom, analyticsTo, analyticsType, analyticsVersion, analyticsStatus }));
+    return answer(200, buildSnapshot({ root, cwd: cwd !== '' ? cwd : hostCwd, hostCwd, scan, dshHome, agentsHome, materializedRoot, now, analyticsDays, analyticsProject, analyticsSkill, analyticsFrom, analyticsTo, analyticsType, analyticsVersion, analyticsStatus, panelProjectId: String(params.get('panelProjectId') ?? '').slice(0, 120) }));
   }
 
   if (verb !== 'POST') {
@@ -787,6 +844,24 @@ export function handleApiRequest({
       message: 'la ruta del proyecto la fija la sesión del Host: no se acepta otra ruta del cliente',
     });
   }
+  // Fase B (H-01): abrir el panel es una LECTURA. `runAction('open')` conserva su semántica histórica
+  // para herramientas y pruebas, pero el canal HTTP del panel ya no da de alta proyectos: un proyecto
+  // visto se devuelve como no registrado y sólo `register-project` lo gestiona, con preflight y evento.
+  if (action === 'open') {
+    const opened = buildSnapshot({
+      root,
+      cwd: cwd !== '' ? cwd : hostCwd,
+      hostCwd,
+      now,
+      scan: payload.scan === true || body.scan === true,
+      dshHome,
+      agentsHome,
+      materializedRoot: materialized,
+      panelProjectId: String(payload.panelProjectId ?? body.panelProjectId ?? '').slice(0, 120),
+    });
+    return answer(200, { ...opened, opened: true });
+  }
+
   const result = runAction({
     root,
     action,
@@ -811,6 +886,12 @@ export function handleApiRequest({
     // R17: el canal que admitió la petición es la evidencia de quién actúa (aquí sólo puede ser una
     // persona del panel; la IA entra por las herramientas, con su propio `actor`).
     actorEvidence: { kind: 'human', source: 'ui-channel', channel },
+    // Fase C: el adaptador inyecta la única función que puede tocar un agente vivo. El núcleo recibe
+    // una dependencia, no un servicio del Host: sigue siendo puro y verificable con cajas de arena.
+    handoff,
+    // El candidato, la firma y el preflight los prepara el adaptador del Host con datos PINNED.
+    // Nunca viajan en el cuerpo HTTP: un cliente no puede sustituirlos por los suyos.
+    vendorBundle,
   });
   const status = result?.ok === true
     ? 200
@@ -2007,19 +2088,48 @@ function viewOfVersion(version) {
  * La foto que pinta el panel. **No barre el disco por defecto**: `scan: true` camina las skills externas
  * (la biblioteca del usuario y el proyecto) y eso cuesta decenas de milisegundos; la foto se refresca cada
  * pocos segundos, así que el barrido se pide explícitamente al abrir el panel o al pulsar «Buscar fuera».
- * Sólo lee; registra un proyecto únicamente cuando el llamante lo ha pedido
- * explícitamente (`runAction('open')`), porque un proyecto visto no es un proyecto autorizado.
+ * Sólo lee. Un proyecto visto no es un proyecto autorizado: la alta explícita es `register-project`.
+ * Desde Fase B publica dos contextos separados —el del panel, elegido por la persona y validado contra
+ * el registro, y el de la sesión del agente, medido por el Host— sin confundirlos ni escribir por leer.
  */
-export function buildSnapshot({ root = centerRoot(), cwd = '', now = new Date().toISOString(), scan = false, externalLimit = EXTERNAL_LIMIT, hostCwd = '', dshHome = '', agentsHome = '', materializedRoot = '', analyticsDays = 14, analyticsProject = '', analyticsSkill = '', analyticsFrom = '', analyticsTo = '', analyticsType = '', analyticsVersion = '', analyticsStatus = '' } = {}) {
+export function buildSnapshot({ root = centerRoot(), cwd = '', now = new Date().toISOString(), scan = false, externalLimit = EXTERNAL_LIMIT, hostCwd = '', dshHome = '', agentsHome = '', materializedRoot = '', analyticsDays = 14, analyticsProject = '', analyticsSkill = '', analyticsFrom = '', analyticsTo = '', analyticsType = '', analyticsVersion = '', analyticsStatus = '', panelProjectId = '' } = {}) {
   const loaded = loadState(root);
   const state = loaded.state ?? emptyState(now);
-  const registered = findProject(state, cwd);
-  const normalizedCwd = normalizeCwd(cwd);
+  // Fase G: la lista del compositor la calcula el servidor con las mismas reglas que la acción.
+  const requestProjects = requestProjectCandidates({ state }).eligible;
+  // El panel elige identidad, no una ruta arbitraria: un projectId que no esté en el registro se
+  // declara no resuelto y NO se convierte en un proyecto válido. La ruta de la sesión sigue siendo
+  // el contexto del agente, que el panel nunca modifica.
+  const requested = panelProjectId === '' ? null : state.projects?.[panelProjectId] ?? null;
+  const invalidSelection = panelProjectId !== '' && requested === null;
+  const effectiveCwd = !invalidSelection && requested !== null ? String(requested.cwd ?? cwd) : cwd;
+  const registered = findProject(state, effectiveCwd);
+  const normalizedCwd = normalizeCwd(effectiveCwd);
   const project = registered === null
     ? (normalizedCwd === ''
       ? null
       : { id: projectIdFor(normalizedCwd), name: projectNameFor(normalizedCwd), cwd: normalizedCwd, createdAt: '', updatedAt: '', note: '', registered: false })
     : { ...registered, registered: true };
+  const panelContext = invalidSelection
+    ? { projectId: '', name: '', cwd: '', selectionSource: 'unresolved', resolved: false, updatedAt: '' }
+    : {
+      projectId: String(requested?.id ?? project?.id ?? ''),
+      name: String(requested?.name ?? project?.name ?? ''),
+      cwd: normalizedCwd,
+      selectionSource: panelProjectId !== '' ? 'validated-selection' : normalizedCwd !== '' ? 'host-cwd' : 'unresolved',
+      resolved: requested !== null || project?.registered === true,
+      updatedAt: String(requested?.updatedAt ?? ''),
+    };
+  const agentCwd = normalizeCwd(hostCwd);
+  const agentContext = agentCwd === ''
+    ? { cwd: '', projectId: '', state: 'unresolvable', source: 'unavailable', via: 'unavailable' }
+    : {
+      cwd: agentCwd,
+      projectId: String(findProject(state, agentCwd)?.id ?? projectIdFor(agentCwd)),
+      state: 'session-resolved',
+      source: 'session',
+      via: 'session-cwd',
+    };
 
   const assignments = state.assignments ?? {};
   const skills = Object.values(state.skills ?? {}).map((skill) => {
@@ -2172,9 +2282,14 @@ export function buildSnapshot({ root = centerRoot(), cwd = '', now = new Date().
     },
     cwd: normalizedCwd,
     hostCwd: normalizeCwd(hostCwd),
+    // Fase B: dos contextos nominalmente distintos. Ninguno se deriva del estado visual del cliente.
+    panelContext,
+    agentContext,
     project,
     skills,
     projects,
+    // Fase G: elegibles para `request-skill`, nunca la lista completa de proyectos ni descubrimientos.
+    requestProjects,
     assignments,
     improvements,
     events,
@@ -2609,6 +2724,114 @@ function bundlePreviewOf({ root, state, read, data, now, cwd, measuredInventory,
   };
 }
 
+/**
+ * Fase F: prepara la revisión humana del candidato fijado. Sólo lee; la API no descubre el upstream,
+ * no descarga nada y no acepta bytes del cliente: todo viene del bundle que el Host inyectó.
+ */
+function vendorReviewFrom(state, bundle, { now = new Date().toISOString() } = {}) {
+  if (!isPlainObject(bundle) || bundle.ok !== true) {
+    return { ok: false, code: 'vendor.host-unavailable', message: 'el Host no entregó la evidencia vendor fijada; no se revisa nada' };
+  }
+  const candidate = bundle.candidate;
+  if (candidate?.ok !== true || candidate.manifestSha256 !== VENDOR_MANIFEST_SHA256) {
+    return { ok: false, code: 'vendor.manifest-mismatch', message: 'el candidato no es el fijado en la decisión humana' };
+  }
+  const assignments = state?.assignments ?? {};
+  const options = isPlainObject(bundle.options) ? bundle.options : {};
+  const validation = vendorValidate(candidate, {
+    ...options,
+    commitEvidence: VENDOR_COMMIT_EVIDENCE,
+    commitTree: VENDOR_COMMIT_TREE,
+    assignmentsBefore: assignments,
+    assignmentsAfter: assignments,
+    signatureProof: bundle.signatureProof ?? null,
+  });
+  const exists = state?.skills?.[VENDOR_SKILL_ID] !== undefined;
+  return {
+    ok: true,
+    vendor: {
+      candidateId: candidate.candidateId,
+      repository: candidate.repository,
+      tag: candidate.tag,
+      commit: candidate.commit,
+      manifestSha256: candidate.manifestSha256,
+      skillId: VENDOR_SKILL_ID,
+      files: candidate.files.map(({ path, sha256, bytes, license }) => ({ path, sha256, bytes, license })),
+      license: {
+        byFile: candidate.license?.byFile ?? {},
+        policy: VENDOR_LICENSE_POLICY,
+        ambiguous: validation.ambiguousLicense,
+        legalReviewRequired: true,
+        attribution: 'Netresearch DTT GmbH',
+      },
+      signatureVerification: validation.signatureVerification,
+      signatureProof: validation.signatureProof,
+      licensePolicy: VENDOR_LICENSE_POLICY,
+      legalReviewRequired: true,
+      ambiguousLicense: validation.ambiguousLicense,
+      validation: {
+        ok: validation.ok,
+        code: validation.code,
+        checks: validation.checks,
+        failures: validation.failures,
+      },
+      dependencies: bundle.dependencies ?? null,
+      collision: exists ? 'exists' : 'none',
+      // F-32: el panel necesita el estado exacto para no mostrar botones que luego fallan.
+      maintainerEnrolled: vendorMaintainerOf(state) !== null,
+      importState: (() => {
+        const value = state?.skills?.[VENDOR_SKILL_ID]?.vendorState;
+        return typeof value === 'string' && value !== '' ? value : null;
+      })(),
+      canImport: validation.ok === true && !exists,
+      reviewerRole: VENDOR_MAINTAINER_ROLE,
+      reviewedAt: now,
+      // Fase I: la foto del vínculo es de sólo lectura. La solicitud se muestra como dato, sin
+      // reescribir su `pending` y sin confundirla con una importación pendiente de ejecutar.
+      sourceRequest: (() => {
+        const request = state?.requests?.[VENDOR_LINK_REQUEST_ID] ?? null;
+        if (request === null || typeof request !== 'object') return null;
+        return {
+          id: String(request.id ?? ''),
+          text: String(request.text ?? ''),
+          status: String(request.status ?? ''),
+        };
+      })(),
+      requestLink: vendorRequestLinkOf(state, VENDOR_LINK_REQUEST_ID),
+      importOperationId: (Array.isArray(state?.events) ? state.events : []).find((event) =>
+        event?.type === 'skill-vendor-imported' && event?.skillId === VENDOR_SKILL_ID)?.operationId ?? null,
+      importVersion: state?.skills?.[VENDOR_SKILL_ID]?.currentVersion ?? null,
+    },
+  };
+}
+
+function vendorMaintainerOf(state) {
+  return (Array.isArray(state?.events) ? state.events : []).find((event) =>
+    event?.type === 'vendor-maintainer-enrolled' && event?.by === VENDOR_MAINTAINER_ROLE) ?? null;
+}
+
+/**
+ * Compuertas de canal y rol: el modelo no puede llamar a estas acciones y el cliente no elige rol.
+ *
+ * La confirmación NO se lee del cuerpo: el contrato prohíbe aceptar `confirmed`, `role`, `actor`,
+ * `userId`, `operationId` ni `signatureVerification` del cliente. La confirmación es el propio acto
+ * de pulsar el botón en el panel admitido: el adaptador fija `actor:'human'` y `channel:'browser'`,
+ * y el backend exige además el rol habilitado una sola vez. Un campo `confirmed` del cliente no
+ * puede abrir ni cerrar la compuerta.
+ */
+function vendorHumanGate({ name, actor, channel, state }) {
+  if (!VENDOR_ACTIONS.has(name)) return null;
+  if (actor !== 'human' || channel !== CHANNEL_BROWSER) {
+    return { ok: false, code: 'vendor.human-required', message: 'sólo una persona del panel puede preparar o confirmar una importación vendor' };
+  }
+  // `vendor-review` sólo lee y `vendor-enroll` es el bootstrap que crea el rol: ninguno puede exigirlo.
+  if (name === 'vendor-review' || name === 'vendor-enroll') return null;
+  if (vendorMaintainerOf(state) === null) {
+    return { ok: false, code: 'vendor.maintainer-required', message: 'hay que habilitar una sola vez el rol LifeCode Library Maintainer desde el panel' };
+  }
+  return null;
+}
+
 export function runAction({
   root = centerRoot(),
   action,
@@ -2628,6 +2851,8 @@ export function runAction({
   inventory = null,
   collisions = null,
   actorEvidence = null,
+  handoff = null,
+  vendorBundle = null,
 } = {}) {
   const name = String(action ?? '');
   const data = payload !== null && typeof payload === 'object' ? payload : {};
@@ -2642,7 +2867,19 @@ export function runAction({
         : 'panel';
   // El canal del adaptador (`browser`, `api`) se publica como el canal de actividad del contrato.
   const eventChannel = rawChannel === 'browser' || rawChannel === 'ui' ? 'panel' : rawChannel;
-  const eventOperationId = typeof data.operationId === 'string' ? data.operationId.trim() : '';
+  // Fase F: las operaciones vendor las numeramos aquí, nunca en el cliente. Un `operationId` del
+  // cuerpo no puede elegir el comprobante ni repetir/suplantar una importación.
+  const vendorOperationId = VENDOR_ACTIONS.has(name) ? `lsc-vendor-${randomUUID()}` : '';
+  // Fase I: el vínculo (y su corrección) llevan su propio operationId, siempre distinto del de la
+  // importación. Lo genera el backend y lo escribe el dominio dentro de la misma transacción.
+  const linkOperationId = VENDOR_DOMAIN_RECEIPT_ACTIONS.has(name)
+    ? `lsc-vendor-${name === 'vendor-unlink-request' ? 'unlink' : 'link'}-${randomUUID()}`
+    : '';
+  const eventOperationId = linkOperationId !== ''
+    ? linkOperationId
+    : vendorOperationId !== ''
+      ? vendorOperationId
+      : (typeof data.operationId === 'string' ? data.operationId.trim() : '');
   const eventDefaults = {
     channel: eventChannel,
     ...(eventOperationId === '' ? {} : { operationId: eventOperationId }),
@@ -2758,6 +2995,15 @@ export function runAction({
       clientAction: 'uiWorkspace.openWorkspace',
       workspaceId: workspaceId !== '' ? workspaceId : null,
     };
+  }
+
+  // Fase F: revisar el candidato es de sólo lectura. Ni siquiera el Maintainer escribe al mirar.
+  if (name === 'vendor-review') {
+    const gate = vendorHumanGate({ name, actor, channel: rawChannel, data, state: null });
+    if (gate !== null) return gate;
+    const loaded = loadState(root);
+    if (!canWrite(loaded.integrity)) return unreadableResult(loaded);
+    return { apiVersion: API_VERSION, ...vendorReviewFrom(loaded.state, vendorBundle, { now }) };
   }
 
   // La foto que se refresca cada pocos segundos no barre el disco: el barrido externo se pide con
@@ -3744,6 +3990,40 @@ export function runAction({
         // Idempotencia por petición (directiva §9): si el agente reintenta una creación con el mismo
         // `requestId`, la respuesta es la skill que ya se creó, no una segunda copia en la biblioteca.
         const retryRequest = String(data.requestId ?? '').trim();
+        const linkPrecheck = () => {
+          if (retryRequest === '') return null;
+          const record = (state.requests ?? {})[retryRequest];
+          if (record === undefined) return { ok: false, code: 'unknown-request', message: `no existe la petición ${retryRequest}` };
+          if (record.status === 'fulfilled') return null;
+          // Un registro v2 no tiene tipo ni entrega: es heredado y se atiende como antes. Las peticiones
+          // nuevas no se saltan la entrega: reclamar una no entregada sería fingir trabajo.
+          const legacy = record.kind === undefined && record.delivery === undefined;
+          if (record.status === 'pending' && legacy) return null;
+          if (record.status === 'processing') {
+            if (String(record.claim?.owner ?? '') !== String(data.sessionId ?? '')) {
+              return { ok: false, code: 'claim-mismatch', message: 'otra sesión tiene el reclamo de esa petición' };
+            }
+            return null;
+          }
+          if (record.status === 'delivered') {
+            const claimed = claimRequest(state, retryRequest, {
+              owner: String(data.sessionId ?? ''), sessionId: String(data.sessionId ?? ''),
+            }, { now, actor });
+            return claimed.ok === true ? null : claimed;
+          }
+          return { ok: false, code: 'not-delivered', message: 'la petición tiene que estar entregada y reclamada antes de crear su skill' };
+        };
+        const precheck = linkPrecheck();
+        if (precheck !== null) return precheck;
+        const finishLink = (result) => {
+          if (result?.ok !== true || retryRequest === '' || result.idempotent === true) return result;
+          const linked = fulfillRequest(state, retryRequest, {
+            skillId: result.id, sessionId: data.sessionId, note: `creada para ${retryRequest}`,
+          }, { now, actor });
+          return linked.ok === true
+            ? { ...result, requestId: retryRequest, requestLinked: true }
+            : { ...result, requestLink: { ok: false, code: linked.code, message: linked.message } };
+        };
         if (retryRequest !== '') {
           const previous = (state.requests ?? {})[retryRequest];
           const previousSkill = previous === undefined ? undefined : state.skills?.[String(previous.skillId ?? '')];
@@ -3801,12 +4081,12 @@ export function runAction({
           }
           return { ...result, insightLink: linked ?? { insightId, linked: false, code: 'insight-not-found' } };
         };
-        if (actor !== 'ai') return fromInsight(finishCreate(createSkill(state, data, { now, actor })));
+        if (actor !== 'ai') return finishLink(fromInsight(finishCreate(createSkill(state, data, { now, actor }))));
         const gate = autonomousDecision({ root, state, operation: 'create-skill', skillId: String(data.id ?? ''), explicitRequest: false, insightIds: Array.isArray(data.insightIds) ? data.insightIds : [], now });
         if (!gate.allowed) return gate.refusal;
         const created = fromInsight(finishCreate(createSkill(state, data, { now, actor })));
         settleGate(root, gate, created, now);
-        return created.ok === true ? { ...created, decisionId: gate.decisionId, evidenceLevel: gate.level, logged: gate.logged } : created;
+        return created.ok === true ? { ...finishLink(created), decisionId: gate.decisionId, evidenceLevel: gate.level, logged: gate.logged } : created;
       }
       case 'publish': {
         const gate = actor === 'ai'
@@ -3818,12 +4098,42 @@ export function runAction({
         return gate.decisionId && published.ok === true ? { ...published, decisionId: gate.decisionId } : published;
       }
       case 'improve': {
-        if (actor !== 'ai') return proposeImprovement(state, String(data.skillId ?? data.id ?? ''), data, { now, actor });
+        const linkRequestId = String(data.requestId ?? '').trim();
+        const linkCheck = () => {
+          if (linkRequestId === '') return null;
+          const record = (state.requests ?? {})[linkRequestId];
+          if (record === undefined) return { ok: false, code: 'unknown-request', message: `no existe la petición ${linkRequestId}` };
+          const legacy = record.kind === undefined && record.delivery === undefined;
+          if (record.status === 'pending' && legacy) return null;
+          if (record.status === 'processing') {
+            if (String(record.claim?.owner ?? '') !== String(data.sessionId ?? '')) return { ok: false, code: 'claim-mismatch', message: 'otra sesión tiene el reclamo de esa petición' };
+            return null;
+          }
+          if (record.status === 'delivered') {
+            const claimed = claimRequest(state, linkRequestId, {
+              owner: String(data.sessionId ?? ''), sessionId: String(data.sessionId ?? ''),
+            }, { now, actor });
+            return claimed.ok === true ? null : claimed;
+          }
+          return { ok: false, code: 'not-delivered', message: 'la petición tiene que estar entregada y reclamada antes de proponer su mejora' };
+        };
+        const checked = linkCheck();
+        if (checked !== null) return checked;
+        const finishProposalLink = (result) => {
+          if (result?.ok !== true || linkRequestId === '') return result;
+          const linked = linkProposal(state, linkRequestId, {
+            improvementId: result.improvementId, sessionId: data.sessionId,
+          }, { now, actor });
+          return linked.ok === true
+            ? { ...result, requestId: linkRequestId, requestLinked: true, requestStatus: linked.request.status }
+            : { ...result, requestLink: { ok: false, code: linked.code, message: linked.message } };
+        };
+        if (actor !== 'ai') return finishProposalLink(proposeImprovement(state, String(data.skillId ?? data.id ?? ''), data, { now, actor }));
         const gate = autonomousDecision({ root, state, operation: 'improve-skill', skillId: String(data.skillId ?? data.id ?? ''), explicitRequest: false, insightIds: Array.isArray(data.insightIds) ? data.insightIds : [], now });
         if (!gate.allowed) return gate.refusal;
         const proposed = proposeImprovement(state, String(data.skillId ?? data.id ?? ''), data, { now, actor });
         settleGate(root, gate, proposed, now);
-        return proposed.ok === true ? { ...proposed, decisionId: gate.decisionId } : proposed;
+        return proposed.ok === true ? { ...finishProposalLink(proposed), decisionId: gate.decisionId } : proposed;
       }
       case 'decide': {
         const approve = String(data.decision ?? '') === 'approve';
@@ -4042,15 +4352,105 @@ export function runAction({
         }, { now, actor });
       }
       case 'request-skill': {
-        const opened = openRequest(state, { text: data.text }, { now, actor });
+        // El ámbito lo decide la persona en el compositor. El id canónico y la elegibilidad los
+        // resuelve el servidor contra su registro durable: ni la lista, ni los permisos, ni el `cwd`
+        // enviados por el cliente tienen voz. Crear la petición no activa ni asigna nada.
+        const scope = data.scope === undefined || data.scope === '' ? 'global' : String(data.scope);
+        if (!REQUEST_SCOPES.includes(scope)) {
+          return { ok: false, code: 'invalid-scope', message: `ámbito desconocido: ${scope}` };
+        }
+        let projectId = null;
+        if (scope === 'project') {
+          const askedId = typeof data.projectId === 'string' ? data.projectId.trim() : '';
+          if (askedId === '') {
+            return { ok: false, code: 'missing-project', message: 'elige un proyecto gestionado con workspace válido antes de enviar' };
+          }
+          const eligible = requestProjectCandidates({ state }).byId.get(askedId);
+          if (eligible === undefined) {
+            return { ok: false, code: 'project-not-eligible', message: 'ese proyecto no está gestionado por el centro o no tiene un workspace válido: regístralo o elige Global' };
+          }
+          projectId = eligible.id;
+        } else if (data.projectId !== undefined && data.projectId !== null && String(data.projectId) !== '') {
+          return { ok: false, code: 'invalid-project-scope', message: 'una petición global no puede declarar un proyecto' };
+        }
+        const opened = openRequest(state, {
+          text: data.text,
+          kind: data.kind,
+          scope,
+          projectId,
+          sourceUrl: data.sourceUrl,
+        }, { now, actor });
         if (opened.ok !== true) return opened;
         if (opened.duplicate !== true) {
-          if (opened?.request !== null && typeof opened.request === 'object' && opened.request.requestedBy === undefined) {
-            opened.request.requestedBy = actor === 'ai' ? 'ai' : 'human';
-          }
           appendEvent(state, { at: now, type: 'skill.requested', actor, note: opened.id });
         }
         return opened;
+      }
+      case 'request-deliver': {
+        // Entrega real al agente: el adaptador resuelve el sessionId contra agentes vivos. Sin handoff
+        // no se escribe nada y la petición sigue pendiente: preparar/copiar es el fallback honesto.
+        const requestId = String(data.requestId ?? '');
+        const sessionId = String(data.sessionId ?? '').trim();
+        if (actor !== 'human') return { ok: false, code: 'approval-required', message: 'sólo el panel puede entregar una petición' };
+        if (sessionId === '') return { ok: false, code: 'missing-session', message: 'no hay sesión del agente identificada: usa «Preparar instrucción»' };
+        const record = (state.requests ?? {})[requestId];
+        if (record === undefined) return { ok: false, code: 'unknown-request', message: `no existe la petición ${requestId}` };
+        if (String(record.projectId ?? '') !== '' && String(data.sessionProjectId ?? '') !== '' && String(record.projectId) !== String(data.sessionProjectId)) {
+          return { ok: false, code: 'project-conflict', message: 'la petición es de otro proyecto: no se entrega a esta sesión' };
+        }
+        if (typeof handoff !== 'function') return { ok: false, code: 'handoff-unavailable', message: 'el Host no expone entrega a la sesión: la petición sigue pendiente' };
+        let delivery;
+        try {
+          delivery = handoff({
+            requestId,
+            sessionId,
+            text: String(record.text ?? ''),
+            kind: String(record.kind ?? 'general'),
+            scope: String(record.scope ?? 'legacy/global'),
+            projectId: String(record.projectId ?? ''),
+            sourceUrl: String(record.sourceUrl ?? ''),
+          });
+        } catch (error) {
+          delivery = { ok: false, code: 'handoff-failed', message: String(error?.message ?? error) };
+        }
+        if (delivery?.ok !== true) {
+          return { ok: false, code: delivery?.code ?? 'handoff-failed', message: delivery?.message ?? 'el Host no aceptó la entrega' };
+        }
+        const delivered = deliverRequest(state, requestId, {
+          sessionId, messageId: String(delivery.messageId ?? ''), via: String(delivery.via ?? 'agents.followup'),
+        }, { now, actor });
+        if (delivered.ok !== true) return delivered;
+        appendEvent(state, { at: now, type: 'skill.request-delivered', actor, note: `${requestId}:${String(delivery.messageId ?? '')}` });
+        return { ...delivered, delivery: delivered.request.delivery };
+      }
+      case 'request-claim': {
+        const claimed = claimRequest(state, String(data.requestId ?? ''), {
+          owner: String(data.owner ?? data.sessionId ?? ''),
+          sessionId: String(data.sessionId ?? ''),
+        }, { now, actor });
+        if (claimed.ok === true) appendEvent(state, { at: now, type: 'skill.request-claimed', actor, note: claimed.id });
+        return claimed;
+      }
+      case 'request-fail': {
+        const failed = failRequest(state, String(data.requestId ?? ''), {
+          sessionId: String(data.sessionId ?? ''), errorCode: String(data.errorCode ?? ''),
+        }, { now, actor });
+        if (failed.ok === true) appendEvent(state, { at: now, type: 'skill.request-failed', actor, note: `${failed.id}:${failed.request.errorCode}` });
+        return failed;
+      }
+      case 'request-block': {
+        const blocked = blockRequest(state, String(data.requestId ?? ''), {
+          sessionId: String(data.sessionId ?? ''),
+          blockedReason: String(data.blockedReason ?? ''),
+          errorCode: String(data.errorCode ?? ''),
+        }, { now, actor });
+        if (blocked.ok === true) appendEvent(state, { at: now, type: 'skill.request-blocked', actor, note: `${blocked.id}:${blocked.request.blockedReason}` });
+        return blocked;
+      }
+      case 'request-resume': {
+        const resumed = resumeRequest(state, String(data.requestId ?? ''), { now, actor });
+        if (resumed.ok === true) appendEvent(state, { at: now, type: 'skill.request-resumed', actor, note: resumed.id });
+        return resumed;
       }
       case 'request-fulfill': {
         const fulfillRequestId = String(data.requestId ?? '');
@@ -4067,7 +4467,9 @@ export function runAction({
             return { ok: false, code: 'approval-required', message: 'una petición se cierra con la skill creada para ella, no con una anterior: eso lo decide una persona' };
           }
         }
-        const fulfilled = fulfillRequest(state, fulfillRequestId, { skillId: data.skillId, note: data.note }, { now, actor });
+        const fulfilled = fulfillRequest(state, fulfillRequestId, {
+          skillId: data.skillId, note: data.note, sessionId: String(data.sessionId ?? ''),
+        }, { now, actor });
         if (fulfilled.ok !== true) return fulfilled;
         appendEvent(state, { at: now, type: 'skill.request-fulfilled', actor, skillId: fulfilled.request.skillId, note: fulfilled.id });
         return fulfilled;
@@ -4078,10 +4480,107 @@ export function runAction({
         appendEvent(state, { at: now, type: 'skill.request-dismissed', actor, note: dismissed.id });
         return dismissed;
       }
+      case 'vendor-enroll':
+      case 'vendor-import':
+      case 'vendor-rollback': {
+        const gate = vendorHumanGate({ name, actor, channel: rawChannel, data, state });
+        if (gate !== null) return gate;
+
+        if (name === 'vendor-enroll') {
+          const existing = vendorMaintainerOf(state);
+          if (existing !== null) {
+            return { ok: true, replayed: true, enrolled: true, role: VENDOR_MAINTAINER_ROLE, operationId: String(existing.operationId ?? '') };
+          }
+          appendEvent(state, {
+            at: now,
+            type: 'vendor-maintainer-enrolled',
+            code: 'vendor.maintainer.enrolled',
+            actor: 'human',
+            by: VENDOR_MAINTAINER_ROLE,
+            vendorState: 'enabled',
+            note: 'bootstrap fail-closed del rol de Maintainer; una sola vez, desde el panel',
+            channel: rawChannel,
+            operationId: eventOperationId,
+          });
+          return { ok: true, enrolled: true, role: VENDOR_MAINTAINER_ROLE, operationId: eventOperationId, failClosed: true };
+        }
+
+        const review = vendorReviewFrom(state, vendorBundle, { now });
+        if (review.ok !== true) return review;
+        if (review.vendor.validation.ok !== true) {
+          return { ok: false, code: 'vendor.validation-failed', failures: review.vendor.validation.failures, vendor: review.vendor };
+        }
+
+        if (name === 'vendor-import') {
+          // La colisión y la idempotencia las decide el núcleo vendor sobre la procedencia real:
+          // un reintento con el mismo candidato es `idempotent`, otro candidato con el mismo id es
+          // `vendor.id-conflict`. Aquí no sobrescribimos nada ni dejamos que el cliente elija.
+          const validation = {
+            ok: true,
+            code: review.vendor.validation.code,
+            checks: review.vendor.validation.checks,
+            failures: review.vendor.validation.failures,
+            signatureVerification: review.vendor.signatureVerification,
+            signatureProof: review.vendor.signatureProof,
+            ambiguousLicense: review.vendor.ambiguousLicense,
+            licensePolicy: review.vendor.licensePolicy,
+            legalReviewRequired: true,
+          };
+          const imported = vendorImport(state, {
+            confirmed: true,
+            operationId: eventOperationId,
+            candidate: vendorBundle.candidate,
+            validation,
+            skillId: VENDOR_SKILL_ID,
+            approvedBy: VENDOR_MAINTAINER_ROLE,
+            channel: rawChannel,
+            note: String(data.note ?? '').slice(0, 400),
+          }, { now, actor: 'human' });
+          return imported;
+        }
+
+        // Reversión: el operationId de importación se toma del diario, nunca del cuerpo HTTP.
+        const importedEvent = (Array.isArray(state.events) ? state.events : [])
+          .filter((event) => event?.type === 'skill-vendor-imported' && event?.skillId === VENDOR_SKILL_ID)
+          .at(-1) ?? null;
+        if (importedEvent === null) {
+          return { ok: false, code: 'vendor.rollback.no-event', message: 'no hay una importación vendor registrada para revertir' };
+        }
+        const alreadyReverted = (Array.isArray(state.events) ? state.events : []).some((event) =>
+          event?.type === 'skill-vendor-reverted' && event?.skillId === VENDOR_SKILL_ID);
+        if (alreadyReverted) {
+          return { ok: true, replayed: true, code: 'vendor.rollback.idempotent', operationId: String(importedEvent.operationId ?? '') };
+        }
+        const plan = planVendorRollback(state, {
+          skillId: VENDOR_SKILL_ID,
+          version: String(importedEvent.version ?? ''),
+          operationId: String(importedEvent.operationId ?? ''),
+        });
+        if (plan.ok !== true) return plan;
+        return revertVendorImport(state, {
+          skillId: VENDOR_SKILL_ID,
+          version: plan.version,
+          operationId: plan.operationId,
+          approvedBy: VENDOR_MAINTAINER_ROLE,
+        }, { now });
+      }
+      case 'vendor-link-request':
+      case 'vendor-unlink-request': {
+        // Fase I: el cuerpo no es autoridad. Sólo el adaptador fija el canal y el backend el rol.
+        const gate = vendorHumanGate({ name, actor, channel: rawChannel, data, state });
+        if (gate !== null) return gate;
+        const options = { now, actor: 'human', role: VENDOR_MAINTAINER_ROLE, channel: rawChannel };
+        return name === 'vendor-link-request'
+          ? linkVendorRequest(state, { operationId: linkOperationId }, options)
+          : revertRequestLink(state, { operationId: linkOperationId }, options);
+      }
       default:
         return { ok: false, code: 'unknown-action', message: `la acción "${name}" no existe` };
     }
-  }, { now, eventDefaults, operationId: eventOperationId, operationKind: name });
+  // Fase F: `vendorImport`/`revertVendorImport` registran su propio comprobante con huella y uuid.
+  // Pasar el operationId a withState lo sobrescribiría con un recibo magro (state.mjs:1114-1118),
+  // así que esas acciones dejan que el núcleo vendor sea la única fuente del comprobante.
+  }, { now, eventDefaults, operationId: VENDOR_ACTIONS.has(name) ? '' : eventOperationId, operationKind: name });
 
   if (!mutation.ok && mutation.code === 'store-unreadable') {
     return unreadableResultFromStore(mutation, 'el centro no se puede leer: los datos originales están preservados y no se ha escrito nada');

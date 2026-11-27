@@ -41,15 +41,20 @@ test('reintentar una creación con el mismo requestId devuelve la skill ya cread
   const opened = runAction({ root, action: 'request-skill', actor: 'human', payload: { text: 'necesito una revisión de plugins' }, now: NOW });
   assert.equal(opened.ok, true);
   const requestId = opened.id;
+  const sessionId = 'ses-idempotencia';
+  const delivered = runAction({
+    root, action: 'request-deliver', actor: 'human',
+    payload: { requestId, sessionId }, now: NOW,
+    handoff: ({ requestId: id, sessionId: session }) => ({ ok: true, messageId: `msg-${id}`, via: 'test', sessionId: session }),
+  });
+  assert.equal(delivered.ok, true, JSON.stringify(delivered));
 
-  const first = runAction({ root, action: 'create', actor: 'ai', payload: { ...skillInput(), requestId }, now: NOW });
+  const first = runAction({ root, action: 'create', actor: 'ai', payload: { ...skillInput(), requestId, sessionId }, now: NOW });
   assert.equal(first.ok, true, JSON.stringify(first));
   assert.equal(first.id, 'revisa-un-plugin-antes-de-instalarlo');
+  assert.equal(first.requestLinked, true, 'crear y ligar son la misma transacción');
 
-  const linked = runAction({ root, action: 'request-fulfill', actor: 'ai', payload: { requestId, skillId: first.id }, now: NOW });
-  assert.equal(linked.ok, true, JSON.stringify(linked));
-
-  const retry = runAction({ root, action: 'create', actor: 'ai', payload: { ...skillInput(), requestId }, now: NOW });
+  const retry = runAction({ root, action: 'create', actor: 'ai', payload: { ...skillInput(), requestId, sessionId }, now: NOW });
   assert.equal(retry.ok, true);
   assert.equal(retry.idempotent, true, 'un reintento no es una creación');
   assert.equal(retry.id, first.id);
@@ -60,12 +65,12 @@ test('reintentar una creación con el mismo requestId devuelve la skill ya cread
   assert.equal(state.requests[requestId].status, 'fulfilled');
 });
 
-test('crear con un requestId desconocido no se confunde con un reintento', () => {
+test('crear con un requestId desconocido se rechaza en vez de inventar un enlace', () => {
   const root = autonomyRoot('lsc-idempotency-unknown');
   const created = runAction({ root, action: 'create', actor: 'ai', payload: { ...skillInput(), requestId: 'req-inventado' }, now: NOW });
-  assert.equal(created.ok, true);
-  assert.equal(created.idempotent, undefined, 'sin petición previa cumplida, crear es crear');
-  assert.equal(Object.keys(loadState(root).state.skills).length, 1);
+  assert.equal(created.ok, false);
+  assert.equal(created.code, 'unknown-request');
+  assert.equal(Object.keys(loadState(root).state.skills).length, 0);
 });
 
 test('una skill nueva avisa de los duplicados probables por título', () => {

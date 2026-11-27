@@ -1,0 +1,130 @@
+name: K7-E · publicación gobernada por Release humano
+
+# Único workflow que puede publicar. NO hay workflow_dispatch ni disparo por push:
+# sólo un GitHub Release publicado por una persona, desde su tag.
+#
+# K8-E: acciones externas fijadas a SHA de 40 caracteres, verificadas contra los
+# repositorios oficiales. setup-node se fija a v5.0.0 porque el SHA de v4 no
+# acepta `package-manager-cache`; v5.0.0 sí lo acepta y conserva `cache: npm`.
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+# El package.json y la publicación viven en el subdirectorio del plugin, no en la raíz.
+defaults:
+  run:
+    working-directory: lifecode-skill-center
+
+concurrency:
+  group: k7-e-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  validar:
+    name: Revalidar el tag con las puertas K7-E
+    permissions:
+      contents: read
+    uses: ./.github/workflows/k7-e-validation.yml
+    with:
+      ref: ${{ github.event.release.tag_name }}
+
+  publicar:
+    name: Publicar con Trusted Publishing OIDC
+    needs: validar
+    if: >-
+      github.event_name == 'release' &&
+      github.event.action == 'published' &&
+      github.event.release.draft == false &&
+      github.event.sender.type == 'User' &&
+      github.event.release.author.type == 'User'
+    environment:
+      name: npm-release
+      url: https://www.npmjs.com/package/dsh-lifecode-skill-center
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout del tag del Release
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Node 24.21.0 sin registry-url ni token
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+
+      - name: Puerta humana, tag, versión y dist-tag
+        id: gates
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
+          RELEASE_DRAFT: ${{ github.event.release.draft }}
+          RELEASE_AUTHOR_TYPE: ${{ github.event.release.author.type }}
+          SENDER_TYPE: ${{ github.event.sender.type }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const fail = (message) => {
+            console.error(`✖ ${message}`);
+            process.exit(1);
+          };
+          const tag = process.env.RELEASE_TAG;
+          const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const expectedTag = `lifecode-skill-center-v${manifest.version}`;
+          const semver = /^(\d+)\.(\d+)\.(\d+)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$/;
+          const parsed = semver.exec(manifest.version);
+          if (!parsed) fail(`versión no SemVer: ${manifest.version}`);
+          if (tag !== expectedTag) fail(`tag ${tag} ≠ ${expectedTag}`);
+          const isPrerelease = Boolean(parsed[4]);
+          if ((process.env.RELEASE_PRERELEASE === 'true') !== isPrerelease) {
+            fail(`flags de Release y versión divergen: prerelease=${process.env.RELEASE_PRERELEASE}, versión=${manifest.version}`);
+          }
+          if (process.env.RELEASE_DRAFT === 'true') fail('el Release está en borrador');
+          if (process.env.RELEASE_AUTHOR_TYPE !== 'User' || process.env.SENDER_TYPE !== 'User') {
+            fail('el Release no fue publicado por una cuenta humana (author/sender ≠ User)');
+          }
+          const distTag = isPrerelease ? 'next' : 'latest';
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${distTag}\nversion=${manifest.version}\n`);
+          console.log(`✓ ${tag} → ${manifest.version} → dist-tag ${distTag}`);
+          NODE
+
+      - name: Verificar OIDC y ausencia de tokens npm permanentes
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const fail = (message) => {
+            console.error(`✖ ${message}`);
+            process.exit(1);
+          };
+          const npmVersion = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim();
+          const [major, minor, patch] = npmVersion.split('.').map(Number);
+          if (major < 11 || (major === 11 && minor < 5) || (major === 11 && minor === 5 && patch < 1)) {
+            fail(`npm ${npmVersion} < 11.5.1; Trusted Publishing requiere 11.5.1 o superior`);
+          }
+          const tokenVars = ['NODE_AUTH_TOKEN', 'NPM_TOKEN', 'NPM_AUTH_TOKEN', 'NPM_CONFIG__AUTH_TOKEN'];
+          const present = tokenVars.filter((key) => Boolean(process.env[key]));
+          if (present.length > 0) fail(`tokens npm permanentes presentes: ${present.join(', ')}`);
+          const configs = [`${process.env.HOME}/.npmrc`, '.npmrc'].filter((file) => fs.existsSync(file));
+          const withToken = configs.filter((file) => /_authToken\s*=/.test(fs.readFileSync(file, 'utf8')));
+          if (withToken.length > 0) fail(`_authToken permanente en: ${withToken.join(', ')}`);
+          if (!process.env.ACTIONS_ID_TOKEN_REQUEST_URL || !process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
+            fail('id-token: write no concedido: falta el token OIDC efímero de GitHub Actions');
+          }
+          console.log(`✓ npm ${npmVersion}; OIDC disponible; sin tokens npm permanentes`);
+          NODE
+
+      - name: Publicar en npm con provenance
+        env:
+          DIST_TAG: ${{ steps.gates.outputs.dist_tag }}
+        run: |
+          test "$DIST_TAG" = "next" || test "$DIST_TAG" = "latest"
+          npm publish --access public --provenance --tag "$DIST_TAG"

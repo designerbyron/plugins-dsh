@@ -23,10 +23,9 @@ import {
   INTEGRITY_FUTURE_VERSION,
   INTEGRITY_INVALID_SHAPE,
   INTEGRITY_OK,
-  emptyState,
 } from '../lib/state.mjs';
 import { runAction } from '../lib/api.mjs';
-import { tempRoot, autonomyRoot } from './helpers.mjs';
+import { autonomyRoot, richDocument } from './helpers.mjs';
 import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 
@@ -40,7 +39,8 @@ const HAS_REAL_STORE = existsSync(REAL_STORE);
 
 function baseDocument(now) {
   if (HAS_REAL_STORE) return JSON.parse(readFileSync(REAL_STORE, 'utf8'));
-  return emptyState(now);
+  // Perfil limpio (testUser): documento v2 sintético, nunca una copia de la biblioteca real.
+  return richDocument(now);
 }
 
 function sha256(bytes) {
@@ -174,7 +174,10 @@ test('la migración v1 → v2 conserva entidades, versiones, referencias, pins y
       equal(typeof other.pinnedAt, 'string');
     }
   }
-  deepEqual(after.state.projects['plugins-dhs-7e085aaa'].id, 'plugins-dhs-7e085aaa');
+  // La invariante es que el id de la entidad sobrevive, no qué proyecto concreto tuviera el perfil.
+  const projectId = Object.keys(after.state.projects)[0];
+  ok(projectId !== undefined, 'la fixture conserva al menos un proyecto');
+  deepEqual(after.state.projects[projectId].id, projectId);
 });
 
 test('la migración es idempotente y no duplica nada', () => {
@@ -293,7 +296,9 @@ test('la firma excluye sólo el sello raíz y conserva los funcionales', () => {
   equal(functionalSignature(onlyStamp), functionalSignature(base), 'el sello de escritura no es funcional');
 
   const assignment = Object.keys(base.assignments)[0];
-  const skillId = Object.keys(base.assignments[assignment])[0];
+  ok(assignment !== undefined, 'se necesita una asignación para medir la firma funcional');
+  const skillId = Object.keys(base.assignments[assignment] ?? {})[0];
+  ok(skillId !== undefined, 'la asignación debe referirse a una skill');
 
   const pin = structuredClone(base);
   pin.assignments[assignment][skillId].version = '9.9.9';
@@ -409,7 +414,7 @@ test('el documento migrado conserva los checks de evaluación (no se pierden al 
       if (left > 0) compared += 1;
     }
   }
-  ok(compared > 0, 'la biblioteca real tiene evaluaciones con checks');
+  ok(compared > 0, 'el documento de partida tiene evaluaciones con checks');
   equal(checkStoreShape(JSON.parse(readFileSync(join(root, 'center.json'), 'utf8'))).ok, true);
 });
 

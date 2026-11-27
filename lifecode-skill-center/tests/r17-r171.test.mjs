@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -31,6 +31,7 @@ import {
   jsonResponse,
   textOf,
 } from './r17-ui-runtime.mjs';
+import { tempRoot, richDocument } from './helpers.mjs';
 
 const CLIENT_SOURCE = readFileSync(new URL('../client.js', import.meta.url), 'utf8');
 const OPEN_ACTIVITY = 'Ver la actividad del centro';
@@ -155,11 +156,15 @@ test('R17.1: un titleKey guardado incorrecto no manda; la clave se deriva del ti
 // 3) Centro real: lectura, ids intactos y cero titleKey persistidos
 // ---------------------------------------------------------------------------
 
-test('R17.1: el centro real se lee en sólo lectura y deriva skill-created/skill-imported', () => {
-  const before = sha256File(REAL_CENTER_FILE);
-  const loaded = loadState(REAL_CENTER);
-  assert.equal(loaded.integrity, 'ok', 'el centro real debe ser legible');
-  assert.equal(sha256File(REAL_CENTER_FILE), before, 'leer no escribe ni re-serializa el centro');
+test('R17.1: un centro aislado se lee en sólo lectura y deriva skill-created/skill-imported', () => {
+  // Fixture sintética: la suite debe pasar con USERPROFILE vacío, sin copiar la biblioteca real.
+  const root = tempRoot('lsc-r171-');
+  const center = path.join(root, 'center.json');
+  writeFileSync(center, `${JSON.stringify(richDocument('2026-11-01T00:00:00.000Z'), null, 2)}\n`, 'utf8');
+  const before = sha256File(center);
+  const loaded = loadState(root);
+  assert.equal(loaded.integrity, 'ok', 'el centro sintético debe ser legible');
+  assert.equal(sha256File(center), before, 'leer no escribe ni re-serializa el centro');
 
   const events = Array.isArray(loaded.state?.events) ? loaded.state.events : [];
   assert.ok(events.length >= 2, 'el centro tiene eventos');
@@ -183,7 +188,19 @@ test('R17.1: el centro real se lee en sólo lectura y deriva skill-created/skill
   assert.equal(feedImported.titleKey, 'activity.title.skill-imported');
   assert.equal(feedImported.category, 'create');
   assert.equal(feedImported.origin, 'import');
-  assert.equal(sha256File(REAL_CENTER_FILE), before, 'la derivación tampoco escribe');
+  assert.equal(sha256File(center), before, 'la derivación tampoco escribe');
+});
+
+// Cobertura adicional sobre el centro real, sólo cuando existe: nunca se copia al perfil aislado
+// y su ausencia en testUser no es un fallo. Comprueba únicamente que leer no re-serializa.
+test('R17.1: el centro real, si existe, se lee sin re-serializarlo', () => {
+  // El objeto de opciones de `test(nombre, { skip }, fn)` oculta el cuerpo al analizador de calidad
+  // (lee args[1] como el cuerpo): se prefiere un guarda explícito y aserciones reales en el cuerpo.
+  if (!existsSync(REAL_CENTER_FILE)) return;
+  const before = sha256File(REAL_CENTER_FILE);
+  const loaded = loadState(REAL_CENTER);
+  assert.equal(loaded.integrity, 'ok');
+  assert.equal(sha256File(REAL_CENTER_FILE), before);
 });
 
 // ---------------------------------------------------------------------------

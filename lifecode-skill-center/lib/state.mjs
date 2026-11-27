@@ -93,6 +93,105 @@ function list(value) {
   return Array.isArray(value) ? value : [];
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * Fase E1 / P-8: metadatos del importador de vendor.
+ *
+ * El espacio es **explícito y acotado**: cuatro claves aditivas en la skill y en cada versión, más
+ * un conjunto cerrado de campos en el evento de auditoría. Nada de «todo objeto arbitrario»: lo que
+ * no está en esta lista no pasa a formar parte del contrato del almacén. Dentro de cada clave se
+ * conserva el valor completo (incluidas subclaves futuras) mediante clon estructural, y
+ * `vendorMetadataLosses` comprueba que lo que entra sale exactamente igual.
+ * ---------------------------------------------------------------------------------------------- */
+
+export const VENDOR_SKILL_FIELDS = Object.freeze(['provenance', 'license', 'files', 'vendorState']);
+export const VENDOR_STATES = Object.freeze(['candidate', 'validated', 'imported', 'disabled', 'enabled', 'failed', 'rolled_back']);
+export const VENDOR_EVENT_TYPES = Object.freeze([
+  'skill-vendor-imported', 'skill-vendor-reverted', 'vendor-maintainer-enrolled',
+  // Fase I: el vínculo histórico y su corrección también son traza vendor y sobreviven a la recarga.
+  'skill.request-linked', 'skill.request-link-reverted',
+]);
+const VENDOR_EVENT_FIELDS = Object.freeze([
+  'code', 'checksum', 'candidateId', 'manifestSha256', 'vendorState',
+  'repository', 'tag', 'commit', 'by', 'renamed', 'renamedFrom',
+  'originalSkillId', 'from', 'originalVersion', 'previousVersion',
+  'requestId',
+]);
+const SHA256_RE = /^[a-f0-9]{64}$/;
+const COMMIT_RE = /^[a-f0-9]{40}$/;
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+/**
+ * Valida y clona un campo vendor. Devuelve `null` si la forma no es la contratada: un valor inválido
+ * no se conserva a medias, y la pérdida la informa `vendorMetadataLosses`.
+ */
+export function normalizeVendorValue(field, value) {
+  // `files` es lista y `vendorState` es cadena: ambos tienen que comprobarse antes del filtro de
+  // «objeto plano» que aplica a `provenance` y `license`. Confundirlos era precisamente la pérdida
+  // silenciosa que P-8 pedía detectar.
+  if (field === 'vendorState') return VENDOR_STATES.includes(value) ? value : null;
+  if (field === 'files') {
+    if (!Array.isArray(value)) return null;
+    for (const entry of value) {
+      if (!isObject(entry)) return null;
+      if (typeof entry.path !== 'string' || typeof entry.role !== 'string') return null;
+      if (typeof entry.sha256 !== 'string' || !SHA256_RE.test(entry.sha256)) return null;
+      if (!Number.isInteger(entry.bytes) || entry.bytes < 0) return null;
+      if (typeof entry.license !== 'string') return null;
+    }
+    try {
+      return structuredClone(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!isObject(value)) return null;
+  if (field === 'provenance') {
+    if (value.kind !== 'vendor' || !isObject(value.upstream)) return null;
+    if (typeof value.candidateId !== 'string' || value.candidateId === '') return null;
+    if (typeof value.manifestSha256 !== 'string' || !SHA256_RE.test(value.manifestSha256)) return null;
+    if (!['verified', 'unverified'].includes(value.signatureVerification)) return null;
+    if (!Array.isArray(value.upstream.files)) return null;
+    if (typeof value.upstream.commit !== 'string' || !COMMIT_RE.test(value.upstream.commit)) return null;
+    if (typeof value.upstream.fetchedAt !== 'string' || !ISO_RE.test(value.upstream.fetchedAt)) return null;
+    if (typeof value.approvedBy !== 'string') return null;
+    if (typeof value.legalReviewRequired !== 'boolean') return null;
+  } else if (field === 'license') {
+    if (!isObject(value.byFile)) return null;
+    for (const entry of Object.values(value.byFile)) {
+      if (!isObject(entry) || typeof entry.spdx !== 'string' || typeof entry.file !== 'string') return null;
+    }
+    if (typeof value.legalReviewRequired !== 'boolean') return null;
+  } else {
+    return null;
+  }
+  try {
+    return structuredClone(value);
+  } catch {
+    return null;
+  }
+}
+
+function copyVendorFields(raw, target) {
+  for (const field of VENDOR_SKILL_FIELDS) {
+    const value = raw[field];
+    if (value === undefined) continue;
+    const normalized = normalizeVendorValue(field, value);
+    if (normalized !== null) target[field] = normalized;
+  }
+}
+
+/** Campos del evento de vendor que sobreviven a la normalización; sólo si existen. */
+function preserveVendorEventFields(source, target) {
+  const isVendorEvent = VENDOR_EVENT_TYPES.includes(source?.type)
+    || (typeof source?.vendorState === 'string' && VENDOR_STATES.includes(source.vendorState));
+  if (!isVendorEvent) return;
+  for (const field of VENDOR_EVENT_FIELDS) {
+    const value = source[field];
+    if (value === undefined) continue;
+    target[field] = isObject(value) || Array.isArray(value) ? structuredClone(value) : text(value);
+  }
+}
+
 function normalizeEvaluation(value) {
   if (!isObject(value)) return null;
   return {
@@ -134,7 +233,7 @@ function normalizeVersion(raw) {
       if (typeof content === 'string' && path.startsWith('references/') && !path.includes('..')) references[path] = content;
     }
   }
-  return {
+  const normalized = {
     version: raw.version,
     description: text(raw.description),
     whenToUse: text(raw.whenToUse),
@@ -146,6 +245,8 @@ function normalizeVersion(raw) {
     notes: text(raw.notes),
     evaluation: normalizeEvaluation(raw.evaluation),
   };
+  copyVendorFields(raw, normalized);
+  return normalized;
 }
 
 export function normalizeSkill(raw) {
@@ -171,7 +272,7 @@ export function normalizeSkill(raw) {
     const importedAt = typeof raw.origin.importedAt === 'string' ? raw.origin.importedAt.trim() : '';
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(importedAt)) origin.importedAt = importedAt;
   }
-  return {
+  const normalized = {
     id: text(raw.id),
     title: text(raw.title),
     description: text(raw.description),
@@ -184,6 +285,8 @@ export function normalizeSkill(raw) {
     origin,
     versions,
   };
+  copyVendorFields(raw, normalized);
+  return normalized;
 }
 
 /**
@@ -345,6 +448,7 @@ export function normalizeState(raw) {
       // R17: la atribución y los deltas del Activity Center también sobreviven a la recarga. Sólo se
       // copian las claves que existen: un evento viejo se relee exactamente igual.
       preserveActivityFields(event, normalized);
+      preserveVendorEventFields(event, normalized);
       return normalized;
     });
   // Metadatos de la migración (sólo existen en v2). Si no se conservan, la siguiente lectura del
@@ -355,7 +459,7 @@ export function normalizeState(raw) {
     const requests = {};
     for (const [id, entry] of Object.entries(raw.requests)) {
       if (!isObject(entry) || typeof id !== 'string' || id === '') continue;
-      const status = ['pending', 'fulfilled', 'dismissed'].includes(entry.status) ? entry.status : 'pending';
+      const status = ['pending', 'delivered', 'processing', 'fulfilled', 'failed', 'blocked', 'dismissed'].includes(entry.status) ? entry.status : 'pending';
       requests[id] = {
         id,
         text: text(entry.text),
@@ -365,6 +469,24 @@ export function normalizeState(raw) {
         fulfilledAt: text(entry.fulfilledAt),
         by: text(entry.by),
         note: text(entry.note),
+        // Fase C: campos aditivos. Un registro v2 que no los trae se relee tal cual (legacy/global):
+        // no se escriben valores por defecto en disco durante una lectura.
+        ...(entry.requestedBy === undefined ? {} : { requestedBy: text(entry.requestedBy) }),
+        ...(entry.updatedAt === undefined ? {} : { updatedAt: text(entry.updatedAt) }),
+        ...(entry.kind === undefined ? {} : { kind: text(entry.kind) }),
+        ...(entry.scope === undefined ? {} : { scope: text(entry.scope) }),
+        // Fase G: `null` es la representación canónica de una petición global y debe sobrevivir al
+        // round-trip. Un registro legacy sin la clave NO la recibe: no se reescribe el historial.
+        ...(entry.projectId === undefined ? {} : { projectId: entry.projectId === null ? null : text(entry.projectId) }),
+        ...(entry.sourceUrl === undefined ? {} : { sourceUrl: text(entry.sourceUrl) }),
+        ...(entry.delivery === undefined ? {} : { delivery: isObject(entry.delivery) ? { ...entry.delivery } : null }),
+        ...(entry.claim === undefined ? {} : { claim: isObject(entry.claim) ? { ...entry.claim } : null }),
+        ...(entry.attempts === undefined ? {} : { attempts: Number.isFinite(entry.attempts) ? entry.attempts : 0 }),
+        ...(entry.startedAt === undefined ? {} : { startedAt: text(entry.startedAt) }),
+        ...(entry.finishedAt === undefined ? {} : { finishedAt: text(entry.finishedAt) }),
+        ...(entry.result === undefined ? {} : { result: isObject(entry.result) ? { ...entry.result } : null }),
+        ...(entry.errorCode === undefined ? {} : { errorCode: text(entry.errorCode) }),
+        ...(entry.blockedReason === undefined ? {} : { blockedReason: text(entry.blockedReason) }),
       };
     }
     if (Object.keys(requests).length > 0) state.requests = requests;
@@ -386,6 +508,23 @@ export function normalizeState(raw) {
       };
     }
     if (Object.keys(operations).length > 0) state.operations = operations;
+  }
+  // Fase I: colección aditiva e independiente. No se escriben valores por defecto en un centro que no
+  // la tiene (los documentos legacy se releen byte por byte y no se reescriben por una lectura).
+  // La lista blanca es cerrada: un vínculo con campo ausente o inválido se descarta, nunca se repara.
+  if (isObject(raw.requestLinks)) {
+    const links = {};
+    for (const [requestId, entry] of Object.entries(raw.requestLinks)) {
+      if (!isObject(entry) || requestId === '' || text(entry.requestId) !== requestId) continue;
+      const fields = ['operationId', 'kind', 'skillId', 'version', 'candidateId', 'manifestSha256', 'linkedAt', 'by', 'channel'];
+      if (fields.some((field) => text(entry[field]) === '')) continue;
+      if (!SHA256_RE.test(text(entry.manifestSha256))) continue;
+      links[requestId] = {
+        requestId,
+        ...Object.fromEntries(fields.map((field) => [field, text(entry[field])])),
+      };
+    }
+    if (Object.keys(links).length > 0) state.requestLinks = links;
   }
   if (isObject(raw.schemaMeta) && Number.isInteger(raw.schemaMeta.migratedFrom)) {
     state.schemaMeta = {
@@ -435,6 +574,106 @@ function sha256OfBytes(bytes) {
 /** Clon profundo del JSON ya parseado: `normalizeState` escribe en los objetos que recibe. */
 function cloneJson(value) {
   return structuredClone(value);
+}
+
+/** Comparación canónica de un valor vendor: el orden de claves no cuenta, el de arrays sí. */
+function canonicalVendor(value) {
+  return JSON.stringify(canonicalValue(value ?? null));
+}
+
+/**
+ * P-8 / E1: ¿qué metadatos del importador se perderían al normalizar?
+ *
+ * Comprueba las cuatro claves aditivas en la skill y en **cada versión** (incluidas las anteriores) y
+ * los campos de auditoría de los eventos de vendor. Una clave inválida también cuenta como pérdida:
+ * `checkStoreShape` debe rechazar el documento en vez de dejar que una escritura silenciosa lo borre.
+ */
+export function vendorMetadataLosses(parsed) {
+  const before = isPlainObject(parsed) ? cloneJson(parsed) : {};
+  const after = normalizeState(cloneJson(before));
+  const losses = [];
+
+  for (const [id, skill] of Object.entries(before.skills ?? {})) {
+    if (!isPlainObject(skill)) continue;
+    for (const field of VENDOR_SKILL_FIELDS) {
+      if (skill[field] === undefined) continue;
+      const expected = normalizeVendorValue(field, skill[field]);
+      if (expected === null) {
+        losses.push(`skills.${id}.${field} no es metadato vendor válido y se descartaría`);
+        continue;
+      }
+      if (canonicalVendor(after.skills[id]?.[field]) !== canonicalVendor(expected)) {
+        losses.push(`skills.${id}.${field} no sobrevive a la normalización`);
+      }
+    }
+    const versions = Array.isArray(skill.versions) ? skill.versions : [];
+    for (const [index, version] of versions.entries()) {
+      if (!isPlainObject(version)) continue;
+      for (const field of VENDOR_SKILL_FIELDS) {
+        if (version[field] === undefined) continue;
+        const expected = normalizeVendorValue(field, version[field]);
+        if (expected === null) {
+          losses.push(`skills.${id}.versions[${index}].${field} no es metadato vendor válido y se descartaría`);
+          continue;
+        }
+        if (canonicalVendor(after.skills[id]?.versions[index]?.[field]) !== canonicalVendor(expected)) {
+          losses.push(`skills.${id}.versions[${index}].${field} no sobrevive a la normalización`);
+        }
+      }
+    }
+  }
+
+  const events = Array.isArray(before.events) ? before.events : [];
+  for (const [index, event] of events.entries()) {
+    if (!isPlainObject(event)) continue;
+    const isVendorEvent = VENDOR_EVENT_TYPES.includes(event.type)
+      || (typeof event.vendorState === 'string' && VENDOR_STATES.includes(event.vendorState));
+    if (!isVendorEvent) continue;
+    for (const field of VENDOR_EVENT_FIELDS) {
+      if (event[field] === undefined) continue;
+      if (canonicalVendor(after.events[index]?.[field]) !== canonicalVendor(event[field])) {
+        losses.push(`events[${index}].${field} no sobrevive a la normalización`);
+      }
+    }
+  }
+  return losses;
+}
+
+/**
+ * Detección general de campos que la normalización descartaría, para el test de P-8: cualquier clave
+ * presente antes y ausente después se informa. No se usa para rechazar almacenes antiguos (su
+ * tolerancia es deliberada), sino para demostrar que el espacio vendor **no** está entre las claves
+ * perdidas y que la detección es verificable.
+ */
+export function fieldsLostByNormalization(parsed) {
+  const before = isPlainObject(parsed) ? cloneJson(parsed) : {};
+  const after = normalizeState(cloneJson(before));
+  const lost = [];
+  for (const [id, skill] of Object.entries(before.skills ?? {})) {
+    if (!isPlainObject(skill)) continue;
+    const kept = after.skills[id];
+    if (kept === undefined) {
+      lost.push(`skills.${id}`);
+      continue;
+    }
+    for (const key of Object.keys(skill)) if (!(key in kept)) lost.push(`skills.${id}.${key}`);
+    const versions = Array.isArray(skill.versions) ? skill.versions : [];
+    for (const [index, version] of versions.entries()) {
+      if (!isPlainObject(version)) continue;
+      const keptVersion = kept.versions[index];
+      if (keptVersion === undefined) {
+        lost.push(`skills.${id}.versions[${index}]`);
+        continue;
+      }
+      for (const key of Object.keys(version)) if (!(key in keptVersion)) lost.push(`skills.${id}.versions[${index}].${key}`);
+    }
+  }
+  const events = Array.isArray(before.events) ? before.events : [];
+  for (const [index, event] of events.entries()) {
+    if (!isPlainObject(event) || after.events[index] === undefined) continue;
+    for (const key of Object.keys(event)) if (!(key in after.events[index])) lost.push(`events[${index}].${key}`);
+  }
+  return lost;
 }
 
 /**
@@ -586,6 +825,8 @@ function normalizationLosses(parsed) {
     if (typeof entry.text !== 'string' || entry.text.trim() === '') losses.push(`requests.${id} sin texto`);
   }
 
+  // P-8: la tolerancia de `normalizeState` no puede autorizar una escritura que borre procedencia.
+  losses.push(...vendorMetadataLosses(parsed));
   return losses;
 }
 
@@ -1686,6 +1927,7 @@ export function appendEvent(state, event) {
   // R17 §3: los dos únicos campos durables nuevos. Se escriben aquí para que la transacción los guarde
   // en el mismo acto que el evento; el resto del DTO se deriva al leer.
   preserveActivityFields(event, appended);
+  preserveVendorEventFields(event, appended);
   state.events.push(appended);
   if (state.events.length > MAX_EVENTS) state.events.splice(0, state.events.length - MAX_EVENTS);
   return state.events.at(-1);

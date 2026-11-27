@@ -1,0 +1,208 @@
+name: K7-E · validación sin publicación
+
+# Puertas K7-E. Este workflow NUNCA publica: sólo valida el código y el tarball real.
+# La publicación vive exclusivamente en k7-e-release.yml, disparada por un Release humano.
+#
+# K8-E: acciones externas fijadas a SHA de 40 caracteres, permisos `contents: read`
+# explícitos por job y comparación obligatoria del SHA-256 del tarball contra el
+# valor fijado en K8-C (1.1.0-rc.2). El valor esperado no se actualiza solo.
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'lifecode-skill-center/**'
+      - '.github/workflows/k7-e-validation.yml'
+      - '.github/workflows/k7-e-release.yml'
+  pull_request:
+    paths:
+      - 'lifecode-skill-center/**'
+      - '.github/workflows/k7-e-validation.yml'
+      - '.github/workflows/k7-e-release.yml'
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Ref opcional (por ejemplo, un tag) que debe validar el llamador.
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k7-e-validacion-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: lifecode-skill-center
+
+jobs:
+  calidad:
+    name: Suite, hermeticidad y check
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Node 24.21.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: lifecode-skill-center/package-lock.json
+          package-manager-cache: false
+
+      - name: Dependencias exactas
+        run: npm ci --ignore-scripts
+
+      - name: Suite completa
+        run: npm test
+
+      - name: Puerta hermética
+        run: npm run test:hermetic
+
+      - name: Instalación y pureza del núcleo
+        run: npm run check
+
+  contrato-vendor:
+    name: Contrato e integración Vendor
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Node 24.21.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: lifecode-skill-center/package-lock.json
+          package-manager-cache: false
+
+      - name: Dependencias exactas
+        run: npm ci --ignore-scripts
+
+      - name: Pruebas de contrato
+        run: node --test tests/*contract*.test.mjs
+
+      - name: Pruebas de integración Vendor
+        run: node --test tests/vendor-*.test.mjs
+
+      - name: Solicitudes de origen y panel Vendor
+        run: >-
+          node --test
+          tests/fase-g-scope.test.mjs
+          tests/fase-g-ui.test.mjs
+          tests/fase-i-request-link.test.mjs
+          tests/fase-i-ui.test.mjs
+
+  artefacto:
+    name: Tarball real, auditoría y hash
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Node 24.21.0
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: lifecode-skill-center/package-lock.json
+          package-manager-cache: false
+
+      - name: Dependencias exactas
+        run: npm ci --ignore-scripts
+
+      - name: empaquetado en seco
+        run: |
+          npm pack --dry-run --json --ignore-scripts > "$RUNNER_TEMP/pack-dry-run.json"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const [meta] = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/pack-dry-run.json`, 'utf8'));
+          const files = meta.files.map((file) => file.path);
+          const forbidden = ['tests/', 'tools/', 'vendor-adapters/', 'plans/', 'node_modules/'];
+          const hits = forbidden.filter((prefix) => files.some((file) => file.startsWith(prefix)));
+          if (hits.length > 0) {
+            console.error(`✖ el empaquetado incluye rutas prohibidas: ${hits.join(', ')}`);
+            process.exit(1);
+          }
+          console.log(`✓ dry-run: ${meta.name}@${meta.version}, ${files.length} entradas`);
+          NODE
+
+      - name: Auditoría del tarball real
+        run: node tools/package-audit.mjs > "$RUNNER_TEMP/package-audit.json"
+
+      - name: Veredicto de la auditoría
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/package-audit.json`, 'utf8'));
+          if (!report.ok) {
+            console.error(report.problems.join('\n'));
+            process.exit(1);
+          }
+          console.log(`✓ auditoría: ${report.manifest.name}@${report.manifest.version}`);
+          console.log(`✓ sha256 auditado: ${report.tarball.sha256}`);
+          NODE
+
+      - name: Inspección del tarball y SHA-256
+        env:
+          PACK_JSON: ${{ runner.temp }}/pack.json
+        run: |
+          npm pack --json --ignore-scripts --pack-destination "$RUNNER_TEMP" > "$PACK_JSON"
+          TARBALL="$RUNNER_TEMP/$(node -p "JSON.parse(require('node:fs').readFileSync(process.env.PACK_JSON, 'utf8'))[0].filename")"
+          echo "SC_TARBALL=$TARBALL" >> "$GITHUB_ENV"
+          tar -tzf "$TARBALL" > "$RUNNER_TEMP/tarball-files.txt"
+          sha256sum "$TARBALL" | tee "$RUNNER_TEMP/tarball.sha256"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const files = fs.readFileSync(`${process.env.RUNNER_TEMP}/tarball-files.txt`, 'utf8').trim().split('\n');
+          const required = ['package/package.json', 'package/client.js', 'package/cordis.patch.yml'];
+          const forbidden = ['package/tests/', 'package/tools/', 'package/vendor-adapters/', 'package/plans/', 'package/node_modules/'];
+          const missing = required.filter((file) => !files.includes(file));
+          const hits = forbidden.filter((prefix) => files.some((file) => file.startsWith(prefix)));
+          if (missing.length > 0 || hits.length > 0) {
+            console.error(`✖ inspección: faltan ${missing.join(', ') || 'nada'}; prohibidas ${hits.join(', ') || 'nada'}`);
+            process.exit(1);
+          }
+          console.log(`✓ inspección: ${files.length} entradas, sin rutas prohibidas`);
+          NODE
+
+      - name: Comparación obligatoria del SHA-256 fijado
+        # Constante K8-C/K8-E. NUNCA se actualiza automáticamente: si el artefacto
+        # cambia, el job se detiene y explica la diferencia antes de publicar.
+        env:
+          EXPECTED_SHA256: fa2e9c9a193b8bc301541e66ca19444147739b866edfa748cea0af7955d512dc
+        run: |
+          ACTUAL_SHA256="$(sha256sum "$SC_TARBALL" | awk '{print $1}')"
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "✖ SHA-256 del tarball NO coincide con el valor fijado; publicación detenida" >&2
+            echo "  esperado (fijado en K8-C, no actualizar automaticamente): $EXPECTED_SHA256" >&2
+            echo "  obtenido: $ACTUAL_SHA256" >&2
+            echo "  explicacion: el contenido empaquetado o el entorno de empaquetado divergio del artefacto aprobado; revisar antes de cualquier promocion" >&2
+            exit 1
+          fi
+          echo "✓ SHA-256 fijado verificado: $ACTUAL_SHA256"

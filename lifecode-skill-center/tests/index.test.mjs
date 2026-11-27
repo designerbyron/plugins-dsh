@@ -219,10 +219,10 @@ test('deja una sección de prompt corta que dice la asimetría del producto', as
   });
 });
 
-test('registra las cinco herramientas del agente y ninguna que apruebe', async () => {
+test('registra las seis herramientas del agente y ninguna que apruebe', async () => {
   await withCenter({}, ({ fake }) => {
     const names = fake.tools.map((tool) => tool.name);
-    assert.deepEqual(names, ['lifecode_skill_search', 'lifecode_skill_create', 'lifecode_skill_improve', 'lifecode_skill_status', 'lifecode_skill_insight']);
+    assert.deepEqual(names, ['lifecode_skill_search', 'lifecode_skill_create', 'lifecode_skill_improve', 'lifecode_skill_status', 'lifecode_skill_request', 'lifecode_skill_insight']);
     for (const tool of fake.tools) {
       assert.equal(typeof tool.execute, 'function');
       assert.ok(tool.output?.schema, `${tool.name} necesita declarar su salida`);
@@ -368,7 +368,7 @@ test('un método que no es GET ni POST responde 405 y un cuerpo roto responde 40
 test('sin servidor web el plugin conserva herramientas y catálogo', async () => {
   await withCenter({ webServer: false }, ({ fake }) => {
     assert.equal(fake.routes.length, 0);
-    assert.equal(fake.tools.length, 5);
+    assert.equal(fake.tools.length, 6);
     assert.equal(fake.providers.length, 1);
   });
 });

@@ -142,16 +142,23 @@ test('la API abre y descarta peticiones; la IA no puede abrirlas', () => {
 test('la herramienta de estado muestra la cola y crear con requestId la cumple', () => {
   const root = mkdtempSync(join(tmpdir(), 'lsc-requests-tool-'));
   const cwd = join(tmpdir(), 'proyecto-herramienta');
-  const exec = { agent: { session: { header: { cwd } } } };
+  const exec = { agent: { session: { id: 'ses-panel', header: { cwd } } } };
   const tools = centerTools({ root });
   const status = tools.find((tool) => tool.name === 'lifecode_skill_status');
   const create = tools.find((tool) => tool.name === 'lifecode_skill_create');
 
   const opened = runAction({ root, action: 'request-skill', payload: { text: 'skill pedida desde el panel' }, actor: 'human', cwd, now: NOW });
+  const delivered = runAction({
+    root, action: 'request-deliver', actor: 'human', cwd, now: NOW,
+    payload: { requestId: opened.id, sessionId: 'ses-panel' },
+    handoff: ({ requestId, sessionId }) => ({ ok: true, messageId: `msg-${requestId}`, via: 'test', sessionId }),
+  });
+  assert.equal(delivered.ok, true, JSON.stringify(delivered));
 
   const before = status.execute({}, exec);
-  assert.equal(before.requests.pending, 1);
+  assert.equal(before.requests.actionable, 1, 'una petición entregada sigue siendo atendible');
   assert.equal(before.requests.items[0].id, opened.id);
+  assert.equal(before.requests.items[0].status, 'delivered');
   assert.match(before.summary, /1 request\(s\) from a person/);
   // El modelo sólo ve el resumen: si el id y el texto no están ahí, no puede atender la petición.
   assert.match(before.summary, new RegExp(opened.id));

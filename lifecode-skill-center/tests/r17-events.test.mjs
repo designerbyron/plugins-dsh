@@ -66,18 +66,33 @@ test('R17 §R6: el reintento con el mismo operationId no escribe ni duplica', ()
   assert.equal(loadState(root).state.events.length, 1);
 });
 
-test('R17 §9/R8: un reintento de create no duplica la skill, no añade evento y no escribe', () => {
+test('R17 §9/R8: un reintento de create con requestId no duplica la skill ni escribe', () => {
   const root = tempRoot('r17-events-request');
-  const first = create(root, { requestId: 'req-1' });
-  assert.equal(first.ok, true);
-  assert.equal(loadState(root).state.events.length, 1);
+  const sessionId = 'ses-r17';
+  const opened = act(root, 'request-skill', { text: 'petición para el reintento de creación' });
+  assert.equal(opened.ok, true);
+  const delivered = runAction({
+    root, action: 'request-deliver', actor: 'human', now: NOW,
+    payload: { requestId: opened.id, sessionId },
+    handoff: ({ requestId }) => ({ ok: true, messageId: `msg-${requestId}`, via: 'test' }),
+  });
+  assert.equal(delivered.ok, true);
+  const first = runAction({
+    root, action: 'create', actor: 'ai', now: NOW,
+    payload: { ...candidate(), requestId: opened.id, sessionId },
+  });
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.equal(first.requestLinked, true);
   const before = sha(centerFile(root));
-  const retry = create(root, { requestId: 'req-1' });
-  assert.equal(retry.idempotent, undefined, 'el mismo id no se recrea: el resultado es un conflicto honesto');
-  assert.equal(retry.ok, false);
-  assert.equal(retry.code, 'exists');
+  const events = loadState(root).state.events.length;
+  const retry = runAction({
+    root, action: 'create', actor: 'ai', now: NOW,
+    payload: { ...candidate(), requestId: opened.id, sessionId },
+  });
+  assert.equal(retry.idempotent, true, 'el reintento devuelve la skill ya creada');
+  assert.equal(retry.id, first.id);
   assert.equal(sha(centerFile(root)), before, 'el reintento no escribió');
-  assert.equal(loadState(root).state.events.length, 1);
+  assert.equal(loadState(root).state.events.length, events, 'el reintento no añadió eventos');
 });
 
 test('R17 §2: un bloqueo 409 no escribe y no publica activity', () => {
